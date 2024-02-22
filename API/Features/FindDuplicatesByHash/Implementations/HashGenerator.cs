@@ -1,7 +1,8 @@
-﻿using Blake3;
+﻿using API.Features.FindDuplicatesByHash.Interfaces;
+using Blake3;
 using System.Buffers;
 
-namespace API.Features.FindDuplicatesByHash
+namespace API.Features.FindDuplicatesByHash.Implementations
 {
     public class HashGenerator : IHashGenerator
     {

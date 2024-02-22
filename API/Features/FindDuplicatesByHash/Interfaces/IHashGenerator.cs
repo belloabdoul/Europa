@@ -1,4 +1,4 @@
-﻿namespace API.Features.FindDuplicatesByHash
+﻿namespace API.Features.FindDuplicatesByHash.Interfaces
 {
     public interface IHashGenerator
     {

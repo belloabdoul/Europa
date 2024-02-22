@@ -1,4 +1,4 @@
-﻿namespace API.Entities
+﻿namespace API.Common.Entities
 {
     public class SearchParameters
     {
