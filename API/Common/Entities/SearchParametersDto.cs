@@ -1,6 +1,6 @@
 ﻿using System.ComponentModel.DataAnnotations;
 
-namespace Europa.Entities
+namespace API.Common.Entities
 {
     public class SearchParametersDto
     {
