@@ -1,6 +1,6 @@
-﻿using Europa.Entities;
+﻿using API.Entities;
 
-namespace Europa.Common
+namespace API.Common
 {
     public class DirectoryReader : IDirectoryReader
     {
@@ -17,7 +17,7 @@ namespace Europa.Common
                 // to give the user some leeway in case some files types to be excluded need to be checked for.
 
                 SearchParameters options = new();
-                SearchParametersDtoMapping.CopyDtoToSearchParametersEntity(searchParameters, options);
+                searchParameters.CopyDtoToSearchParametersEntity(options);
 
                 token.ThrowIfCancellationRequested();
                 if (options.IncludedFileTypes != null && options.IncludedFileTypes.Count != 0)

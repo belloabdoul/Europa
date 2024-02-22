@@ -1,4 +1,4 @@
-﻿namespace Europa.Entities
+﻿namespace API.Entities
 {
     public class SearchParameters
     {

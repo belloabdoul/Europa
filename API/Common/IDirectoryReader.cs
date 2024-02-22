@@ -1,6 +1,6 @@
-﻿using Europa.Entities;
+﻿using API.Entities;
 
-namespace Europa.Common
+namespace API.Common
 {
     public interface IDirectoryReader
     {

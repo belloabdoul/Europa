@@ -1,6 +1,4 @@
-﻿using System.Drawing;
-using System.IO;
-namespace Europa.Entities
+﻿namespace API.Entities
 {
     public class FileDto
     {
