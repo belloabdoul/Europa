@@ -4,7 +4,6 @@ using API.Features.FindDuplicatesByHash.Entities;
 using API.Features.FindDuplicatesByHash.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Newtonsoft.Json;
 
 namespace API.Features.FindDuplicatesByHash.Controllers
 {
