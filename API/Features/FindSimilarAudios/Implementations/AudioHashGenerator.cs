@@ -1,6 +1,7 @@
 ﻿using API.Features.FindSimilarAudios.Interfaces;
 using Blake3;
 using SoundFingerprinting;
+using SoundFingerprinting.Audio;
 using SoundFingerprinting.Builder;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.Emy;
@@ -30,36 +31,30 @@ namespace API.Features.FindSimilarAudios.Implementations
             return hasher.Finalize().ToString();
         }
 
-        public void GenerateAudioHashes(string path, IModelService modelService, IMediaService mediaService)
+        public void GenerateAudioHashes(string path, IModelService modelService, IAudioService mediaService)
         {
-            Console.WriteLine("Ici");
-            if (modelService.ReadTrackById(path) != null)
-            {
-                Console.WriteLine($"We've already inserted {path}. Skipping.");
-            }
-            else
-            {
-                var track = new TrackInfo(path, Path.GetFileNameWithoutExtension(path), string.Empty);
+            var track = new TrackInfo(path, Path.GetFileNameWithoutExtension(path), string.Empty);
 
-                var hashedFingerprints = FingerprintCommandBuilder
-                    .Instance
-                    .BuildFingerprintCommand()
-                    .From(path)
-                    .WithFingerprintConfig(config =>
-                    {
-                        config.Audio.Stride = new IncrementalStaticStride(4096);
-                        return config;
-                    })
-                    .UsingServices(mediaService)
-                    .Hash().Result;
+            var hashedFingerprints = FingerprintCommandBuilder
+                .Instance
+                .BuildFingerprintCommand()
+                .From(path)
+                .WithFingerprintConfig(config =>
+                {
+                    config.Audio.Stride = new IncrementalStaticStride(4096);
+                    return config;
+                })
+                .UsingServices(mediaService)
+                .Hash().Result;
 
-                modelService.Insert(track, hashedFingerprints);
-            }
+            modelService.Insert(track, hashedFingerprints);
         }
 
-        public string GetAudioMatches(string path, IModelService modelService, IMediaService mediaService)
+        public string GetAudioMatches(string path, IModelService modelService, IAudioService mediaService)
         {
-            var result = QueryCommandBuilder.Instance.BuildQueryCommand()
+            var result = QueryCommandBuilder
+                .Instance
+                .BuildQueryCommand()
                 .From(path)
                 .WithQueryConfig(config =>
                 {
@@ -69,7 +64,7 @@ namespace API.Features.FindSimilarAudios.Implementations
                 })
                 .UsingServices(modelService, mediaService)
                 .Query().Result;
-            var duplicates = new List<string>();
+
             if (result.BestMatch != null)
                 return result.BestMatch.TrackId;
             return string.Empty;

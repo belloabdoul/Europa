@@ -1,10 +1,8 @@
-﻿using API.Common.Entities;
-using API.Common.Interfaces;
+﻿using API.Common.Interfaces;
 using API.Features.FindSimilarAudios.Interfaces;
 using SoundFingerprinting;
-using SoundFingerprinting.Emy;
+using SoundFingerprinting.Audio;
 using SoundFingerprinting.Media;
-using System;
 using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
 
@@ -14,11 +12,11 @@ namespace API.Features.FindSimilarAudios.Implementations
     {
         private readonly IFileTypeIdentifier _fileTypeIdentifier;
         private readonly IModelService _modelService;
-        private readonly IMediaService _mediaService;
+        private readonly IAudioService _mediaService;
         private readonly IAudioHashGenerator _audioHashGenerator;
         private readonly object readLock = new();
 
-        public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier, IModelService modelService, IMediaService mediaService, IAudioHashGenerator audioHashGenerator)
+        public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier, IModelService modelService, IAudioService mediaService, IAudioHashGenerator audioHashGenerator)
         {
             _fileTypeIdentifier = fileTypeIdentifier;
             _modelService = modelService;
@@ -32,6 +30,12 @@ namespace API.Features.FindSimilarAudios.Implementations
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
             var duplicatedAudios = new ConcurrentBag<File>();
+
+            var tracks = _modelService.GetTrackIds();
+            foreach (var track in tracks)
+            {
+                _modelService.DeleteTrack(track);
+            }
 
             var options = new ParallelOptions
             {
@@ -56,45 +60,40 @@ namespace API.Features.FindSimilarAudios.Implementations
             //    }
             //}, Environment.ProcessorCount);
 
-            Parallel.For(0, hypotheticalDuplicates.Count, options, current =>
+            Parallel.ForEach(Partitioner.Create(0, hypotheticalDuplicates.Count), options, range =>
             {
-                lock (readLock)
+                for (int current = range.Item1; current < range.Item2; current++)
                 {
-                    try
+                    lock (readLock)
                     {
-                        var match = _audioHashGenerator.GetAudioMatches(hypotheticalDuplicates[current], _modelService, _mediaService);
-                        if (string.IsNullOrEmpty(match))
+                        try
                         {
-                            _audioHashGenerator.GenerateAudioHashes(hypotheticalDuplicates[current], _modelService, _mediaService);
-                        }
-                        else
-                        {
-                            var hash = _audioHashGenerator.GenerateHash(match);
-                            if (!duplicatedAudios.Any(audio => audio.Path.Equals(match)))
+                            var match = _audioHashGenerator.GetAudioMatches(hypotheticalDuplicates[current], _modelService, _mediaService);
+                            if (string.IsNullOrEmpty(match))
                             {
-                                duplicatedAudios.Add(new File(new FileInfo(match), hash));
+                                _audioHashGenerator.GenerateAudioHashes(hypotheticalDuplicates[current], _modelService, _mediaService);
                             }
-                            duplicatedAudios.Add(new File(new FileInfo(hypotheticalDuplicates[current]), hash));
+                            else
+                            {
+                                var hash = _audioHashGenerator.GenerateHash(match);
+                                if (!duplicatedAudios.Any(audio => audio.Path.Equals(match)))
+                                {
+                                    duplicatedAudios.Add(new File(new FileInfo(match), hash));
+                                }
+                                duplicatedAudios.Add(new File(new FileInfo(hypotheticalDuplicates[current]), hash));
+                            }
                         }
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine(ex.Message);
-                        //duplicatedMusics.Add(new FileDto(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                            //duplicatedMusics.Add(new FileDto(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                        }
                     }
                 }
 
             });
 
             token.ThrowIfCancellationRequested();
-
-            Console.WriteLine($"{duplicatedAudios.Count} audios.");
-
-            //IHashProcessor hashProcessor = new HashProcessor();
-
-            // Here we process hashes to find similar ones.
-
-            //duplicatedImages = await Task.Run(() => hashProcessor.ProcessSimilarImageHashes(hashesWithAssociatedImages, token));
 
             token.ThrowIfCancellationRequested();
             return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)];

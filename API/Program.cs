@@ -6,9 +6,9 @@ using API.Features.FindSimilarAudios.Implementations;
 using API.Features.FindSimilarAudios.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using SoundFingerprinting;
+using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
 using SoundFingerprinting.InMemory;
-using SoundFingerprinting.Media;
 
 namespace Europa
 {
@@ -39,7 +39,7 @@ namespace Europa
 
             builder.Services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
             builder.Services.AddSingleton<IModelService, InMemoryModelService>();
-            builder.Services.AddSingleton<IMediaService, FFmpegAudioService>();
+            builder.Services.AddSingleton<IAudioService, FFmpegAudioService>();
             builder.Services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
             builder.Services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
@@ -50,7 +50,10 @@ namespace Europa
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
-                app.UseSwaggerUI();
+                app.UseSwaggerUI(config => config.ConfigObject.AdditionalItems["syntaxHighlight"] = new Dictionary<string, object>
+                {
+                    ["activated"] = false
+                });
             }
 
             app.UseHttpsRedirection();
