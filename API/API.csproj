@@ -10,8 +10,16 @@
 
   <ItemGroup>
     <PackageReference Include="Blake3" Version="1.0.0" />
-    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.6" />
+    <PackageReference Include="MediaInfo.Wrapper.Core" Version="21.9.3" />
+    <PackageReference Include="SkiaSharp" Version="2.88.7" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.7" />
+    <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />
+    <PackageReference Include="SoundFingerprinting.Emy" Version="9.3.0" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Features\FindSimilarAudios\Entities\" />
   </ItemGroup>
 
 </Project>
