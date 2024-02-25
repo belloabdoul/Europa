@@ -17,7 +17,10 @@
 
   <ItemGroup>
     <PackageReference Include="Blake3" Version="1.0.0" />
+    <PackageReference Include="Magick.NET-Q8-x64" Version="13.6.0" />
     <PackageReference Include="MediaInfo.Wrapper.Core" Version="21.9.3" />
+    <PackageReference Include="OpenCvSharp4" Version="4.9.0.20240103" />
+    <PackageReference Include="OpenCvSharp4.Windows" Version="4.9.0.20240103" />
     <PackageReference Include="SkiaSharp" Version="2.88.7" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.7" />
     <PackageReference Include="SkiaSharp.Svg" Version="1.60.0" />

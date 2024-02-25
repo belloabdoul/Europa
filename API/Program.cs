@@ -4,6 +4,8 @@ using API.Features.FindDuplicatesByHash.Implementations;
 using API.Features.FindDuplicatesByHash.Interfaces;
 using API.Features.FindSimilarAudios.Implementations;
 using API.Features.FindSimilarAudios.Interfaces;
+using API.Features.FindSimilarImages.Implementations;
+using API.Features.FindSimilarImages.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
@@ -32,17 +34,25 @@ namespace Europa
             DynamicallyLoadedBindings.LibrariesPath = ffmpegBinaryPath;
             DynamicallyLoadedBindings.Initialize();
 
+            // Dependency for all features
             builder.Services.AddSingleton<IDirectoryReader, DirectoryReader>();
 
+            // Dependencies for finding duplicates by cryptographic hash.
             builder.Services.AddSingleton<IHashGenerator, HashGenerator>();
             builder.Services.AddSingleton<IDuplicateFinderByHash, DuplicateFinderByHash>();
 
+            // Dependency for identifying the file's type.
             builder.Services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
+
+            // Dependencies for finding similar audio files.
             builder.Services.AddSingleton<IModelService, InMemoryModelService>();
             builder.Services.AddSingleton<IAudioService, FFmpegAudioService>();
             builder.Services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
             builder.Services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
+            // Dependencies for finding similar audio files.
+            builder.Services.AddSingleton<IImageHashGenerator, ImageHashGenerator>();
+            builder.Services.AddSingleton<ISimilarImagesFinder, SimilarImageFinder>();
 
             var app = builder.Build();
 
