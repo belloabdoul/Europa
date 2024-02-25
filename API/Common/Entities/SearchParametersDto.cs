@@ -1,7 +1,15 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.Runtime.Serialization;
 
 namespace API.Common.Entities
 {
+    public enum FileType
+    {
+        All = 0,
+        Images = 1,
+        Audios = 2,
+        Videos = 3
+    }
     public class SearchParametersDto
     {
         // Should we include subfolders or not
@@ -12,12 +20,13 @@ namespace API.Common.Entities
         // The maximum size for files to include
         public long MaxSize { get; set; }
         // The file types to include. With this excluded files types are disabled
-        public ICollection<string> IncludedFileTypes { get; set; }
+        public ICollection<string> IncludedFileTypes { get; set; } = [];
         // The file types to exclude. Only work if no file types are included
-        public ICollection<string> ExcludedFileTypes { get; set; }
+        public ICollection<string> ExcludedFileTypes { get; set; } = [];
         // The file types excluded by default.
-        public ICollection<string> DefaultExcludedFileTypes { get; set; }
-
+        public ICollection<string> DefaultExcludedFileTypes { get; set; } = [];
+        [IgnoreDataMember]
+        public FileType FilesTypeToSearch { get; set; }
         public SearchParametersDto()
         {
             IncludeSubfolders = true;
