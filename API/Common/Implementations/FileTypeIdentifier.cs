@@ -10,8 +10,7 @@ namespace API.Common.Implementations
         public string GetFileType(string path)
         {
             using var fileStream = File.OpenRead(path);
-            using var skiaStream = new SKManagedStream(fileStream);
-            using var codec = SKCodec.Create(skiaStream);
+            using var codec = SKCodec.Create(fileStream);
             if (codec != null)
             {
                 if (codec.FrameCount > 1)
