@@ -35,7 +35,7 @@ namespace API.Features.FindDuplicatesByHash.Implementations
                 }
             });
 
-            return duplicates.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1);
+            return duplicates.OrderByDescending(file => file.DateModified).GroupBy(file => file.FinalHash).Where(i => i.Count() != 1);
         }
     }
 }

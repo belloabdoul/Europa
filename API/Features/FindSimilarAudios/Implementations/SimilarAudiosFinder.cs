@@ -96,7 +96,7 @@ namespace API.Features.FindSimilarAudios.Implementations
             token.ThrowIfCancellationRequested();
 
             token.ThrowIfCancellationRequested();
-            return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)];
+            return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.FinalHash).Where(i => i.Count() != 1)];
         }
     }
 }
