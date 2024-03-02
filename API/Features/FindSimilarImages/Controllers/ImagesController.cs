@@ -29,8 +29,6 @@ namespace API.Features.FindSimilarImages.Controllers
 
             var (duplicates, hasherErrors) = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
 
-            //var hash = _similarImagesFinder.FindSimilarImages(hypotheticalDuplicates.Distinct().ToList(), token);
-
             return StatusCode(200, duplicates.ToResponse([.. readerErrors, .. hasherErrors]));
         }
     }
