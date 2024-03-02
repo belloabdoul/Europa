@@ -1,3 +1,4 @@
+using API.Common.Entities;
 using API.Common.Implementations;
 using API.Common.Interfaces;
 using API.Features.FindDuplicatesByHash.Implementations;
@@ -6,11 +7,18 @@ using API.Features.FindSimilarAudios.Implementations;
 using API.Features.FindSimilarAudios.Interfaces;
 using API.Features.FindSimilarImages.Implementations;
 using API.Features.FindSimilarImages.Interfaces;
+using Database.Implementations;
+using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
+using NRedisStack.Search.Literals.Enums;
+using NRedisStack.Search;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
 using SoundFingerprinting.InMemory;
+using StackExchange.Redis;
+using System.Data.Common;
+using NRedisStack.RedisStackCommands;
 
 namespace Europa
 {
@@ -19,13 +27,14 @@ namespace Europa
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            var config = builder.Configuration;
+            var services = builder.Services;
 
             // Add services to the container.
-
-            builder.Services.AddControllers();
+            services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+            services.AddEndpointsApiExplorer();
+            services.AddSwaggerGen();
 
             // Initialize FFmpeg
             var current = Environment.CurrentDirectory;
@@ -35,24 +44,42 @@ namespace Europa
             DynamicallyLoadedBindings.Initialize();
 
             // Dependency for all features
-            builder.Services.AddSingleton<IDirectoryReader, DirectoryReader>();
+            services.AddSingleton<IDirectoryReader, DirectoryReader>();
 
             // Dependencies for finding duplicates by cryptographic hash.
-            builder.Services.AddSingleton<IHashGenerator, HashGenerator>();
-            builder.Services.AddSingleton<IDuplicateFinderByHash, DuplicateFinderByHash>();
+            services.AddSingleton<IHashGenerator, HashGenerator>();
+            services.AddSingleton<IDuplicateFinderByHash, DuplicateFinderByHash>();
 
             // Dependency for identifying the file's type.
-            builder.Services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
+            services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
 
             // Dependencies for finding similar audio files.
-            builder.Services.AddSingleton<IModelService, InMemoryModelService>();
-            builder.Services.AddSingleton<IAudioService, FFmpegAudioService>();
-            builder.Services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
-            builder.Services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
+            services.AddSingleton<IModelService, InMemoryModelService>();
+            services.AddSingleton<IAudioService, FFmpegAudioService>();
+            services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
+            services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
-            // Dependencies for finding similar audio files.
-            builder.Services.AddSingleton<IImageHashGenerator, ImageHashGenerator>();
-            builder.Services.AddSingleton<ISimilarImagesFinder, SimilarImageFinder>();
+            // Redis connection
+            RedisConnection redisConnection = new();
+            config.GetSection("RedisConnection").Bind(redisConnection);
+            services.AddSingleton<IConnectionMultiplexer>(option =>
+            {
+                var connection = ConnectionMultiplexer.Connect(new ConfigurationOptions
+                {
+                    EndPoints = { $"{redisConnection.Host}:{redisConnection.Port}" },
+                    AbortOnConnectFail = false,
+                    Ssl = redisConnection.IsSSL,
+                    Password = redisConnection.Password,
+                    AllowAdmin = redisConnection.AllowAdmin,
+                    SyncTimeout = 30000
+                });
+
+                return connection;
+            });
+            // Dependencies for finding similar image files.
+            services.AddSingleton<IDbHelpers, DbHelpers>();
+            services.AddSingleton<IImageHashGenerator, ImageHashGenerator>();
+            services.AddSingleton<ISimilarImagesFinder, SimilarImageFinder>();
 
             var app = builder.Build();
 
