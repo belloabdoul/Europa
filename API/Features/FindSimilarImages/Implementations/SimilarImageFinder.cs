@@ -88,7 +88,6 @@ namespace API.Features.FindSimilarImages.Implementations
             {
                 foreach (var imageInfo in imageHashQueue.Reader.ReadAllAsync().ToBlockingEnumerable().Select((hash, index) => (hash.Path, Position: index, hash.Hash)))
                 {
-                    Console.WriteLine($"{imageInfo.Path} {imageInfo.Position}");
                     var similarHashIndex = _dbHelpers.GetSimilarHashIndex(imageInfo.Hash, imageInfo.Position, 1).FirstOrDefault();
                     if (similarHashIndex == 0)
                     {
