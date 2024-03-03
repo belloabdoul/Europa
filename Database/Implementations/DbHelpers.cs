@@ -52,7 +52,7 @@ namespace Database.Implementations
 
             // @position:[$position +inf] 
             var query = new Query($"@hash:[VECTOR_RANGE $range $hash]")
-                .AddParam("range", 0.9)
+                .AddParam("range", 1)
                 .AddParam("hash", hashArray)
                 .Limit(0, limit)
                 .Dialect(2);
