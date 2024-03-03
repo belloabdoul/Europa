@@ -1,11 +1,5 @@
 ﻿using API.Common.Entities;
 using API.Common.Interfaces;
-using ImageMagick;
-using Microsoft.Extensions.Options;
-using OpenCvSharp;
-using SkiaSharp;
-using SoundFingerprinting.Audio;
-using SoundFingerprinting.Emy;
 
 namespace API.Common.Implementations
 {
