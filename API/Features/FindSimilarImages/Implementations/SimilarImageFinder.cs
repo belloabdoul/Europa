@@ -5,6 +5,7 @@ using API.Common.Interfaces;
 using Database.Interfaces;
 using OpenCvSharp;
 using API.Features.FindDuplicatesByHash.Interfaces;
+using System.Threading.Channels;
 
 namespace API.Features.FindSimilarImages.Implementations
 {
@@ -33,89 +34,49 @@ namespace API.Features.FindSimilarImages.Implementations
             // The collections of errors which happened during the processing
             var exceptions = new ConcurrentQueue<string>();
 
-            TaskScheduler scheduler = TaskScheduler.Default;
-
-            // We create a task for filtering only images, creating their blake3 hash,
-            // then grouping them by hash. With this copies of the same file will be
-            // processed in the next phase only once.
-            using var distinctImagesQueue = new BlockingCollection<(string Path, string Type, string FileHash)>();
-
-            Task blake3Producer = Task.Factory.StartNew(() =>
-            {
-                var perfectDuplicatesGroups = hypotheticalDuplicates
-                .AsParallel()
-                .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
-                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .WithCancellation(token)
-                .WithMergeOptions(ParallelMergeOptions.FullyBuffered)
-                .Select(file => (Path: file, Type: _fileTypeIdentifier.GetFileType(file)))
-                .GroupBy(file => file.Type)
-                .Where(group => group.Key.Contains(_commonType))
-                .SelectMany(group => group.ToList())
-                .Select(file => (file.Path, file.Type, Hash: _hashGenerator.GenerateHash(file.Path)))
-                .ToLookup(file => file.Hash, file => (file.Path, file.Type, file.Hash));
-
-
-                perfectDuplicatesGroups.AsParallel()
-                .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
-                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .WithCancellation(token)
-                .ForAll(group =>
-                {
-                    var images = group.ToList();
-                    foreach (var image in images)
-                    {
-                        duplicatedImages.Add(new File(new FileInfo(image.Path), group.Key));
-                    }
-                    distinctImagesQueue.Add((images[Random.Shared.Next(0, images.Count)].Path, group.First().Type, group.Key));
-                });
-                distinctImagesQueue.CompleteAdding();
-            }, token, TaskCreationOptions.LongRunning, scheduler);
-
             // We create a task for generating an image hash for each group
             // of perfect duplicates. 
-            using var imageHashQueue = new BlockingCollection<(string Hash, string Path)>();
+            //using var imageHashQueue = new BlockingCollection<(string Path, string Hash)>();
+            var imageHashQueue = Channel.CreateUnbounded<(string Path, string Hash)>();
 
             Task producer = Task.Factory.StartNew(() =>
             {
-                distinctImagesQueue.GetConsumingEnumerable()
+                hypotheticalDuplicates
                 .AsParallel()
                 //.AsOrdered()
                 .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
-                .WithMergeOptions(ParallelMergeOptions.NotBuffered)
                 .WithCancellation(token)
                 .ForAll(image =>
                 {
                     try
                     {
-                        var hash = _imageHashGenerator.GenerateImageHash(image.Path, image.Type);
-
-                        // Here we change the hash from the cryptographic one to the perceptual one
-                        foreach (var duplicate in duplicatedImages.Where(duplicate => duplicate.Hash.Equals(image.FileHash)))
+                        var type = _fileTypeIdentifier.GetFileType(image);
+                        if (type.Contains(_commonType))
                         {
-                            duplicate.Hash = hash;
-                        }
+                            var hash = _imageHashGenerator.GenerateImageHash(image, type);
 
-                        // We only continue with the hash because with the hash because the type
-                        // and the path where only needed to generate the perceptual hash.
-                        // The same way the cryptographic hash is already replaced with the
-                        // perceptual hash in the previous instructions
-                        imageHashQueue.Add((hash, image.Path));
+                            // We only continue with the hash because with the hash because the type
+                            // and the path where only needed to generate the perceptual hash.
+                            // The same way the cryptographic hash is already replaced with the
+                            // perceptual hash in the previous instructions
+                            imageHashQueue.Writer.TryWrite((Path: image, Hash: hash));
+                        }
                     }
                     // An OpenCVException is currently thrown if the file path contains non latin characters.
                     catch (OpenCVException)
                     {
-                        exceptions.Enqueue($"File {image.Path} is not an image");
+                        exceptions.Enqueue($"File {image} is not an image");
                     }
                     // A NullReferenceException is thrown if SkiaSharp cannot decode an image. There is a high chance it is corrupted.
                     catch (NullReferenceException)
                     {
-                        exceptions.Enqueue($"File {image.Path} is corrupted");
+                        exceptions.Enqueue($"File {image} is corrupted");
                     }
                 });
-                imageHashQueue.CompleteAdding();
-            }, token, TaskCreationOptions.LongRunning, scheduler);
+
+                imageHashQueue.Writer.Complete();
+            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             // Here we create the consumer which will process each hash. It checks if the current image/image group has a similar image
             // in the redis database using its vector similarity unctions. If yes, its duplicates are update with the hash associated to
@@ -125,30 +86,23 @@ namespace API.Features.FindSimilarImages.Implementations
 
             Task duplicatesProcessor = Task.Factory.StartNew(() =>
             {
-                foreach (var imageInfo in imageHashQueue.GetConsumingEnumerable().Select((hash, index) => (hash.Hash, hash.Path, Position: index)))
+                foreach (var imageInfo in imageHashQueue.Reader.ReadAllAsync().ToBlockingEnumerable().Select((hash, index) => (hash.Path, Position: index, hash.Hash)))
                 {
+                    Console.WriteLine($"{imageInfo.Path} {imageInfo.Position}");
                     var similarHashIndex = _dbHelpers.GetSimilarHashIndex(imageInfo.Hash, imageInfo.Position, 1).FirstOrDefault();
                     if (similarHashIndex == 0)
                     {
                         _dbHelpers.InsertPartialImageHash(imageInfo.Hash, imageInfo.Position, imageInfo.Path);
-                    }
-
-                    if (similarHashIndex == 0)
-                    {
                         imagesIndexToHash[imageInfo.Position] = imageInfo.Hash;
                     }
                     else
                     {
-                        var duplicates = duplicatedImages.Where(image => image.Hash.Equals(imageInfo.Hash)).ToList();
-                        foreach (var duplicate in duplicates)
-                        {
-                            duplicate.Hash = imagesIndexToHash[similarHashIndex];
-                        }
+                        duplicatedImages.Add(new File(new FileInfo(imageInfo.Path), imagesIndexToHash[similarHashIndex]));
                     }
                 }
-            }, token, TaskCreationOptions.LongRunning, scheduler);
+            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-            await Task.WhenAll(blake3Producer, producer, duplicatesProcessor);
+            await Task.WhenAll(producer, duplicatesProcessor);
 
             token.ThrowIfCancellationRequested();
 
