@@ -13,7 +13,6 @@ namespace API.Features.FindSimilarImages.Implementations
     {
         private readonly IFileTypeIdentifier _fileTypeIdentifier;
         private readonly IImageHashGenerator _imageHashGenerator;
-        private readonly IHashGenerator _hashGenerator;
         private readonly IDbHelpers _dbHelpers;
         private readonly string _commonType;
 
@@ -21,7 +20,6 @@ namespace API.Features.FindSimilarImages.Implementations
         {
             _fileTypeIdentifier = fileTypeIdentifier;
             _imageHashGenerator = imageHashGenerator;
-            _hashGenerator = hashGenerator;
             _dbHelpers = dbHelpers;
             _commonType = "image";
         }
