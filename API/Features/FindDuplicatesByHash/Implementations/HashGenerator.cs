@@ -1,6 +1,9 @@
 ﻿using API.Features.FindDuplicatesByHash.Interfaces;
 using Blake3;
+using NetTopologySuite.Algorithm;
 using System.Buffers;
+using System.Collections.Concurrent;
+using System.IO.MemoryMappedFiles;
 
 namespace API.Features.FindDuplicatesByHash.Implementations
 {
@@ -8,20 +11,15 @@ namespace API.Features.FindDuplicatesByHash.Implementations
     {
         public string GenerateHash(string path)
         {
+            using var hasher = Hasher.New();
+
             using var stream = File.OpenRead(path);
 
-            using var hasher = Hasher.New();
-            var buffer = ArrayPool<byte>.Shared.Rent(4096);
+            using var blake3Stream = new Blake3Stream(stream);
 
-            int bytesRead;
-            while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
-            {
-                hasher.UpdateWithJoin(buffer.AsSpan(0, bytesRead));
-            }
+            blake3Stream.Read(new byte[stream.Length]);
 
-            ArrayPool<byte>.Shared.Return(buffer);
-
-            return hasher.Finalize().ToString();
+            return blake3Stream.ComputeHash().ToString();
         }
     }
 }
