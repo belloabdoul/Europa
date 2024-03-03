@@ -23,6 +23,8 @@ namespace API.Features.FindSimilarImages.Controllers
         {
             List<string> hypotheticalDuplicates = [];
 
+            GC.Collect();   
+
             request.SearchParameters.FilesTypeToSearch = (FileType)1;
 
             hypotheticalDuplicates.AddRange(_directoryReader.GetAllFilesFromFolder(request.Folders, request.SearchParameters, token, out var readerErrors));
