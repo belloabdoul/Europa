@@ -94,6 +94,7 @@ namespace API.Features.FindSimilarImages.Implementations
                     {
                         _dbHelpers.InsertPartialImageHash(imageInfo.Hash, imageInfo.Position, imageInfo.Path);
                         imagesIndexToHash[imageInfo.Position] = imageInfo.Hash;
+                        duplicatedImages.Add(new File(new FileInfo(imageInfo.Path), imageInfo.Hash));
                     }
                     else
                     {
