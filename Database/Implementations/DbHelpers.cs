@@ -61,7 +61,7 @@ namespace Database.Implementations
                 .Select(result => int.Parse(result.Id)).ToList());
         }
 
-        public void InsertPartialImageHash(string hash, int position, string path)
+        public void InsertImageHash(string hash, int position, string path)
         {
             var database = _connection.GetDatabase();
 
