@@ -89,7 +89,7 @@ namespace API.Features.FindSimilarImages.Implementations
                     var similarHashIndex = _dbHelpers.GetSimilarHashIndex(imageInfo.Hash, imageInfo.Position, 1).FirstOrDefault();
                     if (similarHashIndex == 0)
                     {
-                        _dbHelpers.InsertPartialImageHash(imageInfo.Hash, imageInfo.Position, imageInfo.Path);
+                        _dbHelpers.InsertImageHash(imageInfo.Hash, imageInfo.Position, imageInfo.Path);
                         imagesIndexToHash[imageInfo.Position] = imageInfo.Hash;
                         duplicatedImages.Add(new File(new FileInfo(imageInfo.Path), imageInfo.Hash));
                     }
