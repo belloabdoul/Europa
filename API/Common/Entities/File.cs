@@ -10,6 +10,8 @@
         public DateTime DateModified { get; set; }
         // The hash of the file
         public string Hash { get; set; }
+        // The original hash of the file
+        public string OriginalHash { get; set; }
 
         public File(FileInfo file, string hash)
         {

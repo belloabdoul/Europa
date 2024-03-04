@@ -13,27 +13,22 @@ namespace API.Features.FindDuplicatesByHash.Implementations
             _hashGenerator = hashGenerator;
         }
 
-        public IEnumerable<IGrouping<string, File>> FindDuplicateByHash(List<string> hypotheticalDuplicates, CancellationToken token, out List<string> errors)
+        public IEnumerable<IGrouping<string, File>> FindDuplicateByHash(List<string> hypotheticalDuplicates, CancellationToken token)
         {
-            errors = [];
             Console.InputEncoding = System.Text.Encoding.UTF8;
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
             var duplicates = new ConcurrentBag<File>();
 
-            var options = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = token
-            };
-
-            Parallel.ForEach(Partitioner.Create(0, hypotheticalDuplicates.Count), options, range =>
-            {
-                for (int current = range.Item1; current < range.Item2; current++)
+            hypotheticalDuplicates
+                .AsParallel()
+                .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
+                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                .WithCancellation(token)
+                .ForAll(file =>
                 {
-                    duplicates.Add(new File(new FileInfo(hypotheticalDuplicates[current]), _hashGenerator.GenerateHash(hypotheticalDuplicates[current])));
-                }
-            });
+                    duplicates.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                });
 
             return duplicates.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1);
         }

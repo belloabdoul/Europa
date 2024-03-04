@@ -6,22 +6,24 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace API.Features.FindSimilarAudios.Controllers
 {
-    public class SimilarAudiosController : Controller
+    public class AudiosController : Controller
     {
         private readonly IDirectoryReader _directoryReader;
         private readonly ISimilarAudiosFinder _similarAudiosFinder;
 
-        public SimilarAudiosController(IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder)
+        public AudiosController(IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder)
         {
             _directoryReader = directoryReader;
             _similarAudiosFinder = similarAudiosFinder;
         }
 
-        // POST api/SimilarAudios/findSimilarAudios
+        // POST api/Audios/findSimilarAudios
         [HttpGet("findSimilarAudios")]
         public async Task<ActionResult> FindSimilarAudios([FromQuery] RequestDuplicates request, CancellationToken token)
         {
             List<string> hypotheticalDuplicates = [];
+
+            request.SearchParameters.FilesTypeToSearch = (FileType)2;
 
             hypotheticalDuplicates.AddRange(_directoryReader.GetAllFilesFromFolder(request.Folders, request.SearchParameters, token, out var readerErrors));
 

@@ -7,31 +7,38 @@ namespace API.Common.Implementations
 {
     public class FileTypeIdentifier : IFileTypeIdentifier
     {
+        private const string animatedWebp = "animation/webp";
+        private const string animatedImage = "animation";
+        private const string imageGif = "image/gif";
+        private const string image = "image";
+        private const string audio = "audio";
+        private const string video = "video";
+        private const string file = "file";
+
         public string GetFileType(string path)
         {
             using var fileStream = File.OpenRead(path);
-            using var skiaStream = new SKManagedStream(fileStream);
-            using var codec = SKCodec.Create(skiaStream);
+            using var codec = SKCodec.Create(fileStream);
             if (codec != null)
             {
                 if (codec.FrameCount > 1)
                 {
                     if (codec.EncodedFormat == SKEncodedImageFormat.Webp)
-                        return "animation/webp";
-                    return "animation";
+                        return animatedWebp;
+                    return animatedImage;
                 }
                 else if (codec.EncodedFormat == SKEncodedImageFormat.Gif)
-                    return "image/gif";
-                return "image";
+                    return imageGif;
+                return image;
             }
             else
             {
                 var media = new MediaInfoWrapper(path, NullLogger.Instance);
                 if (media.HasVideo)
-                    return "video";
+                    return video;
                 else if (media.AudioStreams.Count > 0)
-                    return "audio";
-                return "file";
+                    return audio;
+                return file;
             }
         }
     }
