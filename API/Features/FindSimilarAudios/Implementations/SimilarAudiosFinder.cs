@@ -1,8 +1,10 @@
 ﻿using API.Common.Interfaces;
+using API.Features.FindDuplicatesByHash.Interfaces;
 using API.Features.FindSimilarAudios.Interfaces;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
-using SoundFingerprinting.Media;
+using SoundFingerprinting.Emy;
+using SoundFingerprinting.InMemory;
 using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
 
@@ -14,14 +16,17 @@ namespace API.Features.FindSimilarAudios.Implementations
         private readonly IModelService _modelService;
         private readonly IAudioService _mediaService;
         private readonly IAudioHashGenerator _audioHashGenerator;
-        private readonly object readLock = new();
+        private readonly IHashGenerator _hashGenerator;
+        private readonly object readLock;
 
-        public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier, IModelService modelService, IAudioService mediaService, IAudioHashGenerator audioHashGenerator)
+        public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier/*, IModelService modelService, IMediaService mediaService*/, IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
         {
             _fileTypeIdentifier = fileTypeIdentifier;
-            _modelService = modelService;
-            _mediaService = mediaService;
+            _modelService = EmyModelService.NewInstance("localhost", 3399);
+            _mediaService = new FFmpegAudioService();
             _audioHashGenerator = audioHashGenerator;
+            _hashGenerator = hashGenerator;
+            readLock = new();
         }
 
         public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarAudiosAsync(List<string> hypotheticalDuplicates, CancellationToken token)
@@ -37,61 +42,48 @@ namespace API.Features.FindSimilarAudios.Implementations
                 _modelService.DeleteTrack(track);
             }
 
-            var options = new ParallelOptions
-            {
-                MaxDegreeOfParallelism = Environment.ProcessorCount,
-                CancellationToken = token
-            };
-
             token.ThrowIfCancellationRequested();
 
-            hypotheticalDuplicates = hypotheticalDuplicates.Where(file => _fileTypeIdentifier.GetFileType(file).Equals("audio")).ToList();
-
-            //await hypotheticalDuplicates.ParallelForEachAsync(async file =>
-            //{
-            //    try
-            //    {
-            //        await _audioHashGenerator.GenerateAudioHashes(file, _modelService, _mediaService);
-            //    }
-            //    catch (Exception ex)
-            //    {
-            //        Console.WriteLine(ex.Message);
-            //        //duplicatedMusics.Add(new FileDto(new FileInfo(file), _hashGenerator.GenerateHash(file)));
-            //    }
-            //}, Environment.ProcessorCount);
-
-            Parallel.ForEach(Partitioner.Create(0, hypotheticalDuplicates.Count), options, range =>
+            await Task.Factory.StartNew(() =>
             {
-                for (int current = range.Item1; current < range.Item2; current++)
+                hypotheticalDuplicates.AsParallel()
+                .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
+                .WithCancellation(token)
+                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                .ForAll(file =>
                 {
-                    lock (readLock)
+                    var match = string.Empty;
+                    var type = _fileTypeIdentifier.GetFileType(file);
+                    if (type.Equals("audio"))
                     {
-                        try
+                        //await semaphore.WaitAsync(token);
+                        lock(readLock)
                         {
-                            var match = _audioHashGenerator.GetAudioMatches(hypotheticalDuplicates[current], _modelService, _mediaService);
-                            if (string.IsNullOrEmpty(match))
+                            try
                             {
-                                _audioHashGenerator.GenerateAudioHashes(hypotheticalDuplicates[current], _modelService, _mediaService);
-                            }
-                            else
-                            {
-                                var hash = _audioHashGenerator.GenerateHash(match);
-                                if (!duplicatedAudios.Any(audio => audio.Path.Equals(match)))
+                                match = _audioHashGenerator.GetAudioMatches(file, _modelService, _mediaService);
+                                if (string.IsNullOrEmpty(match))
                                 {
-                                    duplicatedAudios.Add(new File(new FileInfo(match), hash));
+                                    _audioHashGenerator.GenerateAudioHashes(file, _modelService, _mediaService);
+                                    duplicatedAudios.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
                                 }
-                                duplicatedAudios.Add(new File(new FileInfo(hypotheticalDuplicates[current]), hash));
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.Message);
                             }
                         }
-                        catch (Exception ex)
+                        //finally 
+                        //{
+                        //    semaphore.Release();
+                        //}
+                        if (!string.IsNullOrEmpty(match))
                         {
-                            Console.WriteLine(ex.Message);
-                            //duplicatedMusics.Add(new FileDto(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                            duplicatedAudios.Add(new File(new FileInfo(file), duplicatedAudios.First(audio => audio.Path.Equals(match)).Hash));
                         }
                     }
-                }
-
-            });
+                });
+            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             token.ThrowIfCancellationRequested();
 

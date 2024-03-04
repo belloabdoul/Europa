@@ -10,15 +10,7 @@ using API.Features.FindSimilarImages.Interfaces;
 using Database.Implementations;
 using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
-using NRedisStack.Search.Literals.Enums;
-using NRedisStack.Search;
-using SoundFingerprinting;
-using SoundFingerprinting.Audio;
-using SoundFingerprinting.Emy;
-using SoundFingerprinting.InMemory;
 using StackExchange.Redis;
-using System.Data.Common;
-using NRedisStack.RedisStackCommands;
 
 namespace Europa
 {
@@ -37,10 +29,9 @@ namespace Europa
             services.AddSwaggerGen();
 
             // Initialize FFmpeg
-            var current = Environment.CurrentDirectory;
-            var probe = Path.Combine("bin", "Debug", "net8.0", "FFmpeg", "bin", "x64");
-            var ffmpegBinaryPath = Path.Combine(current, probe);
-            DynamicallyLoadedBindings.LibrariesPath = ffmpegBinaryPath;
+            var current = AppDomain.CurrentDomain.BaseDirectory;
+            var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
+            DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
             DynamicallyLoadedBindings.Initialize();
 
             // Dependency for all features
@@ -54,8 +45,6 @@ namespace Europa
             services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
 
             // Dependencies for finding similar audio files.
-            services.AddSingleton<IModelService, InMemoryModelService>();
-            services.AddSingleton<IAudioService, FFmpegAudioService>();
             services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
             services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
