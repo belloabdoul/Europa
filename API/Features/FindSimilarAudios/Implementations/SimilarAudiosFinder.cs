@@ -22,7 +22,7 @@ namespace API.Features.FindSimilarAudios.Implementations
         public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier/*, IModelService modelService, IMediaService mediaService*/, IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
         {
             _fileTypeIdentifier = fileTypeIdentifier;
-            _modelService = new InMemoryModelService();
+            _modelService = EmyModelService.NewInstance("localhost", 3399);
             _mediaService = new FFmpegAudioService();
             _audioHashGenerator = audioHashGenerator;
             _hashGenerator = hashGenerator;
