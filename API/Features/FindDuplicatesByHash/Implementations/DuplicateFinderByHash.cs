@@ -13,14 +13,16 @@ namespace API.Features.FindDuplicatesByHash.Implementations
             _hashGenerator = hashGenerator;
         }
 
-        public IEnumerable<IGrouping<string, File>> FindDuplicateByHash(List<string> hypotheticalDuplicates, CancellationToken token)
+        public async Task<IEnumerable<IGrouping<string, File>>> FindDuplicateByHash(List<string> hypotheticalDuplicates, CancellationToken token)
         {
             Console.InputEncoding = System.Text.Encoding.UTF8;
             Console.OutputEncoding = System.Text.Encoding.UTF8;
 
             var duplicates = new ConcurrentBag<File>();
 
-            hypotheticalDuplicates
+            await Task.Factory.StartNew(() =>
+            {
+                hypotheticalDuplicates
                 .AsParallel()
                 .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
@@ -29,7 +31,8 @@ namespace API.Features.FindDuplicatesByHash.Implementations
                 {
                     duplicates.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
                 });
-
+            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+                
             return duplicates.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1);
         }
     }
