@@ -1,6 +1,6 @@
 ﻿using File = API.Common.Entities.File;
 
-namespace API.Features.FindSimilarAudios.Interfaces
+namespace API.Interfaces.SimilarAudios
 {
     public interface ISimilarAudiosFinder
     {

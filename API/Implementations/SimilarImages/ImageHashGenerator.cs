@@ -1,10 +1,10 @@
 ﻿using API.Common.Entities;
-using API.Features.FindSimilarImages.Interfaces;
+using API.Interfaces.SimilarImages;
 using OpenCvSharp;
 using SkiaSharp;
 using File = System.IO.File;
 
-namespace API.Features.FindSimilarImages.Implementations
+namespace API.Implementations.SimilarImages
 {
     public class ImageHashGenerator : IImageHashGenerator
     {

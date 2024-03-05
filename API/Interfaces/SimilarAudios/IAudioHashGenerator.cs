@@ -1,7 +1,7 @@
 ﻿using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 
-namespace API.Features.FindSimilarAudios.Interfaces
+namespace API.Interfaces.SimilarAudios
 {
     public interface IAudioHashGenerator
     {

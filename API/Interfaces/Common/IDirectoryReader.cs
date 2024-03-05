@@ -1,6 +1,6 @@
 ﻿using API.Common.Entities;
 
-namespace API.Common.Interfaces
+namespace API.Interfaces.Common
 {
     public interface IDirectoryReader
     {

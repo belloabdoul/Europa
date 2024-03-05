@@ -1,8 +1,8 @@
 ﻿using API.Common.Entities;
-using API.Common.Interfaces;
-using API.Features.FindDuplicatesByHash.Interfaces;
-using API.Features.FindSimilarAudios.Interfaces;
-using API.Features.FindSimilarImages.Interfaces;
+using API.Interfaces.Common;
+using API.Interfaces.DuplicatesByHash;
+using API.Interfaces.SimilarAudios;
+using API.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
 using File = API.Common.Entities.File;
@@ -14,9 +14,9 @@ namespace API.Controllers
         private readonly IDirectoryReader _directoryReader;
         private readonly ISimilarImagesFinder _similarImagesFinder;
         private readonly ISimilarAudiosFinder _similarAudiosFinder;
-        private readonly IDuplicateFinderByHash _duplicatesByHashFinder;
+        private readonly IDuplicateByHashFinder _duplicatesByHashFinder;
 
-        public DuplicatesController(IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder, ISimilarImagesFinder similarImagesFinder, IDuplicateFinderByHash duplicatesByHashFinder)
+        public DuplicatesController(IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder, ISimilarImagesFinder similarImagesFinder, IDuplicateByHashFinder duplicatesByHashFinder)
         {
             _directoryReader = directoryReader;
             _duplicatesByHashFinder = duplicatesByHashFinder;

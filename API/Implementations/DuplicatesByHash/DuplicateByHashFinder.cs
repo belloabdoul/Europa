@@ -1,14 +1,14 @@
-﻿using API.Features.FindDuplicatesByHash.Interfaces;
+﻿using API.Interfaces.DuplicatesByHash;
 using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
 
-namespace API.Features.FindDuplicatesByHash.Implementations
+namespace API.Implementations.DuplicatesByHash
 {
-    public class DuplicateFinderByHash : IDuplicateFinderByHash
+    public class DuplicateByHashFinder : IDuplicateByHashFinder
     {
         private readonly IHashGenerator _hashGenerator;
 
-        public DuplicateFinderByHash(IHashGenerator hashGenerator)
+        public DuplicateByHashFinder(IHashGenerator hashGenerator)
         {
             _hashGenerator = hashGenerator;
         }
@@ -32,7 +32,7 @@ namespace API.Features.FindDuplicatesByHash.Implementations
                     duplicates.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
                 });
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-                
+
             return duplicates.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1);
         }
     }

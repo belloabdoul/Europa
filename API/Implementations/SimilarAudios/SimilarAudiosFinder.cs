@@ -1,14 +1,13 @@
-﻿using API.Common.Interfaces;
-using API.Features.FindDuplicatesByHash.Interfaces;
-using API.Features.FindSimilarAudios.Interfaces;
+﻿using API.Interfaces.Common;
+using API.Interfaces.DuplicatesByHash;
+using API.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
-using SoundFingerprinting.InMemory;
 using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
 
-namespace API.Features.FindSimilarAudios.Implementations
+namespace API.Implementations.SimilarAudios
 {
     public class SimilarAudiosFinder : ISimilarAudiosFinder
     {
@@ -57,7 +56,7 @@ namespace API.Features.FindSimilarAudios.Implementations
                     if (type.Equals("audio"))
                     {
                         //await semaphore.WaitAsync(token);
-                        lock(readLock)
+                        lock (readLock)
                         {
                             try
                             {

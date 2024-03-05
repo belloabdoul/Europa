@@ -1,11 +1,7 @@
-﻿using API.Features.FindDuplicatesByHash.Interfaces;
+﻿using API.Interfaces.DuplicatesByHash;
 using Blake3;
-using NetTopologySuite.Algorithm;
-using System.Buffers;
-using System.Collections.Concurrent;
-using System.IO.MemoryMappedFiles;
 
-namespace API.Features.FindDuplicatesByHash.Implementations
+namespace API.Implementations.DuplicatesByHash
 {
     public class HashGenerator : IHashGenerator
     {

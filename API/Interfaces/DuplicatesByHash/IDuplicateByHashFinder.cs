@@ -1,8 +1,8 @@
 ﻿using File = API.Common.Entities.File;
 
-namespace API.Features.FindDuplicatesByHash.Interfaces
+namespace API.Interfaces.DuplicatesByHash
 {
-    public interface IDuplicateFinderByHash
+    public interface IDuplicateByHashFinder
     {
         Task<IEnumerable<IGrouping<string, File>>> FindDuplicateByHash(List<string> hypotheticalDuplicates, CancellationToken token);
     }

@@ -1,16 +1,17 @@
 using API.Common.Entities;
-using API.Common.Implementations;
-using API.Common.Interfaces;
-using API.Features.FindDuplicatesByHash.Implementations;
-using API.Features.FindDuplicatesByHash.Interfaces;
-using API.Features.FindSimilarAudios.Implementations;
-using API.Features.FindSimilarAudios.Interfaces;
-using API.Features.FindSimilarImages.Implementations;
-using API.Features.FindSimilarImages.Interfaces;
+using API.Implementations.Common;
+using API.Implementations.DuplicatesByHash;
+using API.Implementations.SimilarAudios;
+using API.Implementations.SimilarImages;
+using API.Interfaces.Common;
+using API.Interfaces.DuplicatesByHash;
+using API.Interfaces.SimilarAudios;
+using API.Interfaces.SimilarImages;
 using Database.Implementations;
 using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using StackExchange.Redis;
+using System.Text.Json.Serialization;
 
 namespace Europa
 {
@@ -23,7 +24,10 @@ namespace Europa
             var services = builder.Services;
 
             // Add services to the container.
-            services.AddControllers();
+            services.AddControllers().AddJsonOptions(options =>
+            {
+                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            });
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             services.AddEndpointsApiExplorer();
             services.AddSwaggerGen();
@@ -39,7 +43,7 @@ namespace Europa
 
             // Dependencies for finding duplicates by cryptographic hash.
             services.AddSingleton<IHashGenerator, HashGenerator>();
-            services.AddSingleton<IDuplicateFinderByHash, DuplicateFinderByHash>();
+            services.AddSingleton<IDuplicateByHashFinder, DuplicateByHashFinder>();
 
             // Dependency for identifying the file's type.
             services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();

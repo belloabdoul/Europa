@@ -1,9 +1,9 @@
-﻿using API.Common.Interfaces;
+﻿using API.Interfaces.Common;
 using MediaInfo;
 using Microsoft.Extensions.Logging.Abstractions;
 using SkiaSharp;
 
-namespace API.Common.Implementations
+namespace API.Implementations.Common
 {
     public class FileTypeIdentifier : IFileTypeIdentifier
     {

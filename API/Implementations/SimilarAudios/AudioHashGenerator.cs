@@ -1,11 +1,11 @@
-﻿using API.Features.FindSimilarAudios.Interfaces;
+﻿using API.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Builder;
 using SoundFingerprinting.Data;
 using SoundFingerprinting.Strides;
 
-namespace API.Features.FindSimilarAudios.Implementations
+namespace API.Implementations.SimilarAudios
 {
     public class AudioHashGenerator : IAudioHashGenerator
     {

@@ -1,7 +1,7 @@
 ﻿using API.Common.Entities;
-using API.Common.Interfaces;
+using API.Interfaces.Common;
 
-namespace API.Common.Implementations
+namespace API.Implementations.Common
 {
     public class DirectoryReader : IDirectoryReader
     {
@@ -21,21 +21,21 @@ namespace API.Common.Implementations
 
             List<string> fileTypes = [];
 
-            if (searchParameters.FilesTypeToSearch == FileType.All)
+            SearchParameters options = new();
+            searchParameters.CopyDtoToSearchParametersEntity(options);
+
+            if (options.FileTypeToSearch == FileType.All)
             {
                 fileTypes = ["*"];
             }
-            if (searchParameters.FilesTypeToSearch == FileType.Images)
+            if (options.FileTypeToSearch == FileType.Images)
             {
                 fileTypes = _imageFormats;
             }
-            else if (searchParameters.FilesTypeToSearch == FileType.Audios)
+            else if (options.FileTypeToSearch == FileType.Audios)
             {
                 fileTypes = _audioFormats;
             }
-
-            SearchParameters options = new();
-            searchParameters.CopyDtoToSearchParametersEntity(options);
 
             if (options.IncludedFileTypes != null && options.IncludedFileTypes.Count != 0)
             {

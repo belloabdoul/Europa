@@ -1,13 +1,13 @@
-﻿using API.Features.FindSimilarImages.Interfaces;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
-using API.Common.Interfaces;
 using Database.Interfaces;
 using OpenCvSharp;
-using API.Features.FindDuplicatesByHash.Interfaces;
 using System.Threading.Channels;
+using API.Interfaces.Common;
+using API.Interfaces.DuplicatesByHash;
+using API.Interfaces.SimilarImages;
 
-namespace API.Features.FindSimilarImages.Implementations
+namespace API.Implementations.SimilarImages
 {
     public class SimilarImageFinder : ISimilarImagesFinder
     {
@@ -24,7 +24,7 @@ namespace API.Features.FindSimilarImages.Implementations
             _commonType = "image";
         }
 
-        public async Task<(IEnumerable<IGrouping<string, File>>, ConcurrentQueue<string>)> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token)
+        public async Task<(IEnumerable<IGrouping<string, File>>, List<string>)> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token)
         {
             // The final list to return to the controller
             var duplicatedImages = new ConcurrentBag<File>();
@@ -104,7 +104,7 @@ namespace API.Features.FindSimilarImages.Implementations
 
             token.ThrowIfCancellationRequested();
 
-            return ([.. duplicatedImages.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)], exceptions);
+            return ([.. duplicatedImages.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)], exceptions.ToList());
         }
     }
 }

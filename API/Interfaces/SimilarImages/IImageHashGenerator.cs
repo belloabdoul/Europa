@@ -1,4 +1,4 @@
-﻿namespace API.Features.FindSimilarImages.Interfaces
+﻿namespace API.Interfaces.SimilarImages
 {
     public interface IImageHashGenerator
     {
