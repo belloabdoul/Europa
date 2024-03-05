@@ -51,9 +51,10 @@ namespace Database.Implementations
             var hashArray = Convert.FromHexString(hash).SelectMany(val => BitConverter.GetBytes(val / 255f)).ToArray();
 
             // @position:[$position +inf] 
-            var query = new Query($"@hash:[VECTOR_RANGE $range $hash]")
+            var query = new Query("@hash:[VECTOR_RANGE $range $hash]=>{$YIELD_DISTANCE_AS: score}")
                 .AddParam("range", 0.9)
                 .AddParam("hash", hashArray)
+                .SetSortBy("score")
                 .Limit(0, limit)
                 .Dialect(2);
 
