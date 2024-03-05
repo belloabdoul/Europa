@@ -1,7 +1,4 @@
-﻿using API.Common.Entities;
-using File = API.Common.Entities.File;
-
-namespace API.Features.FindDuplicatesByHash.Entities
+﻿namespace API.Common.Entities
 {
     public class DuplicatesResponse
     {

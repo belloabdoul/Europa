@@ -1,20 +1,16 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using System.Runtime.Serialization;
 
 namespace API.Common.Entities
 {
-    public enum FileType
-    {
-        All = 0,
-        Images = 1,
-        Audios = 2,
-        Videos = 3
-    }
     public class SearchParametersDto
     {
         // Should we include subfolders or not
-        [Required]
+        [Required(ErrorMessage = "You need to specify wether subfolders should be included or not.")]
         public bool IncludeSubfolders { get; set; }
+        // The category of the files we will be processing
+        [Required(ErrorMessage = "You need to specify if you want to process all files or only either audio or image files.")]
+        [EnumDataType(typeof(FileType))]
+        public FileType FileTypeToSearch { get; set; }
         // The minimum size for files to include in search
         public long MinSize { get; set; }
         // The maximum size for files to include
@@ -25,11 +21,10 @@ namespace API.Common.Entities
         public ICollection<string> ExcludedFileTypes { get; set; } = [];
         // The file types excluded by default.
         public ICollection<string> DefaultExcludedFileTypes { get; set; } = [];
-        [IgnoreDataMember]
-        public FileType FilesTypeToSearch { get; set; }
         public SearchParametersDto()
         {
             IncludeSubfolders = true;
+            FileTypeToSearch = FileType.All;
             MinSize = 0;
             MaxSize = long.MaxValue;
             IncludedFileTypes = [];
@@ -37,9 +32,10 @@ namespace API.Common.Entities
             DefaultExcludedFileTypes = [];
         }
 
-        public SearchParametersDto(bool includeSubfolders, long minSize, long maxSize, ICollection<string> includedFileTypes, ICollection<string> excludedFileTypes, ICollection<string> defaultExcludedFileTypes)
+        public SearchParametersDto(bool includeSubfolders, long minSize, long maxSize, ICollection<string> includedFileTypes, ICollection<string> excludedFileTypes, ICollection<string> defaultExcludedFileTypes, FileType fileTypeToSearch)
         {
             IncludeSubfolders = includeSubfolders;
+            FileTypeToSearch = fileTypeToSearch;
             MinSize = minSize;
             MaxSize = maxSize;
             IncludedFileTypes = includedFileTypes;
@@ -58,11 +54,7 @@ namespace API.Common.Entities
             entity.IncludedFileTypes = dto.IncludedFileTypes;
             entity.ExcludedFileTypes = dto.ExcludedFileTypes;
             entity.DefaultExcludedFileTypes = dto.DefaultExcludedFileTypes;
-        }
-
-        public static SearchParametersDto ToResponseDto(this SearchParameters entity)
-        {
-            return new SearchParametersDto(includeSubfolders: entity.SearchOption == SearchOption.AllDirectories, minSize: entity.MinSize, maxSize: entity.MaxSize, includedFileTypes: entity.IncludedFileTypes, excludedFileTypes: entity.ExcludedFileTypes, defaultExcludedFileTypes: entity.DefaultExcludedFileTypes);
+            entity.FileTypeToSearch = dto.FileTypeToSearch;
         }
     }
 }

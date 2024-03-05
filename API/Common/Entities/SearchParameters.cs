@@ -4,6 +4,8 @@
     {
         // Should we include subfolders or not
         public SearchOption SearchOption { get; set; }
+        // The category of the files we will be processing
+        public FileType FileTypeToSearch { get; set; }
         // The minimum size for files to include in search
         public long MinSize { get; set; }
         // The maximum size for files to include
@@ -23,6 +25,7 @@
             IncludedFileTypes = [];
             ExcludedFileTypes = [];
             DefaultExcludedFileTypes = [];
+            FileTypeToSearch = FileType.All;
         }
     }
 }
