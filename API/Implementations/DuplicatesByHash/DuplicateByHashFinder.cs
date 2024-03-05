@@ -1,4 +1,5 @@
-﻿using API.Interfaces.DuplicatesByHash;
+﻿using API.Interfaces.Common;
+using API.Interfaces.DuplicatesByHash;
 using System.Collections.Concurrent;
 using File = API.Common.Entities.File;
 
@@ -6,10 +7,12 @@ namespace API.Implementations.DuplicatesByHash
 {
     public class DuplicateByHashFinder : IDuplicateByHashFinder
     {
+        private readonly IFileReader _fileReader;
         private readonly IHashGenerator _hashGenerator;
 
-        public DuplicateByHashFinder(IHashGenerator hashGenerator)
+        public DuplicateByHashFinder(IFileReader fileReader, IHashGenerator hashGenerator)
         {
+            _fileReader = fileReader;
             _hashGenerator = hashGenerator;
         }
 
@@ -29,7 +32,8 @@ namespace API.Implementations.DuplicatesByHash
                 .WithCancellation(token)
                 .ForAll(file =>
                 {
-                    duplicates.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                    using var fileStream = _fileReader.GetFileStream(file);
+                    duplicates.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(fileStream)));
                 });
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 

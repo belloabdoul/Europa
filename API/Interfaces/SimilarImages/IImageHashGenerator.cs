@@ -2,6 +2,6 @@
 {
     public interface IImageHashGenerator
     {
-        string GenerateImageHash(string path, string type);
+        string GenerateImageHash(FileStream fileStream, string type);
     }
 }

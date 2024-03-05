@@ -38,8 +38,9 @@ namespace Europa
             DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
             DynamicallyLoadedBindings.Initialize();
 
-            // Dependency for all features
+            // Dependency for all or most features
             services.AddSingleton<IDirectoryReader, DirectoryReader>();
+            services.AddSingleton<IFileReader, FileReader>();
 
             // Dependencies for finding duplicates by cryptographic hash.
             services.AddSingleton<IHashGenerator, HashGenerator>();
