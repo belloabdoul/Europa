@@ -1,4 +1,5 @@
-﻿using API.Interfaces.Common;
+﻿using API.Implementations.Common;
+using API.Interfaces.Common;
 using API.Interfaces.DuplicatesByHash;
 using API.Interfaces.SimilarAudios;
 using SoundFingerprinting;
@@ -11,6 +12,7 @@ namespace API.Implementations.SimilarAudios
 {
     public class SimilarAudiosFinder : ISimilarAudiosFinder
     {
+        private readonly IFileReader _fileReader;
         private readonly IFileTypeIdentifier _fileTypeIdentifier;
         private readonly IModelService _modelService;
         private readonly IAudioService _mediaService;
@@ -18,13 +20,14 @@ namespace API.Implementations.SimilarAudios
         private readonly IHashGenerator _hashGenerator;
         private readonly object readLock;
 
-        public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier/*, IModelService modelService, IMediaService mediaService*/, IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
+        public SimilarAudiosFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier, IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
         {
+            _fileReader = fileReader;
             _fileTypeIdentifier = fileTypeIdentifier;
-            _modelService = EmyModelService.NewInstance("localhost", 3399);
-            _mediaService = new FFmpegAudioService();
             _audioHashGenerator = audioHashGenerator;
             _hashGenerator = hashGenerator;
+            _modelService = EmyModelService.NewInstance("localhost", 3399);
+            _mediaService = new FFmpegAudioService();
             readLock = new();
         }
 
@@ -64,7 +67,8 @@ namespace API.Implementations.SimilarAudios
                                 if (string.IsNullOrEmpty(match))
                                 {
                                     _audioHashGenerator.GenerateAudioHashes(file, _modelService, _mediaService);
-                                    duplicatedAudios.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(file)));
+                                    using var fileStream = _fileReader.GetFileStream(file);
+                                    duplicatedAudios.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(fileStream)));
                                 }
                             }
                             catch (Exception ex)

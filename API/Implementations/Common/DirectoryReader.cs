@@ -51,24 +51,28 @@ namespace API.Implementations.Common
             {
                 try
                 {
-                    // The search retrieve all files. Depending on user choice
-                    // subfolders can be included.
-                    // The user can also choose which file extensions to include and is independant from the excluded extension
-                    // The user can also choose to exclude extension by default from all searches (like .sys files or .ini files)
-                    // or choose an extension to exclude from the current search. THe excluded files will only be used if no
-                    // file types to include has been set.
-                    token.ThrowIfCancellationRequested();
-                    files.AddRange(
-                        fileTypes
-                        .AsParallel()
-                        .WithCancellation(token)
-                        .SelectMany(searchPattern => new DirectoryInfo(folder).EnumerateFiles(string.Concat("*.", searchPattern), options.SearchOption))
-                        .Where(file => file.Length >= options.MinSize && file.Length <= options.MaxSize).ToList()
-                    );
+                    if (folder == null || folder.Equals(string.Empty) || !Directory.Exists(folder))
+                        errors.Add($"The folder {folder} does not exist.");
+                    else
+                    {
+                        // The search retrieve all files. Depending on user choice
+                        // subfolders can be included.
+                        // The user can also choose which file extensions to include and is independant from the excluded extension
+                        // The user can also choose to exclude extension by default from all searches (like .sys files or .ini files)
+                        // or choose an extension to exclude from the current search. THe excluded files will only be used if no
+                        // file types to include has been set.
+                        token.ThrowIfCancellationRequested();
+                        files.AddRange(
+                            fileTypes
+                            .AsParallel()
+                            .WithCancellation(token)
+                            .SelectMany(searchPattern => new DirectoryInfo(folder).EnumerateFiles(string.Concat("*.", searchPattern), options.SearchOption))
+                            .Where(file => file.Length >= options.MinSize && file.Length <= options.MaxSize).ToList()
+                        );
 
-                    files = files.Where(file => !options.ExcludedFileTypes.Any(ext => file.Extension.EndsWith(ext)) && !options.DefaultExcludedFileTypes.Any(ext => file.Extension.EndsWith(ext))).ToList();
-                    token.ThrowIfCancellationRequested();
-
+                        files = files.Where(file => !options.ExcludedFileTypes.Any(ext => file.Extension.EndsWith(ext)) && !options.DefaultExcludedFileTypes.Any(ext => file.Extension.EndsWith(ext))).ToList();
+                        token.ThrowIfCancellationRequested();
+                    }
                 }
                 catch (UnauthorizedAccessException)
                 {

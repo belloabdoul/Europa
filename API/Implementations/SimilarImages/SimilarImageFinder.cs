@@ -14,10 +14,12 @@ namespace API.Implementations.SimilarImages
         private readonly IFileTypeIdentifier _fileTypeIdentifier;
         private readonly IImageHashGenerator _imageHashGenerator;
         private readonly IDbHelpers _dbHelpers;
+        private readonly IFileReader _fileReader;
         private readonly string _commonType;
 
-        public SimilarImageFinder(IFileTypeIdentifier fileTypeIdentifier, IImageHashGenerator imageHashGenerator, IHashGenerator hashGenerator, IDbHelpers dbHelpers)
+        public SimilarImageFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier, IImageHashGenerator imageHashGenerator, IDbHelpers dbHelpers)
         {
+            _fileReader = fileReader;
             _fileTypeIdentifier = fileTypeIdentifier;
             _imageHashGenerator = imageHashGenerator;
             _dbHelpers = dbHelpers;
@@ -52,7 +54,8 @@ namespace API.Implementations.SimilarImages
                         var type = _fileTypeIdentifier.GetFileType(image);
                         if (type.Contains(_commonType))
                         {
-                            var hash = _imageHashGenerator.GenerateImageHash(image, type);
+                            using var imageStream = _fileReader.GetFileStream(image);
+                            var hash = _imageHashGenerator.GenerateImageHash(imageStream, type);
 
                             // We only continue with the hash because with the hash because the type
                             // and the path where only needed to generate the perceptual hash.
