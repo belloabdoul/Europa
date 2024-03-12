@@ -25,8 +25,8 @@ namespace API.Controllers
         }
 
         // GET api/Duplicates/findDuplicates
-        [HttpGet("findDuplicates")]
-        public async Task<ActionResult> FindDuplicates([FromQuery] RequestDuplicates request, CancellationToken token)
+        [HttpPost("findDuplicates")]
+        public async Task<ActionResult> FindDuplicates([FromForm] RequestDuplicates request, CancellationToken token = default)
         {
             if (ModelState.IsValid)
             {

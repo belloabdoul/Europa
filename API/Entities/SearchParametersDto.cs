@@ -1,20 +1,22 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
 
 namespace API.Common.Entities
 {
     public class SearchParametersDto
     {
         // Should we include subfolders or not
-        [Required(ErrorMessage = "You need to specify wether subfolders should be included or not.")]
+        [Required(ErrorMessage = "No folder inclusion policy set.")]
+        [DefaultValue(true)]
         public bool IncludeSubfolders { get; set; }
         // The category of the files we will be processing
-        [Required(ErrorMessage = "You need to specify if you want to process all files or only either audio or image files.")]
+        [Required(ErrorMessage = "No file type to process set.")]
         [EnumDataType(typeof(FileType))]
         public FileType FileTypeToSearch { get; set; }
         // The minimum size for files to include in search
-        public long MinSize { get; set; }
+        public long? MinSize { get; set; }
         // The maximum size for files to include
-        public long MaxSize { get; set; }
+        public long? MaxSize { get; set; }
         // The file types to include. With this excluded files types are disabled
         public ICollection<string> IncludedFileTypes { get; set; } = [];
         // The file types to exclude. Only work if no file types are included

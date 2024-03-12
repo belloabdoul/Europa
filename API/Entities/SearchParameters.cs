@@ -7,9 +7,9 @@
         // The category of the files we will be processing
         public FileType FileTypeToSearch { get; set; }
         // The minimum size for files to include in search
-        public long MinSize { get; set; }
+        public long? MinSize { get; set; }
         // The maximum size for files to include
-        public long MaxSize { get; set; }
+        public long? MaxSize { get; set; }
         // The file types to include. With this excluded files types are disabled
         public ICollection<string> IncludedFileTypes { get; set; }
         // The file types to exclude. Only work if no file types are included
