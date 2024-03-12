@@ -45,7 +45,10 @@ namespace API.Implementations.Common
                     fileTypes = options.IncludedFileTypes.Intersect(fileTypes).ToList();
             }
 
-            var maxDegreeOfParallelism = (int)Math.Floor(decimal.Multiply(Environment.ProcessorCount, 0.9m));
+            if(options.MinSize == default)
+                options.MinSize = 0;
+            if (options.MaxSize == default)
+                options.MaxSize = long.MaxValue;
 
             foreach (var folder in folders)
             {
