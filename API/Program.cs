@@ -22,15 +22,27 @@ namespace Europa
             var builder = WebApplication.CreateBuilder(args);
             var config = builder.Configuration;
             var services = builder.Services;
+            var apiCorsPolicy = "ApiCorsPolicy";
 
             // Add services to the container.
+            services.AddCors(options => options.AddPolicy(apiCorsPolicy, builder =>
+            {
+                builder
+                .SetIsOriginAllowed(host => host.Equals("http://localhost:4200") ? true : false)
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+            }));
+
             services.AddControllers().AddJsonOptions(options =>
             {
                 options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
             });
+
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             services.AddEndpointsApiExplorer();
             services.AddSwaggerGen();
+            services.AddSignalR();
 
             // Initialize FFmpeg
             var current = AppDomain.CurrentDomain.BaseDirectory;
@@ -89,10 +101,13 @@ namespace Europa
 
             app.UseHttpsRedirection();
 
+            app.UseCors(apiCorsPolicy);
+
             app.UseAuthorization();
 
-
             app.MapControllers();
+
+            app.MapHub<NotificationHub>("/notifications");
 
             app.Run();
         }

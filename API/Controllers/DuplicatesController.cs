@@ -9,6 +9,8 @@ using File = API.Common.Entities.File;
 
 namespace API.Controllers
 {
+    [Route("api/duplicates")]
+    [ApiController]
     public class DuplicatesController : Controller
     {
         private readonly IDirectoryReader _directoryReader;
@@ -26,7 +28,7 @@ namespace API.Controllers
 
         // GET api/Duplicates/findDuplicates
         [HttpPost("findDuplicates")]
-        public async Task<ActionResult> FindDuplicates([FromForm] RequestDuplicates request, CancellationToken token = default)
+        public async Task<ActionResult> FindDuplicates([FromBody] RequestDuplicates request, CancellationToken token = default)
         {
             if (ModelState.IsValid)
             {
@@ -38,7 +40,9 @@ namespace API.Controllers
                 else if (request.SearchParameters.FileTypeToSearch == FileType.Audios)
                     duplicatesGroups = await _similarAudiosFinder.FindSimilarAudiosAsync(hypotheticalDuplicates.Distinct().ToList(), token);
                 else
-                    (duplicatesGroups, exceptions) = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
+                {
+                    duplicatesGroups = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
+                }
 
                 return Ok(duplicatesGroups.ToResponse([.. readerErrors, .. exceptions]));
             }

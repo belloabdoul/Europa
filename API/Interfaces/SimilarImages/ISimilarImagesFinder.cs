@@ -4,6 +4,6 @@ namespace API.Interfaces.SimilarImages
 {
     public interface ISimilarImagesFinder
     {
-        Task<(IEnumerable<IGrouping<string, File>>, List<string>)> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token);
+        Task<IEnumerable<IGrouping<string, File>>> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token);
     }
 }

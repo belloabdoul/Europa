@@ -4,21 +4,25 @@ using Database.Interfaces;
 using OpenCvSharp;
 using System.Threading.Channels;
 using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
 using API.Interfaces.SimilarImages;
+using API.Implementations.Common;
+using Microsoft.AspNetCore.SignalR;
+using API.Entities;
 
 namespace API.Implementations.SimilarImages
 {
     public class SimilarImageFinder : ISimilarImagesFinder
     {
+        private readonly IHubContext<NotificationHub> _notificationContext;
         private readonly IFileTypeIdentifier _fileTypeIdentifier;
         private readonly IImageHashGenerator _imageHashGenerator;
         private readonly IDbHelpers _dbHelpers;
         private readonly IFileReader _fileReader;
         private readonly string _commonType;
 
-        public SimilarImageFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier, IImageHashGenerator imageHashGenerator, IDbHelpers dbHelpers)
+        public SimilarImageFinder(IHubContext<NotificationHub> notificationContext, IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier, IImageHashGenerator imageHashGenerator, IDbHelpers dbHelpers)
         {
+            _notificationContext = notificationContext;
             _fileReader = fileReader;
             _fileTypeIdentifier = fileTypeIdentifier;
             _imageHashGenerator = imageHashGenerator;
@@ -26,28 +30,22 @@ namespace API.Implementations.SimilarImages
             _commonType = "image";
         }
 
-        public async Task<(IEnumerable<IGrouping<string, File>>, List<string>)> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token)
+        public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, CancellationToken token)
         {
-            // The final list to return to the controller
             var duplicatedImages = new ConcurrentBag<File>();
 
-            // The collections of errors which happened during the processing
-            var exceptions = new ConcurrentQueue<string>();
+            var imageHashesQueue = Channel.CreateUnbounded<(string Path, string Hash)>();
 
-            // We create a task for generating an image hash for each group
-            // of perfect duplicates. 
-            //using var imageHashQueue = new BlockingCollection<(string Path, string Hash)>();
-            var imageHashQueue = Channel.CreateUnbounded<(string Path, string Hash)>();
+            var notificationsQueue = Channel.CreateUnbounded<Notification>();
 
             Task producer = Task.Factory.StartNew(() =>
             {
                 hypotheticalDuplicates
                 .AsParallel()
-                //.AsOrdered()
                 .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
                 .WithCancellation(token)
-                .ForAll(image =>
+                .ForAll(async image =>
                 {
                     try
                     {
@@ -57,37 +55,34 @@ namespace API.Implementations.SimilarImages
                             using var imageStream = _fileReader.GetFileStream(image);
                             var hash = _imageHashGenerator.GenerateImageHash(imageStream, type);
 
-                            // We only continue with the hash because with the hash because the type
-                            // and the path where only needed to generate the perceptual hash.
-                            // The same way the cryptographic hash is already replaced with the
-                            // perceptual hash in the previous instructions
-                            imageHashQueue.Writer.TryWrite((Path: image, Hash: hash));
+                            await imageHashesQueue.Writer.WriteAsync((Path: image, Hash: hash));
                         }
                     }
                     // An OpenCVException is currently thrown if the file path contains non latin characters.
                     catch (OpenCVException)
                     {
-                        exceptions.Enqueue($"File {image} is not an image");
+                        await notificationsQueue.Writer.WriteAsync(new Notification(NotificationType.Exception, $"File {image} is not an image"));
                     }
                     // A NullReferenceException is thrown if SkiaSharp cannot decode an image. There is a high chance it is corrupted.
                     catch (NullReferenceException)
                     {
-                        exceptions.Enqueue($"File {image} is corrupted");
+                        await notificationsQueue.Writer.WriteAsync(new Notification(NotificationType.Exception, $"File {image} is corrupted"));
                     }
+
+                    await notificationsQueue.Writer.WriteAsync(new Notification(NotificationType.HashGenerationProgress, string.Empty));
                 });
 
-                imageHashQueue.Writer.Complete();
+                imageHashesQueue.Writer.Complete();
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-            // Here we create the consumer which will process each hash. It checks if the current image/image group has a similar image
-            // in the redis database using its vector similarity unctions. If yes, its duplicates are update with the hash associated to
-            // our image found. It will only be added if no similar images are found in the databse. 
 
+            // This consumer will process each hash. It checks if the current image in the redis database using its vector similarity functions.
+            // If no duplicates are found, the hash is inserted into the database. if a duplicate is found, the hash of the current image is replaced with its duplicate found.
             var imagesIndexToHash = new ConcurrentDictionary<int, string>();
 
-            Task duplicatesProcessor = Task.Factory.StartNew(() =>
+            Task duplicatesProcessor = Task.Factory.StartNew(async () =>
             {
-                foreach (var imageInfo in imageHashQueue.Reader.ReadAllAsync().ToBlockingEnumerable().Select((hash, index) => (hash.Path, Position: index, hash.Hash)))
+                foreach (var imageInfo in imageHashesQueue.Reader.ReadAllAsync(token).ToBlockingEnumerable().Select((hash, index) => (hash.Path, Position: index, hash.Hash)))
                 {
                     var similarHashIndex = _dbHelpers.GetSimilarHashIndex(imageInfo.Hash, imageInfo.Position, 1).FirstOrDefault();
                     if (similarHashIndex == 0)
@@ -99,15 +94,45 @@ namespace API.Implementations.SimilarImages
                     else
                     {
                         duplicatedImages.Add(new File(new FileInfo(imageInfo.Path), imagesIndexToHash[similarHashIndex]));
+                        await notificationsQueue.Writer.WriteAsync(new Notification(NotificationType.File, string.Concat(imagesIndexToHash[similarHashIndex], ", ", imageInfo.Path)));
                     }
+                    await notificationsQueue.Writer.WriteAsync(new Notification(NotificationType.TotalProgress, string.Empty));
+                }
+
+                notificationsQueue.Writer.Complete();
+            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+
+            // This consumer is for sending each notification collected to the client using SignalR 
+            Task notificationsProcessor = Task.Factory.StartNew(async () =>
+            {
+                var hashGenerationProgress = 0;
+                var totalProgress = 0;
+                await foreach (var notification in notificationsQueue.Reader.ReadAllAsync(token))
+                {
+                    if(notification.Type == NotificationType.HashGenerationProgress)
+                    {
+                        hashGenerationProgress++;
+                        notification.Result = ((double) hashGenerationProgress /  hypotheticalDuplicates.Count * 100).ToString();
+                    }
+                    else if (notification.Type == NotificationType.TotalProgress)
+                    {
+                        totalProgress++;
+                        notification.Result = ((double)totalProgress / hypotheticalDuplicates.Count * 100).ToString();
+                    }
+                    await _notificationContext.Clients.All.SendAsync("Notify", notification);
+                }
+                if(totalProgress != hashGenerationProgress)
+                {
+                    await _notificationContext.Clients.All.SendAsync("Notify", new Notification(NotificationType.TotalProgress, ((double)hashGenerationProgress / hypotheticalDuplicates.Count * 100).ToString()));
                 }
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-            await Task.WhenAll(producer, duplicatesProcessor);
+            await Task.WhenAll(producer, duplicatesProcessor, notificationsProcessor);
 
             token.ThrowIfCancellationRequested();
 
-            return ([.. duplicatedImages.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)], exceptions.ToList());
+            return [.. duplicatedImages.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)];
         }
     }
 }
