@@ -1,5 +1,7 @@
 ﻿using API.Common.Entities;
+using API.Entities;
 using API.Interfaces.Common;
+using Microsoft.AspNetCore.SignalR;
 
 namespace API.Implementations.Common
 {
@@ -8,15 +10,34 @@ namespace API.Implementations.Common
         private readonly List<string> _audioFormats = ["mp3", "flac", "wav", "ogg", "m4a", "aac", "aiff", "pcm", "aif", "aiff", "aifc", "m3a", "mp2", "mp4a", "mp2a", "mpga", "wave", "weba", "wma", "oga"];
         private readonly List<string> _imageFormats = ["mrw", "arw", "srf", "sr2", "mef", "orf", "erf", "kdc", "rw2", "raf", "dcr", "dng", "pef", "crw", "iiq", "nrw", "nef", "cr2", "jpg", "jpeg", "png",
             "bmp", "tiff", "tif", "tga", "ff", "webp", "gif", "ico", "exr", "qoi", "jpe", "heif", "heic", "avifs"];
+        private readonly IHubContext<NotificationHub> _notificationContext;
+
+
+        public DirectoryReader(IHubContext<NotificationHub> notificationContext) 
+        {
+            _notificationContext = notificationContext;
+        }
 
         public bool FileExists(string filePath)
         {
             return System.IO.File.Exists(filePath);
         }
 
-        public string[] GetAllFilesFromFolder(List<string> folders, SearchParametersDto searchParameters, CancellationToken token, out List<string> errors)
+        public static bool HasWriteAccessToFolder(string folderPath)
         {
-            errors = [];
+            try
+            {
+                var stream = System.IO.File.Create(string.Concat(folderPath, Path.DirectorySeparatorChar, "Essai.txt"));
+                stream.Close();
+                System.IO.File.Delete(string.Concat(folderPath, Path.DirectorySeparatorChar, "Essai.txt"));
+                return true;
+            }
+            catch { }
+            return false;
+        }
+
+        public async Task<string[]> GetAllFilesFromFolderAsync(List<string> folders, SearchParametersDto searchParameters, CancellationToken token)
+        {
             var files = new List<FileInfo>();
 
             List<string> fileTypes = [];
@@ -55,7 +76,9 @@ namespace API.Implementations.Common
                 try
                 {
                     if (folder == null || folder.Equals(string.Empty) || !Directory.Exists(folder))
-                        errors.Add($"The folder {folder} does not exist.");
+                        await _notificationContext.Clients.All.SendAsync("Notify", new Notification(NotificationType.Exception, $"The folder {folder} does not exist."));
+                    else if(!HasWriteAccessToFolder(folder))
+                        await _notificationContext.Clients.All.SendAsync("Notify", new Notification(NotificationType.Exception, $"You don't have access the folder {folder}."));
                     else
                     {
                         // The search retrieve all files. Depending on user choice
@@ -77,15 +100,12 @@ namespace API.Implementations.Common
                         token.ThrowIfCancellationRequested();
                     }
                 }
-                catch (UnauthorizedAccessException)
-                {
-                    errors.Add($"You don't have access the folder {folder}.");
-                }
                 catch (Exception ex)
                 {
-                    errors.Add(ex.Message);
+                    await _notificationContext.Clients.All.SendAsync("Notify", new Notification(NotificationType.Exception, ex.Message));
                 }
             }
+
             return files.Select(file => file.FullName).ToArray();
         }
     }

@@ -32,23 +32,22 @@ namespace API.Controllers
         {
             if (ModelState.IsValid)
             {
-                var hypotheticalDuplicates = _directoryReader.GetAllFilesFromFolder(request.Folders, request.SearchParameters, token, out var readerErrors);
-                var exceptions = new List<string>();
                 IEnumerable<IGrouping<string, File>> duplicatesGroups;
+
+                var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(request.Folders, request.SearchParameters, token);
+
                 if (request.SearchParameters.FileTypeToSearch == FileType.All)
                     duplicatesGroups = await _duplicatesByHashFinder.FindDuplicateByHash(hypotheticalDuplicates.Distinct().ToList(), token);
                 else if (request.SearchParameters.FileTypeToSearch == FileType.Audios)
                     duplicatesGroups = await _similarAudiosFinder.FindSimilarAudiosAsync(hypotheticalDuplicates.Distinct().ToList(), token);
                 else
-                {
                     duplicatesGroups = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
-                }
 
-                return Ok(duplicatesGroups.ToResponse([.. readerErrors, .. exceptions]));
+                return Ok(duplicatesGroups.ToResponseDTO());
             }
             else
             {
-                return UnprocessableEntity(ModelState);
+                return BadRequest(ModelState);
             }
         }
 
