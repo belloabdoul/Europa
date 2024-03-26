@@ -1,4 +1,4 @@
-﻿namespace API.Entities
+﻿namespace Core.Entities
 {
     public enum NotificationType
     {

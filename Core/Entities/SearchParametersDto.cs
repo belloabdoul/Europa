@@ -1,7 +1,7 @@
 ﻿using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 
-namespace API.Common.Entities
+namespace Core.Entities
 {
     public class SearchParametersDto
     {

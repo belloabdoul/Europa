@@ -1,8 +1,10 @@
-﻿namespace API.Common.Entities
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace Core.Entities
 {
-    public class RequestDuplicateFor
+    public class RequestDuplicates
     {
-        public string File { get; set; }
+        [Required]
         public List<string> Folders { get; set; }
         public SearchParametersDto SearchParameters { get; set; } = new SearchParametersDto();
     }

@@ -1,5 +1,5 @@
-﻿using API.Interfaces.DuplicatesByHash;
-using Blake3;
+﻿using Blake3;
+using Core.Interfaces.DuplicatesByHash;
 
 namespace API.Implementations.DuplicatesByHash
 {

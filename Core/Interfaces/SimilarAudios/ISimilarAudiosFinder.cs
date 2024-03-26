@@ -1,6 +1,6 @@
-﻿using File = API.Common.Entities.File;
+﻿using File = Core.Entities.File;
 
-namespace API.Interfaces.SimilarAudios
+namespace Core.Interfaces.SimilarAudios
 {
     public interface ISimilarAudiosFinder
     {

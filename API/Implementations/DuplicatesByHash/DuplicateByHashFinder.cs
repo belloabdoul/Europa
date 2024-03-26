@@ -1,7 +1,7 @@
-﻿using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
+﻿using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
 using System.Collections.Concurrent;
-using File = API.Common.Entities.File;
+using File = Core.Entities.File;
 
 namespace API.Implementations.DuplicatesByHash
 {

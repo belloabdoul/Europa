@@ -1,6 +1,6 @@
-﻿using API.Common.Entities;
+﻿using Core.Entities;
 
-namespace API.Interfaces.Common
+namespace Core.Interfaces.Common
 {
     public interface IDirectoryReader
     {

@@ -1,4 +1,4 @@
-﻿using API.Interfaces.Common;
+﻿using Core.Interfaces.Common;
 
 namespace API.Implementations.Common
 {

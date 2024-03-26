@@ -1,6 +1,5 @@
-﻿using API.Common.Entities;
-using API.Entities;
-using API.Interfaces.Common;
+﻿using Core.Entities;
+using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
 
 namespace API.Implementations.Common

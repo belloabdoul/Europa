@@ -1,4 +1,4 @@
-﻿namespace API.Common.Entities
+﻿namespace Core.Entities
 {
     public enum FileType
     {

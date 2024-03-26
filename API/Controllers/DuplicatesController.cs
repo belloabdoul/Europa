@@ -1,11 +1,11 @@
-﻿using API.Common.Entities;
-using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
-using API.Interfaces.SimilarAudios;
-using API.Interfaces.SimilarImages;
+﻿using Core.Entities;
+using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
+using Core.Interfaces.SimilarAudios;
+using Core.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
-using File = API.Common.Entities.File;
+using File = Core.Entities.File;
 
 namespace API.Controllers
 {
@@ -34,14 +34,14 @@ namespace API.Controllers
             {
                 IEnumerable<IGrouping<string, File>> duplicatesGroups;
 
-                var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(request.Folders, request.SearchParameters, token);
+                var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(request.Folders.Distinct().ToList(), request.SearchParameters, token);
 
                 if (request.SearchParameters.FileTypeToSearch == FileType.All)
                     duplicatesGroups = await _duplicatesByHashFinder.FindDuplicateByHash(hypotheticalDuplicates.Distinct().ToList(), token);
                 else if (request.SearchParameters.FileTypeToSearch == FileType.Audios)
                     duplicatesGroups = await _similarAudiosFinder.FindSimilarAudiosAsync(hypotheticalDuplicates.Distinct().ToList(), token);
                 else
-                    duplicatesGroups = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
+                    duplicatesGroups = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), request.Folders, token);
 
                 return Ok(duplicatesGroups.ToResponseDTO());
             }

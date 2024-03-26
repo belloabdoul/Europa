@@ -1,12 +1,12 @@
-using API.Common.Entities;
 using API.Implementations.Common;
 using API.Implementations.DuplicatesByHash;
 using API.Implementations.SimilarAudios;
 using API.Implementations.SimilarImages;
-using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
-using API.Interfaces.SimilarAudios;
-using API.Interfaces.SimilarImages;
+using Core.Entities;
+using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
+using Core.Interfaces.SimilarAudios;
+using Core.Interfaces.SimilarImages;
 using Database.Implementations;
 using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
@@ -59,7 +59,7 @@ namespace Europa
             services.AddSingleton<IDuplicateByHashFinder, DuplicateByHashFinder>();
 
             // Dependency for identifying the file's type.
-            services.AddSingleton<IFileTypeIdentifier, FileTypeIdentifier>();
+            services.AddSingleton<IFileTypeIdentifier, ImageIdentifier>();
 
             // Dependencies for finding similar audio files.
             services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
@@ -68,22 +68,18 @@ namespace Europa
             // Redis connection
             RedisConnection redisConnection = new();
             config.GetSection("RedisConnection").Bind(redisConnection);
-            services.AddSingleton<IConnectionMultiplexer>(option =>
+            services.AddSingleton<IConnectionMultiplexer>(provider => ConnectionMultiplexer.Connect(new ConfigurationOptions
             {
-                var connection = ConnectionMultiplexer.Connect(new ConfigurationOptions
-                {
-                    EndPoints = { $"{redisConnection.Host}:{redisConnection.Port}" },
-                    AbortOnConnectFail = false,
-                    Ssl = redisConnection.IsSSL,
-                    Password = redisConnection.Password,
-                    AllowAdmin = redisConnection.AllowAdmin,
-                    SyncTimeout = 30000
-                });
+                EndPoints = { $"{redisConnection.Host}:{redisConnection.Port}" },
+                AbortOnConnectFail = false,
+                Ssl = redisConnection.IsSSL,
+                Password = redisConnection.Password,
+                AllowAdmin = redisConnection.AllowAdmin,
+                SyncTimeout = 30000
+            }));
 
-                return connection;
-            });
             // Dependencies for finding similar image files.
-            services.AddSingleton<IDbHelpers, DbHelpers>();
+            services.AddSingleton<IDbHelpers>(serviceProvider => new DbHelpers(serviceProvider.GetRequiredService<IConnectionMultiplexer>()));
             services.AddSingleton<IImageHashGenerator, ImageHashGenerator>();
             services.AddSingleton<ISimilarImagesFinder, SimilarImageFinder>();
 

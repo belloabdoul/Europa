@@ -1,12 +1,11 @@
-﻿using API.Implementations.Common;
-using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
-using API.Interfaces.SimilarAudios;
+﻿using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
+using Core.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
 using System.Collections.Concurrent;
-using File = API.Common.Entities.File;
+using File = Core.Entities.File;
 
 namespace API.Implementations.SimilarAudios
 {

@@ -1,4 +1,4 @@
-﻿namespace API.Interfaces.Common
+﻿namespace Core.Interfaces.Common
 {
     public interface IFileTypeIdentifier
     {

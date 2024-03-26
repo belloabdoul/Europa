@@ -1,8 +1,7 @@
-﻿using API.Common.Entities;
-using API.Interfaces.SimilarImages;
+﻿using Core.Entities;
+using Core.Interfaces.SimilarImages;
 using OpenCvSharp;
 using SkiaSharp;
-using File = System.IO.File;
 
 namespace API.Implementations.SimilarImages
 {
