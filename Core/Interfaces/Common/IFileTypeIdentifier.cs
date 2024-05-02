@@ -1,7 +1,9 @@
-﻿namespace Core.Interfaces.Common
+﻿using Core.Entities;
+
+namespace Core.Interfaces.Common
 {
     public interface IFileTypeIdentifier
     {
-        string GetFileType(string path);
+        FileType GetFileType(string path);
     }
 }

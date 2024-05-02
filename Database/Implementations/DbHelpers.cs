@@ -1,77 +1,96 @@
-﻿using Database.Interfaces;
-using NRedisStack;
-using NRedisStack.RedisStackCommands;
-using NRedisStack.Search;
-using NRedisStack.Search.Literals.Enums;
-using StackExchange.Redis;
-using System.Collections.ObjectModel;
-using static NRedisStack.Search.Schema;
+﻿using Core.Entities;
+using Database.Interfaces;
+using File = Core.Entities.File;
+using Core.Context;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
+using System.Diagnostics.CodeAnalysis;
+using EFCore.BulkExtensions;
+using Pgvector.EntityFrameworkCore;
+using Pgvector;
+
+#pragma warning disable CS8604 // Possible null reference argument.
 
 namespace Database.Implementations
 {
     public class DbHelpers : IDbHelpers
     {
-        private readonly IConnectionMultiplexer _connection;
+        private readonly IDbContextFactory<SimilarityContext> _contextFactory;
 
-        public DbHelpers(IConnectionMultiplexer connection)
+        public DbHelpers(IDbContextFactory<SimilarityContext> contextFactory)
         {
-            _connection = connection;
+            _contextFactory = contextFactory;
         }
 
-        public IReadOnlyCollection<int> GetSimilarHashIndex(string hash, int position, int limit)
+        public async Task GetCachedHashAsync(ConcurrentQueue<File> filesWithoutImageHash,
+            CancellationToken cancellationToken)
         {
-            var database = _connection.GetDatabase();
-
-            var ft = database.FT();
-
-            if (position == 0)
-            {
-                var server = _connection.GetServer("localhost:6379");
-                server.FlushDatabase();
-
-                var schema = new Schema()
-                    .AddNumericField("position")
-                    .AddTextField("path")
-                    .AddVectorField("hash",
-                             VectorField.VectorAlgo.HNSW,
-                             new Dictionary<string, object>()
-                             {
-                                 ["TYPE"] = "FLOAT32",
-                                 ["DIM"] = "121",
-                                 ["DISTANCE_METRIC"] = "L2"
-                             });
-
-                try { ft.DropIndex("idx:hashes"); } catch { }
-
-                try { ft.Create("idx:hashes", new FTCreateParams().On(IndexDataType.HASH), schema); } catch (RedisServerException) { }
-
-                ft.ConfigSet("MAXSEARCHRESULTS", "-1");
-            }
-
-            var hashArray = Convert.FromHexString(hash).SelectMany(val => BitConverter.GetBytes(val / 255f)).ToArray();
-
-            // @position:[$position +inf] 
-            var query = new Query("@hash:[VECTOR_RANGE $range $hash]=>{$YIELD_DISTANCE_AS: score}")
-                .AddParam("range", 0.9)
-                .AddParam("hash", hashArray)
-                .SetSortBy("score")
-                .Limit(0, limit)
-                .Dialect(2);
-
-            return new ReadOnlyCollection<int>(ft.Search("idx:hashes", query).Documents
-                .Select(result => int.Parse(result.Id)).ToList());
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            var bulkConfig = new BulkConfig { UpdateByProperties = [nameof(File.Id)] };
+            await context.BulkReadAsync(filesWithoutImageHash, bulkConfig, cancellationToken: cancellationToken);
         }
 
-        public void InsertImageHash(string hash, int position, string path)
+        public async Task<bool> CacheHashAsync(ConcurrentQueue<File> filesToCache, CancellationToken cancellationToken)
         {
-            var database = _connection.GetDatabase();
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+            await context.BulkInsertAsync(filesToCache, cancellationToken: cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return true;
+        }
 
-            var ft = database.FT();
+        public async Task<List<string>> GetSimilarImagesGroupsAssociatedToAsync(string currentFile,
+            CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-            // Convert pixel value from 0-255 to float between 0-1 to be able to use redis' vector similarity functions
-            var hashArray = Convert.FromHexString(hash).SelectMany(val => BitConverter.GetBytes(val / 255f)).ToArray();
+            return await context.Similarities.Where(similarity => similarity.HypotheticalOriginalId.Equals(currentFile))
+                .Select(similarity => similarity.HypotheticalDuplicateId).ToListAsync(cancellationToken);
+        }
 
-            database.HashSet(position.ToString(), [new HashEntry("position", position), new HashEntry("path", path), new HashEntry("hash", hashArray)]);
+        [SuppressMessage("ReSharper", "EntityFramework.UnsupportedServerSideFunctionCall")]
+        public async Task<List<Similarity>> GetSimilarImagesGroups(Vector imageHash, double threshold,
+            List<string> imagesGroupsAlreadyDone, CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            if (imagesGroupsAlreadyDone.Count == 0)
+                return await context.Files
+                    .Where(f => f.ImageHash.CosineDistance(imageHash) <= 1 - threshold)
+                    .Select(f => new Similarity
+                    {
+                        HypotheticalOriginalId = string.Empty, HypotheticalDuplicateId = f.Id,
+                        Score = f.ImageHash.CosineDistance(imageHash)
+                    })
+                    .ToListAsync(cancellationToken);
+            return await context.Files
+                .Where(f => !imagesGroupsAlreadyDone.Contains(f.Id) &&
+                            f.ImageHash.CosineDistance(imageHash) <= 1 - threshold)
+                .Select(f => new Similarity
+                {
+                    HypotheticalOriginalId = string.Empty, HypotheticalDuplicateId = f.Id,
+                    Score = f.ImageHash.CosineDistance(imageHash)
+                })
+                .ToListAsync(cancellationToken);
+        }
+
+        public async Task SetSimilaritiesAsync(IEnumerable<Similarity> similarities,
+            CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
+
+            await context.BulkInsertAsync(similarities, cancellationToken: cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+
+        public async Task<List<string>> GetSimilarImagesGroupsInRangeAsync(string currentFile, double threshold,
+            CancellationToken cancellationToken)
+        {
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+
+            return await context.Similarities.Where(similarity =>
+                    similarity.HypotheticalOriginalId.Equals(currentFile) && similarity.Score <= 1 - threshold)
+                .Select(similarity => similarity.HypotheticalDuplicateId).ToListAsync(cancellationToken);
         }
     }
 }

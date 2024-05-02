@@ -1,7 +1,8 @@
-﻿namespace Core.Interfaces.SimilarImages
+﻿using Pgvector;
+
+namespace Core.Interfaces.SimilarImages;
+
+public interface IImageHashGenerator
 {
-    public interface IImageHashGenerator
-    {
-        string GenerateImageHash(FileStream fileStream, string type);
-    }
+    Vector GenerateImageHash(FileStream fileStream);
 }

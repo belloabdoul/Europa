@@ -54,43 +54,43 @@ namespace API.Implementations.SimilarAudios
                 .ForAll(file =>
                 {
                     var match = string.Empty;
-                    var type = _fileTypeIdentifier.GetFileType(file);
-                    if (type.Equals("audio"))
-                    {
-                        //await semaphore.WaitAsync(token);
-                        lock (readLock)
-                        {
-                            try
-                            {
-                                match = _audioHashGenerator.GetAudioMatches(file, _modelService, _mediaService);
-                                if (string.IsNullOrEmpty(match))
-                                {
-                                    _audioHashGenerator.GenerateAudioHashes(file, _modelService, _mediaService);
-                                    using var fileStream = _fileReader.GetFileStream(file);
-                                    duplicatedAudios.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(fileStream)));
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.Message);
-                            }
-                        }
-                        //finally 
-                        //{
-                        //    semaphore.Release();
-                        //}
-                        if (!string.IsNullOrEmpty(match))
-                        {
-                            duplicatedAudios.Add(new File(new FileInfo(file), duplicatedAudios.First(audio => audio.Path.Equals(match)).Hash));
-                        }
-                    }
+                    // var type = _fileTypeIdentifier.GetFileType(file);
+                    // if (type.Equals("audio"))
+                    // {
+                    //     //await semaphore.WaitAsync(token);
+                    //     lock (readLock)
+                    //     {
+                    //         try
+                    //         {
+                    //             match = _audioHashGenerator.GetAudioMatches(file, _modelService, _mediaService);
+                    //             if (string.IsNullOrEmpty(match))
+                    //             {
+                    //                 _audioHashGenerator.GenerateAudioHashes(file, _modelService, _mediaService);
+                    //                 using var fileStream = _fileReader.GetFileStream(file);
+                    //                 // duplicatedAudios.Add(new File(new FileInfo(file), _hashGenerator.GenerateHash(fileStream)));
+                    //             }
+                    //         }
+                    //         catch (Exception ex)
+                    //         {
+                    //             Console.WriteLine(ex.Message);
+                    //         }
+                    //     }
+                    //     //finally 
+                    //     //{
+                    //     //    semaphore.Release();
+                    //     //}
+                    //     if (!string.IsNullOrEmpty(match))
+                    //     {
+                    //         duplicatedAudios.Add(new File(new FileInfo(file), duplicatedAudios.First(audio => audio.Path.Equals(match)).Hash));
+                    //     }
+                    // }
                 });
             }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
             token.ThrowIfCancellationRequested();
 
             token.ThrowIfCancellationRequested();
-            return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash).Where(i => i.Count() != 1)];
+            return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Id).Where(i => i.Count() != 1)];
         }
     }
 }

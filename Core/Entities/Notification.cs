@@ -1,4 +1,5 @@
-﻿namespace Core.Entities
+﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
+namespace Core.Entities
 {
     public class Notification
     {

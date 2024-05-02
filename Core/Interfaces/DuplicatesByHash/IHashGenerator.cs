@@ -2,6 +2,6 @@
 {
     public interface IHashGenerator
     {
-        string GenerateHash(FileStream path);
+        string GenerateHash(FileStream fileStream, long lengthToHash);
     }
 }

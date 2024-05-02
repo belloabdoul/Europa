@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace API.Implementations.SimilarAudios
 {
-    public class FileTypeIdentifier : IFileTypeIdentifier
+    public class FileTypeIdentifier
     {
         private readonly string audio = string.Intern("audio");
         private readonly string video = string.Intern("video");

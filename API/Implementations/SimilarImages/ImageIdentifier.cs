@@ -1,33 +1,32 @@
-﻿using Core.Interfaces.Common;
-using SkiaSharp;
+﻿using Core.Entities;
+using Core.Interfaces.Common;
+using PhotoSauce.MagicScaler;
+#pragma warning disable CS8602 // Dereference of a possibly null reference.
 
 namespace API.Implementations.SimilarImages
 {
     public class ImageIdentifier : IFileTypeIdentifier
     {
-        private readonly string animatedWebp = string.Intern("animation/webp");
-        private readonly string animatedImage = string.Intern("animation");
-        private readonly string imageGif = string.Intern("image/gif");
-        private readonly string image = string.Intern("image");
-
-        public string GetFileType(string path)
+        public FileType GetFileType(string path)
         {
-            using var codec = SKCodec.Create(path);
-            if (codec != null)
+            try
             {
-                if (codec.FrameCount > 1)
-                {
-                    if (codec.EncodedFormat == SKEncodedImageFormat.Webp)
-                        return animatedWebp;
-                    return animatedImage;
-                }
-                else if (codec.EncodedFormat == SKEncodedImageFormat.Gif)
-                    return imageGif;
-                return image;
+                var imageInfo = ImageFileInfo.Load(path);
+                if (imageInfo.Frames.Count > 1)
+                    return imageInfo.MimeType.Contains("webp", StringComparison.OrdinalIgnoreCase)
+                        ? FileType.WebpAnimation
+                        : FileType.Animation;
+                return imageInfo.MimeType.Contains("gif", StringComparison.OrdinalIgnoreCase)
+                    ? FileType.GifImage
+                    : FileType.Image;
             }
-            else
+            catch (ArgumentException)
             {
-                return $"File {path} is corrupt";
+                return FileType.Corrupt;
+            }
+            catch (InvalidDataException)
+            {
+                return FileType.Corrupt;
             }
         }
     }

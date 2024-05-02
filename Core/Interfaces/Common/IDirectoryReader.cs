@@ -6,6 +6,6 @@ namespace Core.Interfaces.Common
     {
         bool FileExists(string filePath);
 
-        Task<string[]> GetAllFilesFromFolderAsync(List<string> folders, SearchParametersDto searchParameters, CancellationToken token);
+        Task<List<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters, CancellationToken token);
     }
 }

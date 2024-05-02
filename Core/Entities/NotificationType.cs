@@ -3,8 +3,8 @@
     public enum NotificationType
     {
         HashGenerationProgress,
+        SimilaritySearchProgress,
         TotalProgress,
-        Exception,
-        File
+        Exception
     }
 }

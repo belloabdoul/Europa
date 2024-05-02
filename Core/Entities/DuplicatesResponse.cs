@@ -1,16 +1,19 @@
-﻿namespace Core.Entities
+﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
+namespace Core.Entities
 {
     public class DuplicatesResponse
     {
-        public List<List<FileDto>> DuplicatesGroups { get; set; }
+        public List<List<FileDto>>? DuplicatesGroups { get; set; }
     }
 
     public static class DuplicatesResponseMapping
     {
-        public static DuplicatesResponse ToResponseDTO(this IEnumerable<IGrouping<string, File>> duplicatesGroups)
+        public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<string, File>> duplicatesGroups)
         {
-            DuplicatesResponse response = new DuplicatesResponse();
-            response.DuplicatesGroups = duplicatesGroups.Select(group => group.Select(file => file.ToResponseDto()).ToList()).ToList();
+            var response = new DuplicatesResponse
+            {
+                DuplicatesGroups = duplicatesGroups.Select(group => group.Select(file => file.ToResponseDto()).ToList()).ToList()
+            };
             return response;
         }
     }

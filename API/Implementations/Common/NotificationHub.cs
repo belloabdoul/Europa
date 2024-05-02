@@ -2,7 +2,5 @@
 
 namespace API.Implementations.Common
 {
-    public class NotificationHub: Hub
-    {
-    }
+    public class NotificationHub : Hub;
 }
