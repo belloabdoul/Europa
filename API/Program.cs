@@ -58,12 +58,12 @@ namespace API
             DynamicallyLoadedBindings.Initialize();
             
             // Dependency for all or most features
-            services.AddSingleton<IDirectoryReader, DirectoryReader>();
+            services.AddScoped<IDirectoryReader, DirectoryReader>();
             services.AddSingleton<IFileReader, FileReader>();
 
             // Dependencies for finding duplicates by cryptographic hash.
-            services.AddSingleton<IHashGenerator, HashGenerator>();
-            services.AddSingleton<IDuplicateByHashFinder, DuplicateByHashFinder>();
+            services.AddTransient<IHashGenerator, HashGenerator>();
+            services.AddScoped<IDuplicateByHashFinder, DuplicateByHashFinder>();
             
             // Dependency for identifying the file's type.
             CodecManager.Configure(codecs =>
@@ -75,7 +75,7 @@ namespace API
                 codecs.UseLibwebp();
                 codecs.UseGiflib();
             });
-            services.AddSingleton<IFileTypeIdentifier, ImageIdentifier>();
+            services.AddTransient<IFileTypeIdentifier, ImageIdentifier>();
 
             // Dependencies for finding similar audio files.
             services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
@@ -83,8 +83,8 @@ namespace API
 
             builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
             // Dependencies for finding similar image files.
-            services.AddScoped<IImageHashGenerator, ImageHashGenerator>();
-            services.AddScoped<IDbHelpers, DbHelpers>();
+            services.AddTransient<IImageHashGenerator, ImageHashGenerator>();
+            services.AddTransient<IDbHelpers, DbHelpers>();
             services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
 
             var app = builder.Build();
