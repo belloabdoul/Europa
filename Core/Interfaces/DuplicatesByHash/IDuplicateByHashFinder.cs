@@ -1,6 +1,6 @@
-﻿using File = API.Common.Entities.File;
+﻿using File = Core.Entities.File;
 
-namespace API.Interfaces.DuplicatesByHash
+namespace Core.Interfaces.DuplicatesByHash
 {
     public interface IDuplicateByHashFinder
     {

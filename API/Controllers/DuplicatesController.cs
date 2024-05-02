@@ -1,14 +1,15 @@
-﻿using API.Common.Entities;
-using API.Interfaces.Common;
-using API.Interfaces.DuplicatesByHash;
-using API.Interfaces.SimilarAudios;
-using API.Interfaces.SimilarImages;
+﻿using Core.Entities;
+using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
+using Core.Interfaces.SimilarAudios;
+using Core.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
-using File = API.Common.Entities.File;
 
 namespace API.Controllers
 {
+    [Route("api/duplicates")]
+    [ApiController]
     public class DuplicatesController : Controller
     {
         private readonly IDirectoryReader _directoryReader;
@@ -25,27 +26,27 @@ namespace API.Controllers
         }
 
         // GET api/Duplicates/findDuplicates
-        [HttpGet("findDuplicates")]
-        public async Task<ActionResult> FindDuplicates([FromQuery] RequestDuplicates request, CancellationToken token)
+        [HttpPost("findDuplicates")]
+        public async Task<ActionResult> FindDuplicates([FromBody] SearchParameters searchParameters, CancellationToken token = default)
         {
             if (ModelState.IsValid)
             {
-                var hypotheticalDuplicates = _directoryReader.GetAllFilesFromFolder(request.Folders, request.SearchParameters, token, out var readerErrors);
-                var exceptions = new List<string>();
-                IEnumerable<IGrouping<string, File>> duplicatesGroups;
-                if (request.SearchParameters.FileTypeToSearch == FileType.All)
-                    duplicatesGroups = await _duplicatesByHashFinder.FindDuplicateByHash(hypotheticalDuplicates.Distinct().ToList(), token);
-                else if (request.SearchParameters.FileTypeToSearch == FileType.Audios)
-                    duplicatesGroups = await _similarAudiosFinder.FindSimilarAudiosAsync(hypotheticalDuplicates.Distinct().ToList(), token);
-                else
-                    (duplicatesGroups, exceptions) = await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates.Distinct().ToList(), token);
+                var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, token);
+                
+                var duplicatesGroups = searchParameters.FileSearchType switch
+                {
+                    FileSearchType.All => await _duplicatesByHashFinder.FindDuplicateByHash(
+                        hypotheticalDuplicates, token),
+                    FileSearchType.Audios => await _similarAudiosFinder.FindSimilarAudiosAsync(
+                        hypotheticalDuplicates, token),
+                    _ => await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates,
+                        searchParameters.DegreeOfSimilarity, token)
+                };
 
-                return Ok(duplicatesGroups.ToResponse([.. readerErrors, .. exceptions]));
+                return Ok(duplicatesGroups.ToResponseDto());
             }
-            else
-            {
-                return UnprocessableEntity(ModelState);
-            }
+
+            return BadRequest(ModelState);
         }
 
         // GET api/Commons/openFileLocation

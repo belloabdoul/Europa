@@ -1,4 +1,4 @@
-﻿using API.Interfaces.Common;
+﻿using Core.Interfaces.Common;
 
 namespace API.Implementations.Common
 {
@@ -6,7 +6,7 @@ namespace API.Implementations.Common
     {
         public FileStream GetFileStream(string path)
         {
-            return File.OpenRead(path);
+            return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 16384);
         }
     }
 }

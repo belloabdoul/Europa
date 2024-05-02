@@ -1,44 +1,34 @@
-﻿using API.Common.Entities;
-using API.Interfaces.SimilarImages;
+﻿using Core.Entities;
+using Core.Interfaces.SimilarImages;
 using OpenCvSharp;
+using Pgvector;
 using SkiaSharp;
-using File = System.IO.File;
 
-namespace API.Implementations.SimilarImages
+namespace API.Implementations.SimilarImages;
+
+public class ImageHashGenerator : IImageHashGenerator
 {
-    public class ImageHashGenerator : IImageHashGenerator
+    public Vector GenerateImageHash(FileStream fileStream)
     {
-        public string GenerateImageHash(FileStream fileStream, string type)
+        float[] hashAsEmbeddings;
+        using var image = SKBitmap.Decode(fileStream);
+        Utilities.GetHashFunction(out var blockMeanHash);
+        
+        using (blockMeanHash)
+        using (var mat = new Mat(image.Height, image.Width, MatType.CV_8UC(image.BytesPerPixel), image.GetPixels(), image.RowBytes))
+        using (var hash = new Mat<byte>())
         {
-            var hashString = string.Empty;
-            Mat image;
+            blockMeanHash.Compute(mat, hash);
+            hash.GetArray(out byte[] hashArray);
 
-            // Convert the image's pixels to an OpenCV matrixe and initialize the reference and hash matrixes
-            if (type.Contains("gif"))
+            hashAsEmbeddings = new float[hashArray.Length];
+            
+            for (var i = 0; i < hashArray.Length; i++)
             {
-                // SkiaSharp
-                using var bitmap = SKBitmap.Decode(fileStream);
-                image = Mat.FromImageData(bitmap.Encode(SKEncodedImageFormat.Webp, 100).ToArray());
+                hashAsEmbeddings[i] = hashArray[i] / 255f;
             }
-            else
-            {
-                image = Mat.FromStream(fileStream, ImreadModes.Color);
-            }
-
-            using var hash = new Mat<byte>();
-
-            // Initialize the block mean hash function
-            Utilities.GetHashFunction(out var blockMeanHash);
-
-            using (blockMeanHash)
-            {
-                // Generate perceptual hash
-                blockMeanHash.Compute(image, hash);
-                hashString = Convert.ToHexString(hash.ToArray());
-            }
-
-            image.Dispose();
-            return hashString;
         }
+        
+        return new Vector(hashAsEmbeddings);
     }
 }
