@@ -1,9 +1,9 @@
 ﻿using File = Core.Entities.File;
 
-namespace Core.Interfaces.SimilarImages
+namespace Core.Interfaces.SimilarImages;
+
+public interface ISimilarImagesFinder
 {
-    public interface ISimilarImagesFinder
-    {
-        Task<IEnumerable<IGrouping<string, File>>> FindSimilarImagesAsync(List<string> hypotheticalDuplicates, double degreeOfSimilarity, CancellationToken token);
-    }
+    Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarImagesAsync(SortedList<string, (long, DateTime)> hypotheticalDuplicates,
+        double degreeOfSimilarity, CancellationToken token);
 }

@@ -1,10 +1,9 @@
-﻿namespace Core.Entities
+﻿namespace Core.Entities;
+
+public enum NotificationType
 {
-    public enum NotificationType
-    {
-        HashGenerationProgress,
-        SimilaritySearchProgress,
-        TotalProgress,
-        Exception
-    }
+    HashGenerationProgress,
+    SimilaritySearchProgress,
+    TotalProgress,
+    Exception
 }

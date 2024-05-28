@@ -1,4 +1,3 @@
-using System.Text.Json.Serialization;
 using API.Implementations.Common;
 using API.Implementations.DuplicatesByHash;
 using API.Implementations.SimilarAudios;
@@ -8,121 +7,116 @@ using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
+using Dapper;
 using Database.Implementations;
 using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using Microsoft.EntityFrameworkCore;
-using PhotoSauce.MagicScaler;
-using PhotoSauce.NativeCodecs.Giflib;
-using PhotoSauce.NativeCodecs.Libheif;
-using PhotoSauce.NativeCodecs.Libjpeg;
-using PhotoSauce.NativeCodecs.Libjxl;
-using PhotoSauce.NativeCodecs.Libpng;
-using PhotoSauce.NativeCodecs.Libwebp;
+using Npgsql;
+using Pgvector.Dapper;
 
-namespace API
+namespace API;
+
+public class Program
 {
-    public class Program
+    public static void Main(string[] args)
     {
-        public static void Main(string[] args)
+        var builder = WebApplication.CreateBuilder(args);
+        var services = builder.Services;
+        const string apiCorsPolicy = "ApiCorsPolicy";
+
+        // Add services to the container.
+        services.AddCors(options => options.AddPolicy(apiCorsPolicy, corsPolicyBuilder =>
         {
-            var builder = WebApplication.CreateBuilder(args);
-            var services = builder.Services;
-            const string apiCorsPolicy = "ApiCorsPolicy";
+            corsPolicyBuilder
+                .SetIsOriginAllowed(host => host == "http://localhost:4200")
+                .AllowAnyMethod()
+                .AllowAnyHeader()
+                .AllowCredentials();
+        }));
 
-            // Add services to the container.
-            services.AddCors(options => options.AddPolicy(apiCorsPolicy, corsPolicyBuilder =>
-            {
-                corsPolicyBuilder
-                    .SetIsOriginAllowed(host => host.Equals("http://localhost:4200"))
-                    .AllowAnyMethod()
-                    .AllowAnyHeader()
-                    .AllowCredentials();
-            }));
+        services.AddControllers();
 
-            services.AddControllers().AddJsonOptions(options =>
-            {
-                options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-                options.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
-            });
+        // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+        services.AddEndpointsApiExplorer();
+        services.AddSwaggerGen();
+        services.AddSignalR(hubConnection => { hubConnection.ClientTimeoutInterval = TimeSpan.FromHours(1); });
 
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-            services.AddEndpointsApiExplorer();
-            services.AddSwaggerGen();
-            services.AddSignalR(hubConnection => { hubConnection.ClientTimeoutInterval = TimeSpan.FromHours(1); });
+        // Initialize FFmpeg
+        var current = AppDomain.CurrentDomain.BaseDirectory;
+        var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
+        DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
+        DynamicallyLoadedBindings.Initialize();
 
-            // Initialize FFmpeg
-            var current = AppDomain.CurrentDomain.BaseDirectory;
-            var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
-            DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
-            DynamicallyLoadedBindings.Initialize();
-            
-            // Dependency for all or most features
-            services.AddScoped<IDirectoryReader, DirectoryReader>();
-            services.AddSingleton<IFileReader, FileReader>();
+        // Dependency for all or most features
+        services.AddScoped<IFileTypeIdentifier, ImageIdentifier>();
+        services.AddScoped<IDirectoryReader, DirectoryReader>();
+        services.AddScoped<IFileReader, FileReader>();
 
-            // Dependencies for finding duplicates by cryptographic hash.
-            services.AddTransient<IHashGenerator, HashGenerator>();
-            services.AddScoped<IDuplicateByHashFinder, DuplicateByHashFinder>();
-            
-            // Dependency for identifying the file's type.
-            CodecManager.Configure(codecs =>
-            {            
-                codecs.UseLibpng();
-                codecs.UseLibheif();
-                codecs.UseLibjpeg();
-                codecs.UseLibjxl();
-                codecs.UseLibwebp();
-                codecs.UseGiflib();
-            });
-            services.AddTransient<IFileTypeIdentifier, ImageIdentifier>();
+        // Dependencies for finding duplicates by cryptographic hash.
+        services.AddTransient<IHashGenerator, HashGenerator>();
+        services.AddScoped<IDuplicateByHashFinder, DuplicateByHashFinder>();
+        
+        // Dependencies for finding similar audio files.
+        services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
+        services.AddScoped<ISimilarAudiosFinder, SimilarAudiosFinder>();
+        
+        // Added pgvector dependency for dapper
+        SqlMapper.AddTypeHandler(new VectorTypeHandler());
+        DefaultTypeMap.MatchNamesWithUnderscores = true;
+        
+        builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
+        // Dependencies for finding similar image files.
+        services.AddTransient<IImageHashGenerator, ImageHashGenerator>();
+        services.AddScoped<IDbHelpers, DbHelpers>();
+        services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
 
-            // Dependencies for finding similar audio files.
-            services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
-            services.AddSingleton<ISimilarAudiosFinder, SimilarAudiosFinder>();
+        var app = builder.Build();
 
-            builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
-            // Dependencies for finding similar image files.
-            services.AddTransient<IImageHashGenerator, ImageHashGenerator>();
-            services.AddTransient<IDbHelpers, DbHelpers>();
-            services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
+        using (var scope = app.Services.CreateScope())
+        {
+            var provider = scope.ServiceProvider;
+            var contextFactory = provider.GetRequiredService<IDbContextFactory<SimilarityContext>>();
+            using var context = contextFactory.CreateDbContext();
+            context.Database.Migrate();
+        }
 
-            var app = builder.Build();
+        // Configure the HTTP request pipeline.
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(swaggerUiOptions => swaggerUiOptions.ConfigObject.AdditionalItems["syntaxHighlight"] =
+                new Dictionary<string, object>
+                {
+                    ["activated"] = false
+                });
+        }
 
-            using (var scope = app.Services.CreateScope())
-            {
-                var provider = scope.ServiceProvider;
-                var contextFactory = provider.GetRequiredService<IDbContextFactory<SimilarityContext>>();
-                using var context = contextFactory.CreateDbContext();
-                context.Database.Migrate();
-            }
+        app.UseHttpsRedirection();
 
-            // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
-            {
-                app.UseSwagger();
-                app.UseSwaggerUI(swaggerUiOptions => swaggerUiOptions.ConfigObject.AdditionalItems["syntaxHighlight"] =
-                    new Dictionary<string, object>
-                    {
-                        ["activated"] = false
-                    });
-            }
+        app.UseCors(apiCorsPolicy);
 
-            app.UseHttpsRedirection();
+        app.UseAuthorization();
 
-            app.UseCors(apiCorsPolicy);
+        app.MapControllers();
 
-            app.UseAuthorization();
+        app.MapHub<NotificationHub>("/notifications");
 
-            app.MapControllers();
+        app.Run();
+        
+        return;
 
-            app.MapHub<NotificationHub>("/notifications");
-
-            app.Run();
-            return;
-
-            // Database
-            void Options(DbContextOptionsBuilder optionsBuilder) => optionsBuilder.UseNpgsql(builder.Configuration.GetConnectionString("SimilarityContext"), o => o.UseVector()).UseSnakeCaseNamingConvention().EnableDetailedErrors().EnableSensitiveDataLogging();
+        // Database
+        void Options(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder
+                .UseNpgsql(builder.Configuration.GetConnectionString("SimilarityContext"), o =>
+                {
+                    o.UseVector();
+                    o.MigrationsHistoryTable("__ef_migrations_history");
+                })
+                .EnableDetailedErrors().EnableSensitiveDataLogging();
+            optionsBuilder.EnableThreadSafetyChecks(false);
         }
     }
 }

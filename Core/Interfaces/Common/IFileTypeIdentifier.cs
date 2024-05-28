@@ -1,9 +1,8 @@
 ﻿using Core.Entities;
 
-namespace Core.Interfaces.Common
+namespace Core.Interfaces.Common;
+
+public interface IFileTypeIdentifier
 {
-    public interface IFileTypeIdentifier
-    {
-        FileType GetFileType(string path);
-    }
+    FileType GetFileType(string path);
 }

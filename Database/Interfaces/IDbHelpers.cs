@@ -1,25 +1,22 @@
 ﻿using Core.Entities;
 using Pgvector;
-using System.Collections.Concurrent;
-using File = Core.Entities.File;
 
-namespace Database.Interfaces
+// ReSharper disable ParameterTypeCanBeEnumerable.Global
+
+namespace Database.Interfaces;
+
+public interface IDbHelpers
 {
-    public interface IDbHelpers
-    {
-        Task GetCachedHashAsync(ConcurrentQueue<File> filesWithoutImageHash, CancellationToken token);
-        Task<bool> CacheHashAsync(ConcurrentQueue<File> filesToCache, CancellationToken cancellationToken);
+    Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash, CancellationToken cancellationToken);
 
-        Task<List<string>> GetSimilarImagesGroupsAssociatedToAsync(string currentFile,
-            CancellationToken cancellationToken);
+    Task<long> CacheHashAsync(ImagesGroup group, CancellationToken cancellationToken);
 
-        Task<List<Similarity>> GetSimilarImagesGroups(Vector imageHash, double threshold,
-            List<string> imagesGroupsAlreadyDone, CancellationToken cancellationToken);
+    Task<HashSet<long>> GetSimilarImagesGroupsAlreadyDoneInRange(long currentGroupId,
+        double degreeOfSimilarity,
+        CancellationToken cancellationToken);
+    
+    Task<List<Similarity>> GetSimilarImagesGroups(long currentGroupId, Vector imageHash, double degreeOfSimilarity,
+        ICollection<long> groupsAlreadyDone, CancellationToken cancellationToken);
 
-        Task SetSimilaritiesAsync(IEnumerable<Similarity> similarities,
-            CancellationToken cancellationToken);
-
-        Task<List<string>> GetSimilarImagesGroupsInRangeAsync(string currentFile, double threshold,
-            CancellationToken cancellationToken);
-    }
+    Task AddSimilarity(Similarity newSimilarities, CancellationToken cancellationToken);
 }

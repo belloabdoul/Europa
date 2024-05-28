@@ -1,7 +1,9 @@
-﻿namespace Core.Interfaces.DuplicatesByHash
+﻿using Blake3;
+using Microsoft.Win32.SafeHandles;
+
+namespace Core.Interfaces.DuplicatesByHash;
+
+public interface IHashGenerator
 {
-    public interface IHashGenerator
-    {
-        string GenerateHash(FileStream fileStream, long lengthToHash);
-    }
+    Task<byte[]> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
 }
