@@ -1,53 +1,53 @@
-﻿using Core.Interfaces.Common;
+﻿using System.Collections.Concurrent;
+using System.Text;
+using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
-using System.Collections.Concurrent;
 using File = Core.Entities.File;
 
-namespace API.Implementations.SimilarAudios
+namespace API.Implementations.SimilarAudios;
+
+public class SimilarAudiosFinder : ISimilarAudiosFinder
 {
-    public class SimilarAudiosFinder : ISimilarAudiosFinder
+    private readonly IAudioHashGenerator _audioHashGenerator;
+    private readonly IFileReader _fileReader;
+    private readonly IFileTypeIdentifier _fileTypeIdentifier;
+    private readonly IHashGenerator _hashGenerator;
+    private readonly IAudioService _mediaService;
+    private readonly IModelService _modelService;
+    private readonly object readLock;
+
+    public SimilarAudiosFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier,
+        IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
     {
-        private readonly IFileReader _fileReader;
-        private readonly IFileTypeIdentifier _fileTypeIdentifier;
-        private readonly IModelService _modelService;
-        private readonly IAudioService _mediaService;
-        private readonly IAudioHashGenerator _audioHashGenerator;
-        private readonly IHashGenerator _hashGenerator;
-        private readonly object readLock;
+        _fileReader = fileReader;
+        _fileTypeIdentifier = fileTypeIdentifier;
+        _audioHashGenerator = audioHashGenerator;
+        _hashGenerator = hashGenerator;
+        _modelService = EmyModelService.NewInstance("localhost", 3399);
+        _mediaService = new FFmpegAudioService();
+        readLock = new object();
+    }
 
-        public SimilarAudiosFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier, IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarAudiosAsync(IList<string> hypotheticalDuplicates,
+        CancellationToken token)
+    {
+        Console.InputEncoding = Encoding.UTF8;
+        Console.OutputEncoding = Encoding.UTF8;
+
+        var duplicatedAudios = new ConcurrentBag<File>();
+
+        var tracks = _modelService.GetTrackIds();
+        foreach (var track in tracks) _modelService.DeleteTrack(track);
+
+        token.ThrowIfCancellationRequested();
+
+        await Task.Factory.StartNew(() =>
         {
-            _fileReader = fileReader;
-            _fileTypeIdentifier = fileTypeIdentifier;
-            _audioHashGenerator = audioHashGenerator;
-            _hashGenerator = hashGenerator;
-            _modelService = EmyModelService.NewInstance("localhost", 3399);
-            _mediaService = new FFmpegAudioService();
-            readLock = new();
-        }
-
-        public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarAudiosAsync(List<string> hypotheticalDuplicates, CancellationToken token)
-        {
-            Console.InputEncoding = System.Text.Encoding.UTF8;
-            Console.OutputEncoding = System.Text.Encoding.UTF8;
-
-            var duplicatedAudios = new ConcurrentBag<File>();
-
-            var tracks = _modelService.GetTrackIds();
-            foreach (var track in tracks)
-            {
-                _modelService.DeleteTrack(track);
-            }
-
-            token.ThrowIfCancellationRequested();
-
-            await Task.Factory.StartNew(() =>
-            {
-                hypotheticalDuplicates.AsParallel()
+            hypotheticalDuplicates.AsParallel()
                 .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
                 .WithCancellation(token)
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
@@ -85,12 +85,15 @@ namespace API.Implementations.SimilarAudios
                     //     }
                     // }
                 });
-            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-            token.ThrowIfCancellationRequested();
+        token.ThrowIfCancellationRequested();
 
-            token.ThrowIfCancellationRequested();
-            return [.. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Id).Where(i => i.Count() != 1)];
-        }
+        token.ThrowIfCancellationRequested();
+        return
+        [
+            .. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash)
+                .Where(i => i.Count() != 1)
+        ];
     }
 }

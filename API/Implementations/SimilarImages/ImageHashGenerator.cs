@@ -1,6 +1,9 @@
-﻿using Core.Entities;
+﻿using System.Runtime.InteropServices;
+using Core.Entities;
 using Core.Interfaces.SimilarImages;
-using OpenCvSharp;
+using Emgu.CV;
+using Emgu.CV.CvEnum;
+using NoAlloq;
 using Pgvector;
 using SkiaSharp;
 
@@ -8,27 +11,28 @@ namespace API.Implementations.SimilarImages;
 
 public class ImageHashGenerator : IImageHashGenerator
 {
-    public Vector GenerateImageHash(FileStream fileStream)
+    public Vector GenerateImageHash(string path)
     {
         float[] hashAsEmbeddings;
-        using var image = SKBitmap.Decode(fileStream);
+
         Utilities.GetHashFunction(out var blockMeanHash);
-        
+
+        // If on Windows remove the 260 characters limitation
         using (blockMeanHash)
-        using (var mat = new Mat(image.Height, image.Width, MatType.CV_8UC(image.BytesPerPixel), image.GetPixels(), image.RowBytes))
-        using (var hash = new Mat<byte>())
+        using (var image =
+               RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                   ? SKBitmap.Decode(Utilities.GetValidPath(path))
+                   : SKBitmap.Decode(path))
+        using (var mat = new Mat(image.Height, image.Width, DepthType.Cv8U, image.BytesPerPixel,
+                   image.GetPixels(), image.RowBytes))
+        using (var hash = new Mat())
         {
             blockMeanHash.Compute(mat, hash);
-            hash.GetArray(out byte[] hashArray);
 
-            hashAsEmbeddings = new float[hashArray.Length];
-            
-            for (var i = 0; i < hashArray.Length; i++)
-            {
-                hashAsEmbeddings[i] = hashArray[i] / 255f;
-            }
+            hashAsEmbeddings = hash.GetSpan<byte>().Select(byteValue => Utilities.ByteToNormalized[byteValue])
+                .ToArray();
         }
-        
+
         return new Vector(hashAsEmbeddings);
     }
 }

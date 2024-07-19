@@ -1,318 +1,381 @@
-﻿using Database.Interfaces;
-using API.Implementations.Common;
-using Microsoft.AspNetCore.SignalR;
-using Core.Interfaces.SimilarImages;
-using Core.Interfaces.Common;
-using Core.Entities;
-using File = Core.Entities.File;
-using Core.Interfaces.DuplicatesByHash;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Threading.Channels;
-using OpenCvSharp;
+using API.Implementations.Common;
+using Core.Entities;
+using Core.Interfaces.Common;
+using Core.Interfaces.DuplicatesByHash;
+using Core.Interfaces.SimilarImages;
+using Database.Interfaces;
+using Emgu.CV.Util;
+using Microsoft.AspNetCore.SignalR;
+using File = Core.Entities.File;
 
-namespace API.Implementations.SimilarImages
+namespace API.Implementations.SimilarImages;
+
+public class SimilarImageFinder : ISimilarImagesFinder
 {
-    public class SimilarImageFinder : ISimilarImagesFinder
+    private readonly IDbHelpers _dbHelpers;
+    private readonly IFileReader _fileReader;
+    private readonly IFileTypeIdentifier _fileTypeIdentifier;
+
+    private readonly IHashGenerator _hashGenerator;
+
+    private readonly IImageHashGenerator _imageHashGenerator;
+    private readonly IHubContext<NotificationHub> _notificationContext;
+
+    public SimilarImageFinder(IHubContext<NotificationHub> notificationContext, IFileReader fileReader,
+        IFileTypeIdentifier fileTypeIdentifier, IHashGenerator hashGenerator,
+        IImageHashGenerator imageHashGenerator, IDbHelpers dbHelpers)
     {
-        private readonly IHubContext<NotificationHub> _notificationContext;
-        private readonly IFileTypeIdentifier _fileTypeIdentifier;
+        _notificationContext = notificationContext;
+        _fileReader = fileReader;
+        _fileTypeIdentifier = fileTypeIdentifier;
+        _hashGenerator = hashGenerator;
+        _imageHashGenerator = imageHashGenerator;
+        _dbHelpers = dbHelpers;
+    }
 
-        private readonly IHashGenerator _hashGenerator;
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarImagesAsync(
+        SortedList<string, (long, DateTime)> hypotheticalDuplicates, double degreeOfSimilarity,
+        CancellationToken cancellationToken)
+    {
+        // Part 1 : Generate and cache perceptual hash of non-corrupted files
+        var progress = Channel.CreateUnbounded<NotificationType>();
 
-        private readonly IImageHashGenerator _imageHashGenerator;
-        private readonly IDbHelpers _dbHelpers;
-        private readonly IFileReader _fileReader;
+        var progressTask = SendProgress(progress, cancellationToken);
 
-        public SimilarImageFinder(IHubContext<NotificationHub> notificationContext, IFileReader fileReader,
-            IFileTypeIdentifier fileTypeIdentifier, IHashGenerator hashGenerator,
-            IImageHashGenerator imageHashGenerator, IDbHelpers dbHelpers)
-        {
-            _notificationContext = notificationContext;
-            _fileReader = fileReader;
-            _fileTypeIdentifier = fileTypeIdentifier;
-            _hashGenerator = hashGenerator;
-            _imageHashGenerator = imageHashGenerator;
-            _dbHelpers = dbHelpers;
-        }
+        var hashGenerationTask = GenerateImageHashForNonCorruptedFiles(hypotheticalDuplicates, progress,
+            cancellationToken);
 
-        public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarImagesAsync(
-            List<string> hypotheticalDuplicates, double degreeOfSimilarity, CancellationToken token)
-        {
-            var copiesGroups =
-                new ConcurrentDictionary<string, FileGroup>();
+        await Task.WhenAll(await hashGenerationTask, await progressTask);
 
-            var cachingPipeline =
-                GenerateAndCacheImageHashForNonCorruptedFiles(hypotheticalDuplicates, copiesGroups, token);
+        var imagesGroups = hashGenerationTask.Result.Result;
 
-            await cachingPipeline;
+        // Part 2 : Group similar images together
+        progress = Channel.CreateUnbounded<NotificationType>();
+        
+        var groupingChannel = Channel.CreateUnbounded<ImagesGroup>();
 
-            if (!cachingPipeline.IsCompletedSuccessfully)
-                return [];
+        var finalImages = new ConcurrentQueue<File>();
 
-            var groupingPipeline = Channel.CreateUnbounded<string>();
+        var groupingTask =
+            ProcessGroupsForFinalList(groupingChannel, imagesGroups, finalImages, cancellationToken);
+        
+        progressTask = SendProgress(progress, cancellationToken);
+        
+        var similarityTask = LinkSimilarImagesGroupsToOneAnother(imagesGroups, degreeOfSimilarity,
+            groupingChannel, progress, cancellationToken);
+        
+        await Task.WhenAll(await similarityTask, await progressTask, await groupingTask);
+        
+        Console.WriteLine(imagesGroups.Count);
+        var groups = finalImages.GroupBy(file => file.Hash)
+            .Where(i => i.Count() != 1).ToList();
+        return groups;
+    }
 
-            var similarityTask =
-                LinkSimilarImagesGroupsToOneAnother(copiesGroups, groupingPipeline, degreeOfSimilarity, token);
-
-            var finalImages = new ConcurrentQueue<File>();
-
-            var groupingTask =
-                ProcessGroupsForFinalList(groupingPipeline, copiesGroups, degreeOfSimilarity, finalImages, token);
-
-            await Task.WhenAll(await similarityTask, await groupingTask);
-
-            //.OrderByDescending(file => file.DateModified)
-            var groups = finalImages.GroupBy(file => file.Id)
-                .Where(i => i.Count() != 1).ToList();
-            return groups;
-        }
-
-        private async Task GenerateAndCacheImageHashForNonCorruptedFiles(
-            List<string> hypotheticalDuplicates,
-            ConcurrentDictionary<string, FileGroup> copiesGroups, CancellationToken token)
-        {
-            var cachingProgress = 0;
-            var start = 0;
-            var filesWithoutHash = new ConcurrentQueue<File>();
-            var filesToCache = new ConcurrentQueue<File>();
-            while (start != hypotheticalDuplicates.Count)
+    private Task<Task<Dictionary<long, ImagesGroup>>> GenerateImageHashForNonCorruptedFiles(
+        SortedList<string, (long, DateTime)> hypotheticalDuplicates,
+        Channel<NotificationType, NotificationType> progress,
+        CancellationToken cancellationToken)
+    {
+        return Task.Factory.StartNew(async () =>
             {
-                var count = 2500;
-                if (start + count > hypotheticalDuplicates.Count)
-                    count = hypotheticalDuplicates.Count - start;
+                var copiesGroups =
+                    new ConcurrentDictionary<byte[], ImagesGroup>(-1, hypotheticalDuplicates.Count,
+                        new ByteArrayEqualityComparer());
 
                 // Generate integrity hash and group perfect copies together
-                await Parallel.ForEachAsync(hypotheticalDuplicates.GetRange(start, count),
+                await Parallel.ForAsync(0, hypotheticalDuplicates.Count,
                     new ParallelOptions
-                        { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                    async (path, cachingToken) =>
+                        { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
+                    async (i, hashingToken) =>
                     {
-                        var file = new File(new FileInfo(path))
-                        {
-                            FileType = _fileTypeIdentifier.GetFileType(path)
-                        };
-                        switch (file.FileType)
+                        var hypotheticalDuplicate = hypotheticalDuplicates.GetKeyAtIndex(i);
+                        var type = _fileTypeIdentifier.GetFileType(hypotheticalDuplicate);
+
+                        switch (type)
                         {
                             case FileType.Corrupt:
-                                await _notificationContext.Clients.All.SendAsync("Notify",
+                                _ = _notificationContext.Clients.All.SendAsync("Notify",
                                     new Notification(NotificationType.Exception,
-                                        $"File {file.Path} is corrupted"), cancellationToken: cachingToken);
+                                        $"File {hypotheticalDuplicate} is corrupted"),
+                                    cancellationToken: hashingToken);
                                 break;
-                            case FileType.Image or FileType.GifImage:
+                            case FileType.GifImage or FileType.Image:
                             {
-                                await using var stream = _fileReader.GetFileStream(path);
-                                file.Id = _hashGenerator.GenerateHash(stream, file.Size);
+                                using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate);
 
-                                var isFirst = copiesGroups.TryAdd(file.Id, new FileGroup(file));
+                                var length = hypotheticalDuplicates.GetValueAtIndex(i).Item1;
+
+                                var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length,
+                                    cancellationToken: hashingToken);
+
+                                var isFirst = copiesGroups.TryAdd(hash, new ImagesGroup());
+                                var group = copiesGroups[hash];
                                 if (isFirst)
-                                    filesWithoutHash.Enqueue(file);
-                                else
                                 {
-                                    copiesGroups[file.Id].Files.Enqueue(file);
+                                    group.Hash = hash;
+                                    group.Size = length;
+                                    group.DateModified = hypotheticalDuplicates.GetValueAtIndex(i).Item2;
+
+                                    (group.Id, group.ImageHash) = await
+                                        _dbHelpers.GetImageInfosAsync(group.Hash, hashingToken);
+
+                                    if (group.Id == 0)
+                                    {
+                                        try
+                                        {
+                                            group.ImageHash =
+                                                _imageHashGenerator.GenerateImageHash(hypotheticalDuplicate);
+
+                                            group.Id = await _dbHelpers.CacheHashAsync(group, hashingToken);
+
+                                            await progress.Writer.WriteAsync(
+                                                NotificationType.HashGenerationProgress,
+                                                cancellationToken: hashingToken);
+                                        }
+                                        // An OpenCVException is currently thrown if the file path contains non latin characters
+                                        catch (CvException ex)
+                                        {
+                                            foreach (var duplicate in group.Duplicates)
+                                            {
+                                                await _notificationContext.Clients.All.SendAsync("Notify",
+                                                    new Notification(NotificationType.Exception,
+                                                        $"File {duplicate} : {ex.Message}"), //is not an image
+                                                    hashingToken);
+                                            }
+
+                                            copiesGroups.TryRemove(group.Hash, out _);
+                                        }
+                                        // A NullReferenceException is thrown if SkiaSharp cannot decode an image. There is a high chance it is corrupted
+                                        catch (NullReferenceException)
+                                        {
+                                            foreach (var duplicate in group.Duplicates)
+                                            {
+                                                await _notificationContext.Clients.All.SendAsync("Notify",
+                                                    new Notification(NotificationType.Exception,
+                                                        $"File {duplicate} is corrupted"),
+                                                    hashingToken);
+                                            }
+
+                                            copiesGroups.TryRemove(group.Hash, out _);
+                                        }
+                                    }
+                                    else
+                                        await progress.Writer.WriteAsync(NotificationType.HashGenerationProgress,
+                                            cancellationToken: hashingToken);
                                 }
 
+                                group.Duplicates.Enqueue(hypotheticalDuplicate);
                                 break;
                             }
                         }
                     });
 
+                await _notificationContext.Clients.All.SendAsync("Notify",
+                    new Notification(NotificationType.HashGenerationProgress,
+                        copiesGroups.Count.ToString()), cancellationToken: cancellationToken);
+                progress.Writer.Complete();
+                return copiesGroups.ToDictionary(group => group.Value.Id, group => group.Value);
+            }, cancellationToken: cancellationToken, creationOptions: TaskCreationOptions.LongRunning,
+            scheduler: TaskScheduler.Default);
+    }
 
-                // Get the cached image hash for each group of perfect copies without image hash if it exists
-                await _dbHelpers.GetCachedHashAsync(filesWithoutHash, token);
-
-                await Parallel.ForAsync(0, filesWithoutHash.Count,
-                    new ParallelOptions
-                        { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                    async (_, cachingToken) =>
-                    {
-                        filesWithoutHash.TryDequeue(out var file);
-
-                        if (file!.ImageHash == null || file.ImageHash.Memory.Length == 0)
-                        {
-                            try
-                            {
-                                await using var stream = _fileReader.GetFileStream(file.Path);
-
-                                file.ImageHash = _imageHashGenerator.GenerateImageHash(stream);
-
-                                Interlocked.Increment(ref cachingProgress);
-                                var current = Interlocked.CompareExchange(ref cachingProgress, 0, 0);
-
-                                await _notificationContext.Clients.All.SendAsync("Notify",
-                                    new Notification(NotificationType.HashGenerationProgress,
-                                        current.ToString()), cancellationToken: cachingToken);
-
-                                filesToCache.Enqueue(file);
-                            }
-                            // An OpenCVException is currently thrown if the file path contains non latin characters
-                            catch (OpenCVException)
-                            {
-                                await _notificationContext.Clients.All.SendAsync("Notify",
-                                    new Notification(NotificationType.Exception,
-                                        $"File {file.Path} is not an image"),
-                                    cancellationToken: cachingToken);
-                            }
-                            // A NullReferenceException is thrown if SkiaSharp cannot decode an image. There is a high chance it is corrupted
-                            catch (NullReferenceException)
-                            {
-                                await _notificationContext.Clients.All.SendAsync("Notify",
-                                    new Notification(NotificationType.Exception,
-                                        $"File {file.Path} is corrupted"),
-                                    cancellationToken: cachingToken);
-                            }
-                        }
-                        else
-                        {
-                            Interlocked.Increment(ref cachingProgress);
-                            var current = Interlocked.CompareExchange(ref cachingProgress, 0, 0);
-
-                            await _notificationContext.Clients.All.SendAsync("Notify",
-                                new Notification(NotificationType.HashGenerationProgress,
-                                    current.ToString()), cancellationToken: cachingToken);
-                        }
-                    });
-                await _dbHelpers.CacheHashAsync(filesToCache, token);
-                filesWithoutHash.Clear();
-                filesToCache.Clear();
-                start += count;
-                GC.Collect();
-            }
-
-            await _notificationContext.Clients.All.SendAsync("Notify",
-                new Notification(NotificationType.HashGenerationProgress,
-                    cachingProgress.ToString()), cancellationToken: token);
-        }
-
-        private Task<Task> LinkSimilarImagesGroupsToOneAnother(
-            ConcurrentDictionary<string, FileGroup> copiesGroups, Channel<string, string> groupingPipeline,
-            double degreeOfSimilarity,
-            CancellationToken token)
-        {
-            return Task.Factory.StartNew(async () =>
+    private Task<Task> SendProgress(Channel<NotificationType, NotificationType> cachingChannel,
+        CancellationToken cancellationToken)
+    {
+        return Task.Factory.StartNew(async () =>
             {
-                var similarityProgress = 0;
-                var start = 0;
-                var keys = copiesGroups.Keys.ToList();
-                while (start != keys.Count)
+                try
                 {
-                    var count = 2500;
-                    if (start + count > keys.Count)
-                        count = keys.Count - start;
-                    await Parallel.ForEachAsync(keys.GetRange(start, count),
-                        new ParallelOptions
-                            { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                        async (key, similarityToken) =>
-                        {
-                            var similarImagesGroupsAssociatedToCurrent =
-                                await _dbHelpers.GetSimilarImagesGroupsAssociatedToAsync(key,
-                                    cancellationToken: similarityToken);
+                    var progress = 0;
 
-                            var newSimilarImagesGroups = await _dbHelpers.GetSimilarImagesGroups(
-                                copiesGroups[key].Files.First().ImageHash!, degreeOfSimilarity,
-                                similarImagesGroupsAssociatedToCurrent,
-                                cancellationToken: similarityToken);
-
-                            Parallel.For(0, newSimilarImagesGroups.Count,
-                                new ParallelOptions
-                                {
-                                    MaxDegreeOfParallelism = Environment.ProcessorCount,
-                                    CancellationToken = similarityToken
-                                }, i => { newSimilarImagesGroups[i].HypotheticalOriginalId = key; });
-
-                            await _dbHelpers.SetSimilaritiesAsync(newSimilarImagesGroups,
-                                cancellationToken: similarityToken);
-
-                            newSimilarImagesGroups.Clear();
-                            similarImagesGroupsAssociatedToCurrent.Clear();
-
-                            Interlocked.Increment(ref similarityProgress);
-
-                            var current = Interlocked.CompareExchange(ref similarityProgress, 0, 0);
-
-                            await _notificationContext.Clients.All.SendAsync("Notify",
-                                new Notification(NotificationType.SimilaritySearchProgress, current.ToString()),
-                                cancellationToken: similarityToken);
-
-                            await groupingPipeline.Writer.WriteAsync(key, cancellationToken: similarityToken);
-                        });
-                    start += count;
-                    GC.Collect();
-                }
-
-                groupingPipeline.Writer.Complete();
-            }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        }
-
-        private void LinkImagesToParentGroup(string parentGroup,
-            IEnumerable<string> similarImagesGroups,
-            ConcurrentDictionary<string, FileGroup> copiesGroups,
-            ConcurrentQueue<File> finalImages, CancellationToken token)
-        {
-            Parallel.ForEach(similarImagesGroups,
-                new ParallelOptions
-                    { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount },
-                group =>
-                {
-                    if (group.Equals(parentGroup))
+                    await foreach (var progessType in cachingChannel.Reader.ReadAllAsync(
+                                       cancellationToken: cancellationToken))
                     {
-                        Parallel.For(0, copiesGroups[group].Files.Count,
-                            new ParallelOptions
-                                { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount },
-                            _ =>
-                            {
-                                if (copiesGroups[group].Files.TryDequeue(out var image))
-                                {
-                                    finalImages.Enqueue(image);
-                                }
-                            });
+                        progress++;
+
+                        await _notificationContext.Clients.All.SendAsync("Notify",
+                            new Notification(progessType,
+                                progress.ToString()), cancellationToken: cancellationToken);
+
+                        if (decimal.Remainder(progress, 1000) == 0)
+                            GC.Collect(2);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    throw;
+                }
+            }, cancellationToken: cancellationToken, creationOptions: TaskCreationOptions.LongRunning,
+            scheduler: TaskScheduler.Default);
+    }
+
+    private Task<Task> LinkSimilarImagesGroupsToOneAnother(Dictionary<long, ImagesGroup> imagesGroups,
+        double degreeOfSimilarity,
+        Channel<ImagesGroup, ImagesGroup> groupingChannel, Channel<NotificationType, NotificationType> progress,
+        CancellationToken cancellationToken)
+    {
+        return Task.Factory.StartNew(async () =>
+        {
+            try
+            {
+                await Parallel.ForEachAsync(imagesGroups.Keys,
+                    new ParallelOptions
+                        { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
+                    async (key, similarityToken) =>
+                    {
+                        var currentGroup = imagesGroups[key];
+
+                        currentGroup.SimilarImagesGroups = await _dbHelpers.GetSimilarImagesGroupsAlreadyDoneInRange(
+                            currentGroup.Id,
+                            degreeOfSimilarity,
+                            similarityToken);
+
+                        var newSimilarities = await _dbHelpers.GetSimilarImagesGroups(
+                            currentGroup.Id,
+                            currentGroup.ImageHash!,
+                            degreeOfSimilarity,
+                            currentGroup.SimilarImagesGroups,
+                            similarityToken);
+
+                        foreach (var similarity in newSimilarities)
+                        {
+                            await _dbHelpers.AddSimilarity(similarity, cancellationToken: similarityToken);
+                            currentGroup.SimilarImagesGroups.Add(similarity.DuplicateId);
+                        }
+
+                        await progress.Writer.WriteAsync(NotificationType.SimilaritySearchProgress,
+                            cancellationToken: similarityToken);
+
+                        // The current group is sent for grouping if it has at least another similar image or there are  m
+                        // at least 2 copies of the same image
+                        if (currentGroup.SimilarImagesGroups.Count > 1 || currentGroup.Duplicates.Count > 1)
+                            await groupingChannel.Writer.WriteAsync(imagesGroups[key], cancellationToken: similarityToken);
+                        else
+                            imagesGroups.Remove(currentGroup.Id);
+                    });
+
+                progress.Writer.Complete();
+                groupingChannel.Writer.Complete();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    }
+
+    private Task<Task> ProcessGroupsForFinalList(Channel<ImagesGroup, ImagesGroup> groupingChannel,
+        Dictionary<long, ImagesGroup> imagesGroups,
+        ConcurrentQueue<File> finalImages, CancellationToken cancellationToken)
+    {
+        return Task.Factory.StartNew(async () =>
+        {
+            var groupingProgress = 0;
+
+            var notificationCeiling = decimal.Divide(imagesGroups.Count, 400);
+
+            var groupsDone = new HashSet<long>();
+
+            try
+            {
+                await foreach (var currentImagesGroup in groupingChannel.Reader.ReadAllAsync(
+                                   cancellationToken: cancellationToken))
+                {
+                    if (groupsDone.Contains(currentImagesGroup.Id))
+                    {
+                        currentImagesGroup.SimilarImagesGroups.ExceptWith(groupsDone);
+
+                        if (currentImagesGroup.SimilarImagesGroups.Count == 0)
+                            imagesGroups.Remove(currentImagesGroup.Id);
                     }
                     else
                     {
-                        if (!copiesGroups.TryGetValue(group, out var result))
-                            return;
-                        Parallel.ForEach(result.Files,
-                            new ParallelOptions
-                                { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount },
-                            image => { finalImages.Enqueue(new File(image) { Id = parentGroup }); });
-                    }
-                });
-        }
+                        switch (currentImagesGroup.SimilarImagesGroups.Count)
+                        {
+                            case > 1:
+                            case 1 when currentImagesGroup.Duplicates.Count > 1:
+                                LinkImagesToParentGroup(currentImagesGroup, groupsDone, imagesGroups, finalImages,
+                                    cancellationToken);
 
-        private Task<Task> ProcessGroupsForFinalList(Channel<string, string> similarImagesGroups,
-            ConcurrentDictionary<string, FileGroup> copiesGroups, double degreeOfSimilarity,
-            ConcurrentQueue<File> finalImages, CancellationToken token)
-        {
-            return Task.Factory.StartNew(async () =>
-            {
-                var groupingProgress = 0;
+                                foreach (var similarImageGroup in currentImagesGroup.SimilarImagesGroups)
+                                {
+                                    groupsDone.Add(similarImageGroup);
+                                }
 
-                var notificationCeiling = decimal.Divide(copiesGroups.Count, 400);
-
-                var groupsDone = new ConcurrentDictionary<string, byte>();
-
-                await foreach (var key in similarImagesGroups.Reader.ReadAllAsync(token))
-                {
-                    if (!groupsDone.ContainsKey(key))
-                    {
-                        var similarImagesGroupsInRangeAsync =
-                            await _dbHelpers.GetSimilarImagesGroupsInRangeAsync(key, degreeOfSimilarity, token);
-                        LinkImagesToParentGroup(key, similarImagesGroupsInRangeAsync, copiesGroups, finalImages,
-                            token);
-
-                        Parallel.ForEach(similarImagesGroupsInRangeAsync,
-                            new ParallelOptions
-                                { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = token },
-                            group => { groupsDone[group] = 1; });
+                                imagesGroups.Remove(currentImagesGroup.Id);
+                                await _notificationContext.Clients.All.SendAsync("Notify",
+                                    new Notification(NotificationType.TotalProgress,
+                                        (++groupingProgress).ToString()), cancellationToken: cancellationToken);
+                                break;
+                            default:
+                                imagesGroups.Remove(currentImagesGroup.Id);
+                                break;
+                        }
                     }
 
-                    await _notificationContext.Clients.All.SendAsync("Notify",
-                        new Notification(NotificationType.TotalProgress,
-                            (++groupingProgress).ToString()), cancellationToken: token);
-
-                    if (decimal.Remainder(groupingProgress, notificationCeiling) <= 1)
+                    if (decimal.Remainder(groupingProgress, notificationCeiling) == 0)
                         GC.Collect();
                 }
-            }, token);
-        }
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+                throw;
+            }
+        }, cancellationToken);
+    }
+
+    private void LinkImagesToParentGroup(ImagesGroup parentGroup,
+        HashSet<long> groupsDone,
+        Dictionary<long, ImagesGroup> imagesGroups,
+        ConcurrentQueue<File> finalImages, CancellationToken token)
+    {
+        Parallel.ForEach(parentGroup.SimilarImagesGroups,
+            new ParallelOptions
+                { CancellationToken = token, MaxDegreeOfParallelism = Environment.ProcessorCount },
+            similarImagesGroup =>
+            {
+                if (similarImagesGroup == parentGroup.Id)
+                {
+                    while (!parentGroup.Duplicates.IsEmpty)
+                    {
+                        if (parentGroup.Duplicates.TryDequeue(out var image))
+                            finalImages.Enqueue(new File
+                            {
+                                Path = image,
+                                Size = parentGroup.Size,
+                                DateModified = parentGroup.DateModified,
+                                Hash = parentGroup.Hash
+                            });
+                    }
+                }
+                else
+                {
+                    if (!imagesGroups.TryGetValue(similarImagesGroup, out var result))
+                        return;
+                    foreach (var image in result.Duplicates)
+                    {
+                        finalImages.Enqueue(new File
+                        {
+                            Path = image,
+                            Size = result.Size,
+                            DateModified = result.DateModified,
+                            Hash = parentGroup.Hash
+                        });
+                    }
+
+                    // if (groupsDone.Contains(result.Id))
+                    // {
+                    //     result.SimilarImagesGroups.ExceptWith(parentGroup.SimilarImagesGroups);
+                    //     if (result.SimilarImagesGroups.Count == 0)
+                    //         imagesGroups.Remove(similarImagesGroup);
+                    // }
+                }
+            });
     }
 }

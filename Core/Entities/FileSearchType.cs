@@ -1,9 +1,8 @@
-﻿namespace Core.Entities
+﻿namespace Core.Entities;
+
+public enum FileSearchType
 {
-    public enum FileSearchType
-    {
-        All,
-        Audios,
-        Images
-    }
+    All,
+    Audios,
+    Images
 }

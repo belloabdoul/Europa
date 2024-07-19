@@ -4,5 +4,5 @@ namespace Core.Interfaces.SimilarImages;
 
 public interface IImageHashGenerator
 {
-    Vector GenerateImageHash(FileStream fileStream);
+    Vector GenerateImageHash(string path);
 }

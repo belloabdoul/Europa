@@ -1,11 +1,10 @@
 ﻿using Core.Entities;
 
-namespace Core.Interfaces.Common
-{
-    public interface IDirectoryReader
-    {
-        bool FileExists(string filePath);
+namespace Core.Interfaces.Common;
 
-        Task<List<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters, CancellationToken token);
-    }
+public interface IDirectoryReader
+{
+    bool FileExists(string filePath);
+
+    Task<SortedList<string, (long, DateTime)>> GetAllFilesFromFolderAsync(SearchParameters searchParameters, CancellationToken cancellationToken);
 }
