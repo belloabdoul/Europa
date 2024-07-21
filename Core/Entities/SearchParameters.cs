@@ -18,7 +18,7 @@ public class SearchParameters
 
     // The folders to process
     [Required(ErrorMessage = "At least one folder must be set")]
-    public SortedSet<string> Folders { get; set; }
+    public string[] Folders { get; set; }
 
     // Should we include subfolders or not
     [Required(ErrorMessage = "No folder inclusion policy set")]
@@ -31,7 +31,7 @@ public class SearchParameters
     // The degree of similarity between images (only for images)
     [Range(0.7, 1, ConvertValueInInvariantCulture = true,
         ErrorMessage = "The degree of similarity must be between 0.7 and 1", ParseLimitsInInvariantCulture = true)]
-    public double DegreeOfSimilarity { get; set; }
+    public double? DegreeOfSimilarity { get; set; }
 
     // The minimum size for files to include in search
     public long? MinSize { get; set; }
