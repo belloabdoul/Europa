@@ -28,7 +28,7 @@ public class DuplicatesController : Controller
 
     // GET api/Duplicates/findDuplicates
     [HttpPost("findDuplicates")]
-    public async Task<ActionResult> FindDuplicates([FromBody] SearchParameters searchParameters,
+    public async Task<ActionResult> FindDuplicates(SearchParameters searchParameters,
         CancellationToken cancellationToken = default)
     {
         if (!ModelState.IsValid) 
@@ -39,11 +39,11 @@ public class DuplicatesController : Controller
         var duplicatesGroups = searchParameters.FileSearchType switch
         {
             FileSearchType.All => await _duplicatesByHashFinder.FindDuplicateByHash(
-                hypotheticalDuplicates.Keys.ToList(), cancellationToken),
+                hypotheticalDuplicates, cancellationToken),
             FileSearchType.Audios => await _similarAudiosFinder.FindSimilarAudiosAsync(
-                hypotheticalDuplicates.Keys.ToList(), cancellationToken),
-            _ => await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates,
-                searchParameters.DegreeOfSimilarity, cancellationToken)
+                hypotheticalDuplicates, cancellationToken),
+            FileSearchType.Images => await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates,
+                searchParameters.DegreeOfSimilarity!.Value, cancellationToken)
         };
         
         return Ok(duplicatesGroups.ToResponseDto());

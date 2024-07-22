@@ -6,5 +6,5 @@ public interface IDirectoryReader
 {
     bool FileExists(string filePath);
 
-    Task<SortedList<string, (long, DateTime)>> GetAllFilesFromFolderAsync(SearchParameters searchParameters, CancellationToken cancellationToken);
+    Task<HashSet<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters, CancellationToken cancellationToken);
 }

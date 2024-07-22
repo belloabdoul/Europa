@@ -3,19 +3,7 @@
 namespace Core.Entities;
 
 public class SearchParameters
-{
-    public SearchParameters()
-    {
-        Folders = [];
-        IncludeSubfolders = true;
-        FileSearchType = FileSearchType.All;
-        DegreeOfSimilarity = 1;
-        MinSize = 0;
-        MaxSize = long.MaxValue;
-        IncludedFileTypes = [];
-        ExcludedFileTypes = [];
-    }
-
+{ 
     // The folders to process
     [Required(ErrorMessage = "At least one folder must be set")]
     public string[] Folders { get; set; }
@@ -40,8 +28,8 @@ public class SearchParameters
     public long? MaxSize { get; set; }
 
     // The file types to include. With this excluded files types are disabled
-    public HashSet<string> IncludedFileTypes { get; set; }
+    public string[] IncludedFileTypes { get; set; }
 
     // The file types to exclude. Only work if no file types are included
-    public IEnumerable<string> ExcludedFileTypes { get; set; }
+    public string[] ExcludedFileTypes { get; set; }
 }
