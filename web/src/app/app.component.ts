@@ -7,6 +7,7 @@ import {
   IonRouterOutlet,
 } from '@ionic/angular/standalone';
 import { SearchFormComponent } from './components/search-form/search-form.component';
+import { ResultsComponent } from './components/results/results.component';
 
 @Component({
   selector: 'app-root',
@@ -20,10 +21,10 @@ import { SearchFormComponent } from './components/search-form/search-form.compon
     IonMenu,
     IonContent,
     SearchFormComponent,
+    ResultsComponent,
   ],
 })
 export class AppComponent {
   public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
-  constructor() {
-  }
+  constructor() {}
 }

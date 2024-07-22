@@ -1,5 +1,10 @@
-import { KeyValuePipe } from '@angular/common';
-import { Component, OnInit, ChangeDetectionStrategy } from '@angular/core';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  ViewChild,
+  OnDestroy,
+} from '@angular/core';
 import {
   IonList,
   IonItem,
@@ -17,13 +22,22 @@ import {
 } from '@ionic/angular/standalone';
 import { FormsModule } from '@angular/forms';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import {
-  FileSearchType,
-  FileSearchTypeToLabelMapping,
-} from 'src/app/shared/models/file-search-type';
+import { FileSearchType } from 'src/app/shared/models/file-search-type';
 import { SearchParameters } from 'src/app/shared/models/search-parameters';
 import { addIcons } from 'ionicons';
-import { add, close, closeCircle, create, save } from 'ionicons/icons';
+import {
+  add,
+  close,
+  closeCircle,
+  create,
+  save,
+  ban,
+  search,
+} from 'ionicons/icons';
+import { ElectronService } from 'src/app/shared/services/electron/electron.service';
+import { SearchService } from 'src/app/shared/services/search/search.service';
+import { KeyValuePipe } from '@angular/common';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-search-form',
@@ -43,37 +57,87 @@ import { add, close, closeCircle, create, save } from 'ionicons/icons';
     IonLabel,
     IonSelect,
     IonChip,
-    KeyValuePipe,
     IonSelectOption,
     IonToggle,
     MatTooltipModule,
     FormsModule,
+    KeyValuePipe,
   ],
 })
-export class SearchFormComponent implements OnInit {
+export class SearchFormComponent implements OnDestroy {
   searchParameters: SearchParameters;
   maxValue: number = Number.MAX_SAFE_INTEGER;
+
+  // Handle manual directory popover
+  manuallyAddedDirectory: string;
+  isOpen: boolean;
+  @ViewChild('manuallyAddedFolderInput') popover: IonPopover | undefined;
 
   // Handle the presentation for the enum in the select
   fileSearchType: typeof FileSearchType = FileSearchType;
 
-  fileSearchTypeLabels: (string | FileSearchType)[] = Object.values(
-    this.fileSearchType
-  ).filter((value) => {
-    console.log(typeof value);
-    return typeof value == 'string';
-  });
+  // Handle the appearance of the cancel button when a search is running
+  isSearchRunning: boolean;
 
-  fileSearchTypeMapper: typeof FileSearchTypeToLabelMapping =
-    FileSearchTypeToLabelMapping;
+  // Subscription for managing result
+  searchSubsription: Subscription | undefined;
 
-  constructor() {
-    addIcons({ add, close, closeCircle, create, save });
+  constructor(
+    private electronService: ElectronService,
+    private cd: ChangeDetectorRef,
+    private searchService: SearchService
+  ) {
+    addIcons({ add, close, closeCircle, create, save, ban, search });
 
     this.searchParameters = new SearchParameters();
+    this.manuallyAddedDirectory = '';
+    this.isOpen = false;
+    this.isSearchRunning = false;
   }
 
-  ngOnInit(): void {}
+  ngOnDestroy(): void {
+    this.searchSubsription?.unsubscribe();
+  }
+
+  async selectDirectory(): Promise<void> {
+    let directory: string = await this.electronService.ipcRenderer.invoke(
+      'dialog:selectDirectory'
+    );
+    if (directory != '' && !this.searchParameters.folders.includes(directory)) {
+      this.searchParameters.folders.push(directory);
+      this.cd.markForCheck();
+    }
+  }
+
+  showPopOver(event: MouseEvent): void {
+    this.popover!.event = event;
+    this.isOpen = true;
+  }
+
+  closePopOver() {
+    this.isOpen = false;
+  }
+
+  manuallyAddDirectory(): void {
+    this.manuallyAddedDirectory = this.manuallyAddedDirectory.trim();
+    if (
+      this.manuallyAddedDirectory != '' &&
+      !this.searchParameters.folders.includes(this.manuallyAddedDirectory)
+    ) {
+      this.searchParameters.folders.push(this.manuallyAddedDirectory);
+    }
+    this.manuallyAddedDirectory = '';
+    this.popover?.dismiss();
+  }
+
+  removeDirectory(event: MouseEvent): void {
+    var target = event.target as HTMLElement;
+    var directory = target.previousElementSibling?.textContent!.trim()!;
+    const index = this.searchParameters.folders.indexOf(directory, 0);
+    if (index > -1) {
+      this.searchParameters.folders.splice(index, 1);
+    }
+  }
 
   addExtension(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -85,15 +149,15 @@ export class SearchFormComponent implements OnInit {
     if (value) {
       if (
         extensionsType == 'extensionsToInclude' &&
-        !this.searchParameters.includedFileTypes.has(value)
+        !this.searchParameters.includedFileTypes.includes(value)
       ) {
-        this.searchParameters.includedFileTypes.add(value);
+        this.searchParameters.includedFileTypes.push(value);
         added = true;
       } else if (
         extensionsType == 'extensionsToExclude' &&
-        !this.searchParameters.excludedFileTypes.has(value)
+        !this.searchParameters.excludedFileTypes.includes(value)
       ) {
-        this.searchParameters.excludedFileTypes.add(value);
+        this.searchParameters.excludedFileTypes.push(value);
         added = true;
       }
 
@@ -125,9 +189,27 @@ export class SearchFormComponent implements OnInit {
 
   removeExtensionFromList(extension: string, extensionsType: string): boolean {
     if (extensionsType == 'extensionsToInclude') {
-      return this.searchParameters.includedFileTypes.delete(extension);
+      const index = this.searchParameters.includedFileTypes.indexOf(
+        extension,
+        0
+      );
+      if (index > -1) {
+        return (
+          this.searchParameters.includedFileTypes.splice(index, 1)[0] ==
+          extension
+        );
+      }
     } else if (extensionsType == 'extensionsToExclude') {
-      return this.searchParameters.excludedFileTypes.delete(extension);
+      const index = this.searchParameters.excludedFileTypes.indexOf(
+        extension,
+        0
+      );
+      if (index > -1) {
+        return (
+          this.searchParameters.excludedFileTypes.splice(index, 1)[0] ==
+          extension
+        );
+      }
     }
     return false;
   }
@@ -187,5 +269,34 @@ export class SearchFormComponent implements OnInit {
         chip.outline = true;
       }
     }
+  }
+
+  launchSearch() {
+    this.isSearchRunning = true;
+    this.searchService
+      .startConnection()
+      .then(() => {
+        console.log('Connection started');
+        this.searchService.addNotificationListener();
+
+        this.searchSubsription = this.searchService
+          .launchSearch(this.searchParameters)
+          .subscribe((result) => {
+            console.log(result);
+            this.searchService.stopConnection();
+          });
+      })
+      .catch((error) => {
+        if (error) {
+          console.log(`Connection not started ${error}`);
+        }
+      });
+  }
+
+  cancelSearch() {
+    this.searchSubsription?.unsubscribe();
+    this.searchService.stopConnection();
+    this.searchService.sendSearchParameters(null);
+    this.isSearchRunning = false;
   }
 }

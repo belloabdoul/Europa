@@ -1,35 +1,55 @@
-<ion-list lines="none">
-  <ion-item-group>
+<ion-list class="form" lines="none">
+  <ion-item-group class="group">
     <ion-item>
       <ion-label class="ion-text-nowrap">Add directory</ion-label>
-      <ion-button shape="round" matTooltip="Choose directory using dialog">
+      <ion-button
+        shape="round"
+        matTooltip="Choose directory using dialog"
+        (click)="selectDirectory()"
+        [disabled]="isSearchRunning"
+      >
         <ion-icon name="add" size="large" slot="icon-only"></ion-icon>
       </ion-button>
       <ion-button
-        id="manual-path"
         shape="round"
         matTooltip="Enter directory path manually"
+        (click)="showPopOver($event)"
+        [disabled]="isSearchRunning"
       >
         <ion-icon name="create" size="large" slot="icon-only"></ion-icon>
       </ion-button>
       <ion-popover
-        trigger="manual-path"
+        #manuallyAddedFolderInput
         size="auto"
         alignment="center"
         side="bottom"
+        [isOpen]="isOpen"
+        (didDismiss)="closePopOver()"
       >
         <ng-template>
           <ion-content class="ion-padding">
             <ion-item>
               <ion-input
-                label="Enter the full path to the folder"
+                label="Enter the full path to the directory"
                 type="text"
                 clearInput="true"
                 placeholder="C:\Users\bello\Desktop\"
                 label-placement="floating"
+                [(ngModel)]="manuallyAddedDirectory"
               ></ion-input>
             </ion-item>
-            <ion-button shape="round" class="ion-float-end">
+            <ion-button
+              shape="round"
+              class="ion-float-end"
+              (click)="closePopOver()"
+            >
+              <ion-icon color="danger" name="ban" slot="icon-only"></ion-icon>
+            </ion-button>
+            <ion-button
+              shape="round"
+              class="ion-float-end"
+              (click)="manuallyAddDirectory()"
+            >
               <ion-icon name="save" slot="icon-only"></ion-icon>
             </ion-button>
           </ion-content>
@@ -37,23 +57,30 @@
       </ion-popover>
     </ion-item>
     <ion-item>
-      @if(searchParameters.folders.size == 0) {
+      @if(searchParameters.folders.length == 0) {
       <ion-label class="ion-text-center"
         >No directories added for now</ion-label
       >
       } @else {
+      <!-- <ion-content> -->
       <ion-list lines="none" class="content-nowrap">
         @for (folder of searchParameters.folders; track folder) {
         <ion-item>
-          <ion-label class="ion-text-nowrap">
+          <ion-label class="ion-text-nowrap" [matTooltip]="folder">
             {{ folder }}
           </ion-label>
-          <ion-button shape="round" slot="end">
+          <ion-button
+            shape="round"
+            slot="end"
+            (click)="removeDirectory($event)"
+            [disabled]="isSearchRunning"
+          >
             <ion-icon name="close" slot="icon-only"></ion-icon>
           </ion-button>
         </ion-item>
         }
       </ion-list>
+      <!-- </ion-content> -->
       }
     </ion-item>
   </ion-item-group>
@@ -62,6 +89,7 @@
     <ion-toggle
       labelPlacement="start"
       [(ngModel)]="searchParameters.includeSubFolders"
+      [disabled]="isSearchRunning"
     >
       Include subdirectories
     </ion-toggle>
@@ -73,17 +101,17 @@
       interface="popover"
       label="Search type"
       [(ngModel)]="searchParameters.fileSearchType"
+      [disabled]="isSearchRunning"
     >
-      @for (searchType of fileSearchTypeLabels; track $index) {
-      <ion-select-option [value]="fileSearchTypeMapper[searchType]">{{
-        searchType
+      @for (searchType of fileSearchType | keyvalue; track $index) {
+      <ion-select-option [value]="searchType.value">{{
+        searchType.key
       }}</ion-select-option>
       }
     </ion-select>
   </ion-item>
 
-  @if(fileSearchType[searchParameters.fileSearchType] ==
-  fileSearchType.Images.toString()){
+  @if(searchParameters.fileSearchType == fileSearchType.Images){
   <ion-item>
     <ion-input
       label="Degree of similarity"
@@ -94,6 +122,7 @@
       min="0"
       [(ngModel)]="searchParameters.degreeOfSimilarity"
       label-placement="floating"
+      [disabled]="isSearchRunning"
     ></ion-input>
   </ion-item>
   }
@@ -108,6 +137,7 @@
       min="0"
       [(ngModel)]="searchParameters.minSize"
       label-placement="floating"
+      [disabled]="isSearchRunning"
     ></ion-input>
   </ion-item>
 
@@ -121,6 +151,7 @@
       min="0"
       [(ngModel)]="searchParameters.maxSize"
       label-placement="floating"
+      [disabled]="isSearchRunning"
     ></ion-input>
   </ion-item>
 
@@ -137,6 +168,7 @@
         (keydown.backspace)="removeExtension($event)"
         (keypress)="restoreChip($event)"
         (focusout)="restoreChip($event)"
+        [disabled]="isSearchRunning"
       ></ion-input>
     </div>
   </ion-item>
@@ -147,14 +179,24 @@
         label="Enter extensions to exlude"
         helperText="The extension should not include the dot"
         id="extensionsToExclude"
-        class="wrap full-width"
+        class="wrap"
         placeholder="pdf"
         labelPlacement="floating"
         (keydown.enter)="addExtension($event)"
         (keydown.backspace)="removeExtension($event)"
         (keypress)="restoreChip($event)"
         (focusout)="restoreChip($event)"
+        [disabled]="isSearchRunning"
       ></ion-input>
     </div>
   </ion-item>
 </ion-list>
+
+@if(isSearchRunning){
+<ion-button shape="round" class="ion-float-end" (click)="cancelSearch()">
+  <ion-icon color="danger" name="ban" slot="icon-only"></ion-icon>
+</ion-button>
+}
+<ion-button shape="round" class="ion-float-end" (click)="launchSearch()">
+  <ion-icon name="search" slot="icon-only"></ion-icon>
+</ion-button>

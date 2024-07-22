@@ -75,13 +75,27 @@ $app-theme: mat.define-theme((
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
-// CSS for wrapping chip grid in extensions' lists
+// Wrap chip grid in extensions' lists
 .ion-chip-group .native-wrapper {
   display: flex;
   flex-flow: row wrap;
+  height: 100%;
 }
 
-// CSS for allowing component's full width
+// Disable click on chip if input disabled
+.ion-chip-group .input-disabled ion-chip {
+  pointer-events: none;
+}
+
+// CSS for allowing component's full width and height
 .full-width {
   width: 100%;
+}
+
+.full-height {
+  height: 100vh;
+}
+
+.fill-available {
+  width: -webkit-fill-available;
 }

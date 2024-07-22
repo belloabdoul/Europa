@@ -1,6 +1,6 @@
 import { NotificationType } from "./notification-type";
 
 export class Notification {
-    notificationType: NotificationType | null = null;
+    type: NotificationType | null = null;
     result: string = "";
 }

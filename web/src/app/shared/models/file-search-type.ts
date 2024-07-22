@@ -1,14 +1,5 @@
 export enum FileSearchType {
-  All,
-  Audios,
-  Images,
+  All = '0',
+  Audios = '1',
+  Images = '2',
 }
-
-export const FileSearchTypeToLabelMapping: Record<
-  FileSearchType | string,
-  FileSearchType
-> = {
-  [FileSearchType.All]: FileSearchType.All,
-  [FileSearchType.Audios]: FileSearchType.Audios,
-  [FileSearchType.Images]: FileSearchType.All,
-};
