@@ -11,6 +11,7 @@ import {
   IonLabel,
 } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
+import { File } from 'src/app/shared/models/file';
 import { FileSearchType } from 'src/app/shared/models/file-search-type';
 import { NotificationType } from 'src/app/shared/models/notification-type';
 import { SearchService } from 'src/app/shared/services/search/search.service';
@@ -40,8 +41,10 @@ export class ResultsComponent implements OnInit, OnDestroy {
   step2Progress: string;
   step3Progress: string;
   exceptions: string[];
+  similarFiles: File[][];
   notificationSubscription: Subscription | undefined;
   searchParametersSubscription: Subscription | undefined;
+  similarFilesSubscription: Subscription | undefined;
 
   constructor(
     private cd: ChangeDetectorRef,
@@ -54,6 +57,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
     this.step2Progress = '';
     this.step3Progress = '';
     this.exceptions = [];
+    this.similarFiles = [];
   }
 
   ngOnInit() {
@@ -88,6 +92,12 @@ export class ResultsComponent implements OnInit, OnDestroy {
           this.step3Progress = notification.result;
         else this.exceptions.push(notification.result);
         this.cd.markForCheck();
+      }
+    );
+
+    this.similarFilesSubscription = this.searchService.similarFiles.subscribe(
+      (similarFiles) => {
+        this.similarFiles = similarFiles;
       }
     );
   }

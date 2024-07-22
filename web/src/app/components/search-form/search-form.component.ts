@@ -38,6 +38,7 @@ import { ElectronService } from 'src/app/shared/services/electron/electron.servi
 import { SearchService } from 'src/app/shared/services/search/search.service';
 import { KeyValuePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
+import { File } from 'src/app/shared/models/file';
 
 @Component({
   selector: 'app-search-form',
@@ -282,8 +283,10 @@ export class SearchFormComponent implements OnDestroy {
         this.searchSubsription = this.searchService
           .launchSearch(this.searchParameters)
           .subscribe((result) => {
-            console.log(result);
             this.searchService.stopConnection();
+            this.isSearchRunning = false;
+            this.searchService.sendResults(result.duplicatesGroups as File[][]);
+            this.cd.markForCheck();
           });
       })
       .catch((error) => {

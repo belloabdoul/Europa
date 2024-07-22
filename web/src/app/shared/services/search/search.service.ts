@@ -5,6 +5,7 @@ import { Notification } from '../../models/notification';
 import { NotificationType } from '../../models/notification-type';
 import { SearchParameters } from '../../models/search-parameters';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { File } from '../../models/file';
 
 @Injectable({
   providedIn: 'root',
@@ -13,6 +14,7 @@ export class SearchService {
   private connection: HubConnection | undefined;
   notification: Subject<Notification>;
   searchParameters: Subject<SearchParameters | null>;
+  similarFiles: Subject<File[][]>;
   private apiUrl: string = 'https://localhost:44373/';
   private duplicatesApiUrl: string = `${this.apiUrl}api/Duplicates/`;
   // private httpHeaders: HttpHeaders = new HttpHeaders({
@@ -22,6 +24,11 @@ export class SearchService {
   constructor(private http: HttpClient) {
     this.notification = new Subject();
     this.searchParameters = new Subject();
+    this.similarFiles = new Subject();
+  }
+
+  sendSearchParameters(searchParameters: SearchParameters | null): void {
+    this.searchParameters.next(searchParameters);
   }
 
   startConnection(): Promise<void> {
@@ -29,6 +36,13 @@ export class SearchService {
     this.connection = new HubConnectionBuilder().withUrl(url).build();
 
     return this.connection.start();
+  }
+
+  addNotificationListener() {
+    this.connection!.on('notify', (notification: Notification) => {
+      if (notification.type == NotificationType.Exception) {
+      } else this.notification.next(notification);
+    });
   }
 
   stopConnection() {
@@ -48,15 +62,7 @@ export class SearchService {
     return this.http.post<any>(url, searchParameters);
   }
 
-  sendSearchParameters(searchParameters: SearchParameters | null): void {
-    this.searchParameters.next(searchParameters);
-  }
-
-  addNotificationListener() {
-    this.connection!.on('notify', (notification: Notification) => {
-      console.log(notification);
-      if (notification.type == NotificationType.Exception) {
-      } else this.notification.next(notification);
-    });
+  sendResults(similarFiles: File[][]): void {
+    this.similarFiles.next(similarFiles);
   }
 }
