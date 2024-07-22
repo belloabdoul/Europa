@@ -1,19 +1,17 @@
 ﻿using System.Buffers;
 using Blake3;
-using Core.Entities;
 using Core.Interfaces.DuplicatesByHash;
 using Microsoft.Win32.SafeHandles;
-using NoAlloq;
 
 namespace API.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
-    public async Task<byte[]> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
+    public async Task<Hash?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (RandomAccess.GetLength(fileHandle) == 0)
-            return [];
+            return null;
 
         const int bufferSize = 16384;
         
@@ -38,6 +36,6 @@ public class HashGenerator : IHashGenerator
             }
         }
         
-        return hasher.Finalize().AsSpan().Select(byteValue => Utilities.ByteToByte[byteValue]).ToArray();
+        return hasher.Finalize();
     }
 }
