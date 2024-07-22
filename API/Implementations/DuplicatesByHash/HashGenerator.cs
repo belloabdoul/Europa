@@ -1,5 +1,5 @@
-﻿using System.Buffers;
-using Blake3;
+﻿using Blake3;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Interfaces.DuplicatesByHash;
 using Microsoft.Win32.SafeHandles;
 
@@ -13,10 +13,10 @@ public class HashGenerator : IHashGenerator
         if (RandomAccess.GetLength(fileHandle) == 0)
             return null;
 
-        const int bufferSize = 16384;
+        const int bufferSize = 1048576;
         
         using var hasher = Hasher.New();
-        using var bytesRead = MemoryPool<byte>.Shared.Rent(bufferSize);
+        using var bytesRead = MemoryOwner<byte>.Allocate(bufferSize);
         var bytesHashed = 0;
         
         while (bytesHashed < bytesToHash)
@@ -24,15 +24,21 @@ public class HashGenerator : IHashGenerator
             var remainingToHash = bytesToHash - bytesHashed;
             if (remainingToHash > bufferSize)
             {
+                // if the file is bigger than 1MiB, make use of blake3's multithreading
                 bytesHashed += await RandomAccess.ReadAsync(fileHandle, bytesRead.Memory[..bufferSize], bytesHashed,
                     cancellationToken: cancellationToken);
-                hasher.Update(bytesRead.Memory.Span[..bufferSize]);
+                hasher.UpdateWithJoin(bytesRead.Span[..bufferSize]);
             }
             else
             {
+                // if the file is smaller than 1MB, make use of blake3's multithreading only if the file is bigger than
+                // 128KiB
                 bytesHashed += await RandomAccess.ReadAsync(fileHandle, bytesRead.Memory[.. (int)remainingToHash],
                     bytesHashed, cancellationToken: cancellationToken);
-                hasher.Update(bytesRead.Memory.Span[.. (int)remainingToHash]);
+                if(remainingToHash > 131072)
+                    hasher.UpdateWithJoin(bytesRead.Memory.Span[.. (int)remainingToHash]);
+                else
+                    hasher.Update(bytesRead.Span[.. (int)remainingToHash]);
             }
         }
         
