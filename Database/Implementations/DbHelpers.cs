@@ -45,33 +45,34 @@ public class DbHelpers : IDbHelpers
         _contextFactory = contextFactory;
     }
 
-    public async Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash,
-        CancellationToken cancellationToken)
-    {
-        ImagesGroup? group;
-        await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
-        {
-            group = context.Database.GetDbConnection().QueryFirstOrDefault<ImagesGroup>(
-                _getImagesGroupInfosQuery.Format(
-                    context.ImagesGroups.EntityType.GetProperty("Id").GetColumnName(),
-                    context.ImagesGroups.EntityType.GetProperty("ImageHash").GetColumnName(),
-                    context.ImagesGroups.EntityType.GetTableName(),
-                    context.ImagesGroups.EntityType.GetProperty("Hash").GetColumnName(),
-                    Convert.ToHexString(hash)));
-        }
-        return group == null ? (0, null) : (group.Id, group.ImageHash);
-    }
+    // public async Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash,
+    //     CancellationToken cancellationToken)
+    // {
+    //     ImagesGroup? group;
+    //     await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
+    //     {
+    //         group = context.Database.GetDbConnection().QueryFirstOrDefault<ImagesGroup>(
+    //             _getImagesGroupInfosQuery.Format(
+    //                 context.ImagesGroups.EntityType.GetProperty("Id").GetColumnName(),
+    //                 context.ImagesGroups.EntityType.GetProperty("ImageHash").GetColumnName(),
+    //                 context.ImagesGroups.EntityType.GetTableName(),
+    //                 context.ImagesGroups.EntityType.GetProperty("Hash").GetColumnName(),
+    //                 Convert.ToHexString(hash)));
+    //     }
+    //     return group == null ? (0, null) : (group.Id, group.ImageHash);
+    // }
 
     public async Task<long> CacheHashAsync(ImagesGroup group, CancellationToken cancellationToken)
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
 
-        return context.Database.GetDbConnection().ExecuteScalar<long>(_insertImagesGroupQuery.Format(
-            context.ImagesGroups.EntityType.GetTableName(),
-            context.ImagesGroups.EntityType.GetProperty("Hash").GetColumnName(),
-            context.ImagesGroups.EntityType.GetProperty("ImageHash").GetColumnName(),
-            Convert.ToHexString(group.Hash).ToLowerInvariant(), group.ImageHash.ToString(),
-            context.ImagesGroups.EntityType.GetProperty("Id").GetColumnName()));
+        // return context.Database.GetDbConnection().ExecuteScalar<long>(_insertImagesGroupQuery.Format(
+        //     context.ImagesGroups.EntityType.GetTableName(),
+        //     context.ImagesGroups.EntityType.GetProperty("Hash").GetColumnName(),
+        //     context.ImagesGroups.EntityType.GetProperty("ImageHash").GetColumnName(),
+        //     Convert.ToHexString(group.Hash).ToLowerInvariant(), group.ImageHash.ToString(),
+        //     context.ImagesGroups.EntityType.GetProperty("Id").GetColumnName()));
+        return 0;
     }
 
     public async Task<HashSet<long>> GetSimilarImagesGroupsAlreadyDoneInRange(long currentGroupId,
@@ -97,15 +98,16 @@ public class DbHelpers : IDbHelpers
     {
         await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
         
-        return await context.ImagesGroups
-            .Where(similarGroup => !groupsAlreadyDone.Contains(similarGroup.Id) &&
-                                   similarGroup.ImageHash.CosineDistance(imageHash) <= 1 - degreeOfSimilarity)
-            .Select(similarGroup => new Similarity
-            {
-                OriginalId = currentGroupId, DuplicateId = similarGroup.Id,
-                Score = similarGroup.ImageHash.CosineDistance(imageHash)
-            })
-            .ToListAsync(cancellationToken);
+        // return await context.ImagesGroups
+        //     .Where(similarGroup => !groupsAlreadyDone.Contains(similarGroup.Id) &&
+        //                            similarGroup.ImageHash.CosineDistance(imageHash) <= 1 - degreeOfSimilarity)
+        //     .Select(similarGroup => new Similarity
+        //     {
+        //         OriginalId = currentGroupId, DuplicateId = similarGroup.Id,
+        //         Score = similarGroup.ImageHash.CosineDistance(imageHash)
+        //     })
+        //     .ToListAsync(cancellationToken);
+        return [];
     }
 
     public async Task AddSimilarity(Similarity similarity,

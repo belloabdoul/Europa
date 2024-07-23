@@ -3,6 +3,8 @@ using API.Implementations.Common;
 using API.Implementations.DuplicatesByHash;
 using API.Implementations.SimilarAudios;
 using API.Implementations.SimilarImages;
+using API.Implementations.SimilarImages.ImageHashGenerators;
+using API.Implementations.SimilarImages.ImageIdentifiers;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
@@ -49,7 +51,7 @@ public class Program
         DynamicallyLoadedBindings.Initialize();
 
         // Dependency for all or most features
-        services.AddScoped<IFileTypeIdentifier, ImageIdentifier>();
+        services.AddScoped<IFileTypeIdentifier, LibVipsImageIdentifier>();
         services.AddScoped<IDirectoryReader, DirectoryReader>();
         services.AddScoped<IFileReader, FileReader>();
 
@@ -67,7 +69,7 @@ public class Program
 
         // builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
         // Dependencies for finding similar image files.
-        services.AddTransient<IImageHashGenerator, ImageHashGenerator>();
+        services.AddTransient<IImageHash, DifferenceHash>();
         // services.AddScoped<IDbHelpers, DbHelpers>();
         services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
 

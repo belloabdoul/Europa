@@ -1,5 +1,4 @@
 ﻿using Cysharp.Text;
-using Emgu.CV.ImgHash;
 
 namespace Core.Entities;
 
@@ -137,11 +136,6 @@ public static class Utilities
         { 0xFC, 0xFC / 255f }, { 0xFD, 0xFD / 255f }, { 0xFE, 0xFE / 255f },
         { 0xFF, 0xFF / 255f }
     };
-
-    public static void GetHashFunction(out ImgHashBase blockMeanHash)
-    {
-        blockMeanHash = new BlockMeanHash();
-    }
 
     public static string GetValidPath(string path)
     {

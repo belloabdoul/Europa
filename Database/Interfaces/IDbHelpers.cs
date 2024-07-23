@@ -7,7 +7,7 @@ namespace Database.Interfaces;
 
 public interface IDbHelpers
 {
-    Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash, CancellationToken cancellationToken);
+    // Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash, CancellationToken cancellationToken);
 
     Task<long> CacheHashAsync(ImagesGroup group, CancellationToken cancellationToken);
 

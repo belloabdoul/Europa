@@ -24,16 +24,16 @@ public class SimilarityContext : DbContext
                 // Properties
                 entityBuilder.Property(group => group.Id).HasColumnName("id").UseIdentityByDefaultColumn()
                     .HasIdentityOptions(startValue: 1);
-                entityBuilder.Property(group => group.Hash).HasColumnName("hash")
-                    .HasConversion(
-                        hash => hash,
-                        hash => hash.Select(byteValue => Utilities.ByteToByte[byteValue]).ToArray(),
-                        new ValueComparer<byte[]>(
-                            (c1, c2) => (c1 == null && c2 == null) ||
-                                        (c1 != null && c2 != null && c1.SequenceEqual(c2)),
-                            c => string.GetHashCode(Convert.ToHexString(c), StringComparison.OrdinalIgnoreCase),
-                            c => c))
-                    .HasMaxLength(32);
+                // entityBuilder.Property(group => group.Hash).HasColumnName("hash")
+                //     .HasConversion(
+                //         hash => hash,
+                //         hash => hash.Select(byteValue => Utilities.ByteToByte[byteValue]).ToArray(),
+                //         new ValueComparer<byte[]>(
+                //             (c1, c2) => (c1 == null && c2 == null) ||
+                //                         (c1 != null && c2 != null && c1.SequenceEqual(c2)),
+                //             c => string.GetHashCode(Convert.ToHexString(c), StringComparison.OrdinalIgnoreCase),
+                //             c => c))
+                //     .HasMaxLength(32);
 
                 entityBuilder.Property(group => group.ImageHash).HasColumnName("image_hash").HasColumnType("vector(32)");
 
