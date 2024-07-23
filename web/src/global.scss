@@ -93,9 +93,5 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 }
 
 .full-height {
-  height: 100vh;
-}
-
-.fill-available {
-  width: -webkit-fill-available;
+  height: calc(100vh - 56px) !important;
 }

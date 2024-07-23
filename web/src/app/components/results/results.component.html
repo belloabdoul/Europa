@@ -1,38 +1,35 @@
-<ion-content>
-  <ion-list>
-    @for (exception of exceptions; track exception) {
-    <ion-item>
-      <ion-label>
-        {{ exception }}
-      </ion-label>
-    </ion-item>
-    }
-  </ion-list>
+<ion-list class="full-height">
+  @for (exception of exceptions; track exception) {
+  <ion-item>
+    <ion-label>
+      {{ exception }}
+    </ion-label>
+  </ion-item>
+  }
+</ion-list>
 
-  <ion-footer class="ion-text-center ion-justify-content-around">
-    <ion-toolbar>
-      <ion-grid>
-        <ion-row>
-          @if(step1Text == ''){
-          <ion-col>No search in progress</ion-col>
-          } 
-          @else{ @if(step1Text.includes('cancelled')){
-          <ion-col>{{ step1Text }}</ion-col>
-          } @else{
-          <ion-col
-            >{{ step1Text }} : {{ step1Progress }} hashes processed</ion-col
-          >
-          @if(step2Text != ''){
-          <ion-col
-            >{{ step2Text }} : {{ step2Progress }} hashes processed</ion-col
-          >
-          }
-          <ion-col
-            >{{ step3Text }} : {{ step3Progress }} hashes processed</ion-col
-          >
-          } }
-        </ion-row>
-      </ion-grid>
-    </ion-toolbar>
-  </ion-footer>
-</ion-content>
+<ion-footer class="ion-text-center ion-justify-content-around">
+  <ion-toolbar>
+    <ion-grid>
+      <ion-row>
+        @if(step1Text == ''){
+        <ion-col>No search in progress</ion-col>
+        } @else{ @if(step1Text.includes('cancelled')){
+        <ion-col>{{ step1Text }}</ion-col>
+        } @else{
+        <ion-col
+          >{{ step1Text }} : {{ step1Progress }} hashes processed</ion-col
+        >
+        @if(step2Text != ''){
+        <ion-col
+          >{{ step2Text }} : {{ step2Progress }} hashes processed</ion-col
+        >
+        }
+        <ion-col
+          >{{ step3Text }} : {{ step3Progress }} hashes processed</ion-col
+        >
+        } }
+      </ion-row>
+    </ion-grid>
+  </ion-toolbar>
+</ion-footer>
