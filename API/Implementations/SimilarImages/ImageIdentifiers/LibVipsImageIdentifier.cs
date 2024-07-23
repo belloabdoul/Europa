@@ -15,13 +15,15 @@ public class LibVipsImageIdentifier : IFileTypeIdentifier
             var loader = (string)image.Get("vips-loader");
             if (loader.Contains("gif", StringComparison.InvariantCultureIgnoreCase) ||
                 loader.Contains("webp", StringComparison.InvariantCultureIgnoreCase))
-                fileType = (int) image.Get("n-pages") > 1 ? FileType.Animation : FileType.Image;
+                fileType = image.GetFields().Contains("n-pages", StringComparer.InvariantCultureIgnoreCase)
+                    ? FileType.Animation
+                    : FileType.Image;
             else
                 fileType = FileType.Image;
         }
-        catch (VipsException e)
+        catch (VipsException)
         {
-            fileType = FileType.Corrupt;
+            fileType = FileType.CorruptUnknownOrUnsupported;
         }
 
         return fileType;

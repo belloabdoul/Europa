@@ -102,13 +102,13 @@ public class SimilarImageFinder : ISimilarImagesFinder
 
                         switch (type)
                         {
-                            case FileType.Corrupt:
+                            case FileType.CorruptUnknownOrUnsupported:
                                 await _notificationContext.Clients.All.SendAsync("notify",
                                     new Notification(NotificationType.Exception,
-                                        $"File {hypotheticalDuplicates} is either corrupted or not supported"),
+                                        $"File {hypotheticalDuplicates} is either corrupted, unknown or unsupported"),
                                     cancellationToken: hashingToken);
                                 break;
-                            case FileType.GifImage or FileType.Image:
+                            case FileType.Image:
                             {
                                 using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate);
 
@@ -172,15 +172,13 @@ public class SimilarImageFinder : ISimilarImagesFinder
                                 group.Duplicates.Enqueue(hypotheticalDuplicate);
                                 break;
                             }
-                            default:
-                                Console.WriteLine($"File {hypotheticalDuplicate} is corrupted");
-                                break;
                         }
                     });
 
                 progressWriter.Complete();
                 // return copiesGroups.ToDictionary(group => group.Value.Id, group => group.Value);
                 return new Dictionary<long, ImagesGroup>();
+                
             }, cancellationToken: cancellationToken, creationOptions: TaskCreationOptions.LongRunning,
             scheduler: TaskScheduler.Default);
     }
