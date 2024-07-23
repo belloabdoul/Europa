@@ -17,8 +17,8 @@ public class SearchParameters
     public FileSearchType FileSearchType { get; set; }
 
     // The degree of similarity between images (only for images)
-    [Range(0.7, 1, ConvertValueInInvariantCulture = true,
-        ErrorMessage = "The degree of similarity must be between 0.7 and 1", ParseLimitsInInvariantCulture = true)]
+    [Range(0, 20, ConvertValueInInvariantCulture = true,
+        ErrorMessage = "The degree of similarity must be between 0 and 20", ParseLimitsInInvariantCulture = true)]
     public double? DegreeOfSimilarity { get; set; }
 
     // The minimum size for files to include in search
