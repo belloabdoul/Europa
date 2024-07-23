@@ -189,7 +189,8 @@ export class ResultsComponent implements OnInit, AfterViewInit, OnDestroy {
         } else if (searchParameters.fileSearchType == FileSearchType.All) {
           this.step1Text = 'Generating partial hash';
           this.step1Progress = '0';
-
+          this.step2Text = '';
+          this.step2Progress = '0';
           this.step3Text = 'Generating full hash';
           this.step3Progress = '0';
         } else if (searchParameters.fileSearchType == FileSearchType.Images) {
@@ -222,13 +223,14 @@ export class ResultsComponent implements OnInit, AfterViewInit, OnDestroy {
 
     this.similarFilesSubscription = this.searchService.similarFiles.subscribe(
       (similarFiles) => {
-        this.similarFiles = similarFiles.reduce(
-          (previousValue, currentValue) => {
-            previousValue[previousValue.length - 1].isLastInGroup = true;
-            return previousValue.concat(currentValue);
-          }
-        );
-        console.log(this.similarFiles[0]);
+        if (typeof similarFiles != 'undefined' && similarFiles.length != 0) {
+          this.similarFiles = similarFiles.reduce(
+            (previousValue, currentValue) => {
+              previousValue[previousValue.length - 1].isLastInGroup = true;
+              return previousValue.concat(currentValue);
+            }
+          );
+        }
       }
     );
   }
