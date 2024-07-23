@@ -1,8 +1,10 @@
 import {
+  AfterViewInit,
   ChangeDetectorRef,
   Component,
   OnDestroy,
   OnInit,
+  TemplateRef,
   ViewChild,
 } from '@angular/core';
 import {
@@ -15,6 +17,9 @@ import {
   IonList,
   IonItem,
   IonLabel,
+  IonPopover,
+  IonIcon,
+  IonButton,
 } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
 import { File } from 'src/app/shared/models/file';
@@ -25,8 +30,13 @@ import { AgGridAngular } from 'ag-grid-angular';
 import {
   ColDef,
   CellFocusedEvent,
+  CellContextMenuEvent,
+  CellDoubleClickedEvent,
 } from 'ag-grid-community';
 import { ElectronService } from 'src/app/shared/services/electron/electron.service';
+import { addIcons } from 'ionicons';
+import { folderOpen, apps } from 'ionicons/icons';
+import { CdkMenu, CdkMenuItem, CdkContextMenuTrigger } from '@angular/cdk/menu';
 
 @Component({
   selector: 'app-results',
@@ -34,6 +44,9 @@ import { ElectronService } from 'src/app/shared/services/electron/electron.servi
   styleUrls: ['./results.component.scss'],
   standalone: true,
   imports: [
+    IonButton,
+    IonIcon,
+    IonPopover,
     IonLabel,
     IonItem,
     IonList,
@@ -44,9 +57,12 @@ import { ElectronService } from 'src/app/shared/services/electron/electron.servi
     IonRow,
     IonCol,
     AgGridAngular,
+    CdkMenu,
+    CdkMenuItem,
+    CdkContextMenuTrigger,
   ],
 })
-export class ResultsComponent implements OnInit, OnDestroy {
+export class ResultsComponent implements OnInit, AfterViewInit, OnDestroy {
   // Each step message and its progress in number of hashes processed
   step1Text: string;
   step1Progress: string;
@@ -81,50 +97,70 @@ export class ResultsComponent implements OnInit, OnDestroy {
       sortable: false,
       suppressMovable: true,
       tooltipField: 'path',
+      cellDataType: 'text',
+      wrapText: true,
+      autoHeight: true,
       cellClassRules: {
         'is-last': (params) => (params.data as File).isLastInGroup == true,
       },
+      flex: 3,
     },
     {
       field: 'type',
       headerName: 'Type',
       sortable: false,
       suppressMovable: true,
-      // cellClassRules: {
-      //   'is-last': (params) => (params.data as File).isLastInGroup == true,
-      // },
+      cellDataType: 'text',
+      wrapText: true,
+      autoHeight: true,
+      flex: 1,
     },
     {
       field: 'size',
       headerName: 'Size',
       sortable: false,
       suppressMovable: true,
-      // cellClassRules: {
-      //   'is-last': (params) => (params.data as File).isLastInGroup == true,
-      // },
+      cellDataType: 'number',
+      wrapText: true,
+      autoHeight: true,
+      flex: 1,
     },
     {
       field: 'lastModified',
       headerName: 'Last modified',
       sortable: false,
       suppressMovable: true,
-      // cellClassRules: {
-      //   'is-last': (params) => (params.data as File).isLastInGroup == true,
-      // },
+      cellDataType: 'string',
+      valueGetter: (row) => {
+        return (row.data as File).dateModified.toString();
+      },
+      wrapText: true,
+      autoHeight: true,
+      flex: 2,
     },
     {
       field: 'delete',
       headerName: 'Delete?',
       sortable: false,
       suppressMovable: true,
-      // cellClassRules: {
-      //   'is-last': (params) => (params.data as File).isLastInGroup == true,
-      // },
+      cellDataType: 'boolean',
+      editable: true,
+      valueGetter: (row) => {
+        if (typeof (row.data as File).delete == 'undefined') return false;
+        return true;
+      },
+      wrapText: true,
+      autoHeight: true,
+      flex: 1,
     },
   ];
 
   // Accessor to ag grid component
   @ViewChild('results') files: AgGridAngular | undefined;
+  @ViewChild('contextMenu') contextMenu: TemplateRef<any> | undefined;
+  @ViewChild(CdkContextMenuTrigger) contextMenuTrigger:
+    | CdkContextMenuTrigger
+    | undefined;
 
   constructor(
     private cd: ChangeDetectorRef,
@@ -142,6 +178,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
 
     this.exceptions = [];
     this.similarFiles = [];
+    addIcons({ folderOpen, apps });
   }
 
   ngOnInit() {
@@ -191,8 +228,13 @@ export class ResultsComponent implements OnInit, OnDestroy {
             return previousValue.concat(currentValue);
           }
         );
+        console.log(this.similarFiles[0]);
       }
     );
+  }
+
+  ngAfterViewInit(): void {
+    this.contextMenuTrigger!.disabled = true;
   }
 
   ngOnDestroy(): void {
@@ -207,7 +249,9 @@ export class ResultsComponent implements OnInit, OnDestroy {
     event.api.getRowNode(event.rowIndex?.toString()!)?.setSelected(true);
   }
 
-  async openFileInDefaultApplication() {
+  async openFileInDefaultApplication(
+    event: MouseEvent | CellDoubleClickedEvent
+  ) {
     const path = (this.files?.api.getSelectedRows()[0] as File).path;
     await this.electronService.ipcRenderer
       .invoke('shell:openFileInDefaultApplication', [path])
@@ -218,7 +262,20 @@ export class ResultsComponent implements OnInit, OnDestroy {
 
   showContentIfPossible() {
     // const path = (this.files?.api.getSelectedRows()[0] as File).path;
-    const row = this.files?.api.getSelectedRows()[0];
-    console.log(row);
+  }
+
+  showContextMenu(event: CellContextMenuEvent) {
+    this.contextMenuTrigger!.disabled = false;
+    this.contextMenuTrigger?._openOnContextMenu(event.event as PointerEvent);
+    this.contextMenuTrigger!.disabled = true;
+  }
+
+  async openFileLocation() {
+    const path = (this.files?.api.getSelectedRows()[0] as File).path;
+    await this.electronService.ipcRenderer
+      .invoke('shell:openFileLocation', [path])
+      .catch((error) => {
+        console.log(`Opening ${path} folder failed : ${error}`);
+      });
   }
 }

@@ -64,10 +64,14 @@ async function handleDirectorySelection(): Promise<string> {
 }
 
 // Open the file in the default application
-async function handleFileOpeningInDefaultApplication(
+async function handleOpeningFileInDefaultApplication(
   path: string
 ): Promise<string> {
   return await shell.openPath(path);
+}
+
+function handleOpeningFileLocation(path: string): void {
+  shell.showItemInFolder(path);
 }
 
 try {
@@ -79,7 +83,10 @@ try {
     setTimeout(function () {
       ipcMain.handle('dialog:selectDirectory', handleDirectorySelection);
       ipcMain.handle('shell:openFileInDefaultApplication', (event, [path]) =>
-        handleFileOpeningInDefaultApplication(path as string)
+        handleOpeningFileInDefaultApplication(path as string)
+      );
+      ipcMain.handle('shell:openFileLocation', (event, [path]) =>
+        handleOpeningFileLocation(path as string)
       );
       createWindow();
     }, 400)

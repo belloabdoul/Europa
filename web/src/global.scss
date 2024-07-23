@@ -100,8 +100,8 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   height: calc(100vh - 56px) !important;
 }
 
-/* Center Ag grid header label */
-.ag-header-cell-label {
+/* Center Ag grid cells */
+.ag-header-cell-label, .ag-cell-wrapper {
   justify-content: center;
 }
 
@@ -109,6 +109,30 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   text-align: center;
 }
 
+.ag-cell-value {
+  line-height: 20px !important;
+  word-break: normal;
+  /* prevent words from breaking */
+  padding-top: 5px;
+  /* space top */
+  padding-bottom: 5px;
+  /* space bottom */
+}
+
+/* Change border color to mark the end of a group of similar files */
 .ag-row:has(.is-last) {
   border-bottom-color: #4782eb;
+}
+
+.ag-row:not(:has(.is-last)) {
+  border-bottom-color: #777;
+}
+
+.ag-row {
+  border-bottom-width: 2px;
+}
+
+/* Allow ag grid to fill remaining width */
+.ag-center-cols-container{
+  min-width: 100%;
 }
