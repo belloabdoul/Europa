@@ -1,12 +1,16 @@
-<ion-list class="full-height">
-  @for (exception of exceptions; track exception) {
-  <ion-item>
-    <ion-label>
-      {{ exception }}
-    </ion-label>
-  </ion-item>
-  }
-</ion-list>
+<ag-grid-angular
+  class="full-height ag-theme-material-auto-dark"
+  [columnDefs]="colDefs"
+  [rowData]="similarFiles"
+  enableBrowserTooltips
+  (cellFocused)="setSelectedRow($event)"
+  (keyup.arrowup)="showContentIfPossible()"
+  (keyup.arrowdown)="showContentIfPossible()"
+  (cellClicked)="showContentIfPossible()"
+  (cellDoubleClicked)="openFileInDefaultApplication()"
+  [rowBuffer]="0"
+  #results
+/>
 
 <ion-footer class="ion-text-center ion-justify-content-around">
   <ion-toolbar>

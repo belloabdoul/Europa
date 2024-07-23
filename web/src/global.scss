@@ -72,26 +72,43 @@ $app-theme: mat.define-theme((
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import '@ionic/angular/css/palettes/dark.system.css';
 
+/* Import ag grid core css*/
+@import 'ag-grid-community/styles/ag-grid.css';
+@import 'ag-grid-community/styles/ag-theme-material.css';
+
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
-// Wrap chip grid in extensions' lists
+/* Wrap chip grid in extensions' lists */
 .ion-chip-group .native-wrapper {
   display: flex;
   flex-flow: row wrap;
   height: 100%;
 }
 
-// Disable click on chip if input disabled
+/* Disable click on chip if input disabled */
 .ion-chip-group .input-disabled ion-chip {
   pointer-events: none;
 }
 
-// CSS for allowing component's full width and height
+/* CSS for allowing component's full width and height */
 .full-width {
   width: 100%;
 }
 
 .full-height {
   height: calc(100vh - 56px) !important;
+}
+
+/* Center Ag grid header label */
+.ag-header-cell-label {
+  justify-content: center;
+}
+
+.ag-cell {
+  text-align: center;
+}
+
+.ag-row:has(.is-last) {
+  border-bottom-color: #4782eb;
 }

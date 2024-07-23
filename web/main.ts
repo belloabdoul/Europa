@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import debug from 'electron-debug';
@@ -63,6 +63,13 @@ async function handleDirectorySelection(): Promise<string> {
   return '';
 }
 
+// Open the file in the default application
+async function handleFileOpeningInDefaultApplication(
+  path: string
+): Promise<string> {
+  return await shell.openPath(path);
+}
+
 try {
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
@@ -71,6 +78,9 @@ try {
   app.on('ready', () =>
     setTimeout(function () {
       ipcMain.handle('dialog:selectDirectory', handleDirectorySelection);
+      ipcMain.handle('shell:openFileInDefaultApplication', (event, [path]) =>
+        handleFileOpeningInDefaultApplication(path as string)
+      );
       createWindow();
     }, 400)
   );

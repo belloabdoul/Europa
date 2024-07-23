@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import debug from 'electron-debug';
@@ -52,6 +52,10 @@ async function handleDirectorySelection() {
     }
     return '';
 }
+// Open the file in the default application
+async function handleFileOpeningInDefaultApplication(path) {
+    return await shell.openPath(path);
+}
 try {
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
@@ -59,6 +63,7 @@ try {
     // Added 400 ms to fix the black background issue while using transparent window. More detais at https://github.com/electron/electron/issues/15947
     app.on('ready', () => setTimeout(function () {
         ipcMain.handle('dialog:selectDirectory', handleDirectorySelection);
+        ipcMain.handle('shell:openFileInDefaultApplication', (event, [path]) => handleFileOpeningInDefaultApplication(path));
         createWindow();
     }, 400));
     // Quit when all windows are closed.
