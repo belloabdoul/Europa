@@ -9,10 +9,7 @@ using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
-using Dapper;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
-using Microsoft.EntityFrameworkCore;
-using Pgvector.Dapper;
 
 namespace API;
 
@@ -63,10 +60,6 @@ public class Program
         services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
         services.AddScoped<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
-        // Added pgvector dependency for dapper
-        SqlMapper.AddTypeHandler(new VectorTypeHandler());
-        DefaultTypeMap.MatchNamesWithUnderscores = true;
-
         // builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
         // Dependencies for finding similar image files.
         services.AddTransient<IImageHash, DifferenceHash>();
@@ -105,20 +98,5 @@ public class Program
         app.MapHub<NotificationHub>("/notifications");
 
         app.Run();
-
-        return;
-
-        // Database
-        void Options(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder
-                .UseNpgsql(builder.Configuration.GetConnectionString("SimilarityContext"), o =>
-                {
-                    o.UseVector();
-                    o.MigrationsHistoryTable("__ef_migrations_history");
-                })
-                .EnableDetailedErrors().EnableSensitiveDataLogging();
-            optionsBuilder.EnableThreadSafetyChecks(false);
-        }
     }
 }

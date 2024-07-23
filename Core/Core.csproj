@@ -9,21 +9,7 @@
     <ItemGroup>
         <PackageReference Include="Blake3" Version="1.1.0" />
         <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.2.2" />
-        <PackageReference Include="Microsoft.Data.SqlClient" Version="5.2.1" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.7">
-            <PrivateAssets>all</PrivateAssets>
-            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
-        </PackageReference>
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4"/>
-        <PackageReference Include="Pgvector.Dapper" Version="0.3.0" />
-        <PackageReference Include="Pgvector.EntityFrameworkCore" Version="0.2.1" />
         <PackageReference Include="SoundFingerprinting" Version="10.6.0" />
-        <PackageReference Include="ZString" Version="2.6.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="Context\"/>
-        <Folder Include="Migrations\"/>
     </ItemGroup>
 
 </Project>

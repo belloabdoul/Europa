@@ -1,11 +1,7 @@
-﻿using Cysharp.Text;
-
-namespace Core.Entities;
+﻿namespace Core.Entities;
 
 public static class Utilities
 {
-    private static readonly Utf16PreparedFormat<string> PathWithLimitationRemoved = ZString.PrepareUtf16<string>(@"\\?\{0}");
-
     public static readonly Dictionary<byte, byte> ByteToByte = new()
     {
         { 0x00, 0x00 }, { 0x01, 0x01 }, { 0x02, 0x02 }, { 0x03, 0x03 }, { 0x04, 0x04 }, { 0x05, 0x05 }, { 0x06, 0x06 },
@@ -136,9 +132,4 @@ public static class Utilities
         { 0xFC, 0xFC / 255f }, { 0xFD, 0xFD / 255f }, { 0xFE, 0xFE / 255f },
         { 0xFF, 0xFF / 255f }
     };
-
-    public static string GetValidPath(string path)
-    {
-        return PathWithLimitationRemoved.Format(path);
-    }
 }

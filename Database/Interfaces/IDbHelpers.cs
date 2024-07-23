@@ -1,5 +1,4 @@
 ﻿using Core.Entities;
-using Pgvector;
 
 // ReSharper disable ParameterTypeCanBeEnumerable.Global
 
@@ -15,8 +14,8 @@ public interface IDbHelpers
         double degreeOfSimilarity,
         CancellationToken cancellationToken);
     
-    Task<List<Similarity>> GetSimilarImagesGroups(long currentGroupId, Vector imageHash, double degreeOfSimilarity,
-        ICollection<long> groupsAlreadyDone, CancellationToken cancellationToken);
+    // Task<List<Similarity>> GetSimilarImagesGroups(long currentGroupId, Vector imageHash, double degreeOfSimilarity,
+    //     ICollection<long> groupsAlreadyDone, CancellationToken cancellationToken);
 
     Task AddSimilarity(Similarity newSimilarities, CancellationToken cancellationToken);
 }
