@@ -88,7 +88,7 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
                     var file = new File
                     {
                         Path = path,
-                        DateModified = System.IO.File.GetLastWriteTimeUtc(fileHandle),
+                        DateModified = System.IO.File.GetLastWriteTime(fileHandle),
                         Size = RandomAccess.GetLength(fileHandle),
                     };
 
