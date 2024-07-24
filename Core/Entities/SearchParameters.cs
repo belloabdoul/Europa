@@ -3,22 +3,10 @@
 namespace Core.Entities;
 
 public class SearchParameters
-{
-    public SearchParameters()
-    {
-        Folders = [];
-        IncludeSubfolders = true;
-        FileSearchType = FileSearchType.All;
-        DegreeOfSimilarity = 1;
-        MinSize = 0;
-        MaxSize = long.MaxValue;
-        IncludedFileTypes = [];
-        ExcludedFileTypes = [];
-    }
-
+{ 
     // The folders to process
     [Required(ErrorMessage = "At least one folder must be set")]
-    public SortedSet<string> Folders { get; set; }
+    public string[] Folders { get; set; }
 
     // Should we include subfolders or not
     [Required(ErrorMessage = "No folder inclusion policy set")]
@@ -29,9 +17,9 @@ public class SearchParameters
     public FileSearchType FileSearchType { get; set; }
 
     // The degree of similarity between images (only for images)
-    [Range(0.7, 1, ConvertValueInInvariantCulture = true,
-        ErrorMessage = "The degree of similarity must be between 0.7 and 1", ParseLimitsInInvariantCulture = true)]
-    public double DegreeOfSimilarity { get; set; }
+    [Range(0, 20, ConvertValueInInvariantCulture = true,
+        ErrorMessage = "The degree of similarity must be between 0 and 20", ParseLimitsInInvariantCulture = true)]
+    public double? DegreeOfSimilarity { get; set; }
 
     // The minimum size for files to include in search
     public long? MinSize { get; set; }
@@ -40,8 +28,8 @@ public class SearchParameters
     public long? MaxSize { get; set; }
 
     // The file types to include. With this excluded files types are disabled
-    public HashSet<string> IncludedFileTypes { get; set; }
+    public string[] IncludedFileTypes { get; set; }
 
     // The file types to exclude. Only work if no file types are included
-    public IEnumerable<string> ExcludedFileTypes { get; set; }
+    public string[] ExcludedFileTypes { get; set; }
 }

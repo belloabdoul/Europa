@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
+using Blake3;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
@@ -32,7 +33,7 @@ public class SimilarAudiosFinder : ISimilarAudiosFinder
         readLock = new object();
     }
 
-    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarAudiosAsync(IList<string> hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;

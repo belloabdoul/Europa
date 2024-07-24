@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "node",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "allowJs": true,
+    "module": "ES2022",
+    "target": "ES2022",
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2018",
+      "dom"
+    ]
+  },
+  "files": [
+    "main.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/*.spec.ts"
+  ]
+}

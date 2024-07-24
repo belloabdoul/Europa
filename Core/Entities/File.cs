@@ -1,6 +1,8 @@
 ﻿// ReSharper disable CollectionNeverUpdated.Global
 // ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
 
+using Blake3;
+
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
 namespace Core.Entities;
@@ -12,7 +14,7 @@ public class File
     {
     }
 
-    public File(FileInfo file, byte[] hash)
+    public File(FileInfo file, Hash hash)
     {
         Hash = hash;
         Size = file.Length;
@@ -29,5 +31,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
     
-    public byte[] Hash { get; init; }
+    public Hash Hash { get; init; }
 }

@@ -13,13 +13,6 @@ public class DirectoryReader : IDirectoryReader
         ".mp4a", ".mp2a", ".mpga", ".wave", ".weba", ".wma", ".oga"
     ];
 
-    private static readonly HashSet<string> ImageFormats =
-    [
-        ".mrw", ".arw", ".srf", ".sr2", ".mef", ".orf", ".erf", ".kdc", ".rw2", ".raf", ".dcr", ".dng", ".pef", ".crw",
-        ".iiq", ".nrw", ".nef", ".cr2", ".jpg", ".jpeg", ".png", ".bmp", ".tiff", ".tif", ".tga", ".ff", ".webp",
-        ".gif", ".ico", ".exr", ".qoi", ".jpe", ".heif", ".heic", ".avifs", ".avif"
-    ];
-
     private readonly IHubContext<NotificationHub> _notificationContext;
     
     public DirectoryReader(IHubContext<NotificationHub> notificationContext)
@@ -32,65 +25,37 @@ public class DirectoryReader : IDirectoryReader
         return File.Exists(filePath);
     }
 
-    public async Task<SortedList<string, (long, DateTime)>> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
+    public async Task<HashSet<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
-        var files = new SortedList<string, (long, DateTime)>();
-
-        var fileTypes = searchParameters.FileSearchType switch
-        {
-            FileSearchType.Images => ImageFormats,
-            FileSearchType.Audios => AudioFormats,
-            _ => [".*"]
-        };
-
-        if (searchParameters.IncludedFileTypes.Count > 0)
-        {
-            if (fileTypes.Contains("*"))
-                fileTypes = searchParameters.IncludedFileTypes;
-            else
-            {
-                fileTypes.IntersectWith(searchParameters.IncludedFileTypes);
-            }
-        }
+        var files = new HashSet<string>();
 
         foreach (var folder in searchParameters.Folders)
         {
             try
             {
                 if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-                    await _notificationContext.Clients.All.SendAsync("Notify",
+                    await _notificationContext.Clients.All.SendAsync("notify",
                         new Notification(NotificationType.Exception, $"The folder {folder} does not exist."),
                         cancellationToken: cancellationToken);
                 else if (!HasWriteAccessToFolder(folder))
-                    await _notificationContext.Clients.All.SendAsync("Notify",
+                    await _notificationContext.Clients.All.SendAsync("notify",
                         new Notification(NotificationType.Exception, $"You don't have access the folder {folder}."),
                         cancellationToken: cancellationToken);
                 else
                 {
-                    var results = fileTypes
-                        .AsParallel()
-                        .WithCancellation(cancellationToken)
-                        .SelectMany(searchPattern =>
-                            new DirectoryInfo(folder).EnumerateFiles(string.Concat("*", searchPattern),
+                    files.UnionWith(new DirectoryInfo(folder).EnumerateFiles("*",
                                 searchParameters.IncludeSubfolders
                                     ? SearchOption.AllDirectories
-                                    : SearchOption.TopDirectoryOnly))
-                        .Where(file => !searchParameters.ExcludedFileTypes.Any(extension =>
-                                           file.Extension.Equals(extension,
-                                               StringComparison.OrdinalIgnoreCase)) &&
-                                       file.Length >= searchParameters.MinSize &&
-                                       file.Length <= searchParameters.MaxSize)
-                        .Select(file =>
-                            new KeyValuePair<string, (long, DateTime)>(file.FullName,
-                                (file.Length, file.LastWriteTime))).ToList();
-                    files.Capacity += results.Count;
-                    results.ForEach(info => files.Add(info.Key, info.Value));
+                                    : SearchOption.TopDirectoryOnly)
+                        .Where(file => (FileFilter.IsFileToBeIncluded(file.Extension, searchParameters.IncludedFileTypes) || !FileFilter.IsFileToBeExcluded(file.Extension, searchParameters.ExcludedFileTypes)) &&
+                                       FileFilter.IsFileSizeInRange(file.Length, searchParameters.MinSize, searchParameters.MaxSize))
+                        .Select(file => file.FullName));
                 }
             }
             catch (Exception ex)
             {
-                await _notificationContext.Clients.All.SendAsync("Notify",
+                await _notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
             }
         }

@@ -1,19 +1,15 @@
+using System.Text.Json.Serialization;
 using API.Implementations.Common;
 using API.Implementations.DuplicatesByHash;
 using API.Implementations.SimilarAudios;
 using API.Implementations.SimilarImages;
-using Core.Context;
+using API.Implementations.SimilarImages.ImageHashGenerators;
+using API.Implementations.SimilarImages.ImageIdentifiers;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
-using Dapper;
-using Database.Implementations;
-using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
-using Microsoft.EntityFrameworkCore;
-using Npgsql;
-using Pgvector.Dapper;
 
 namespace API;
 
@@ -35,7 +31,10 @@ public class Program
                 .AllowCredentials();
         }));
 
-        services.AddControllers();
+        services.AddControllers().AddJsonOptions(options =>
+        {
+            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
@@ -49,37 +48,33 @@ public class Program
         DynamicallyLoadedBindings.Initialize();
 
         // Dependency for all or most features
-        services.AddScoped<IFileTypeIdentifier, ImageIdentifier>();
+        services.AddScoped<IFileTypeIdentifier, LibVipsImageIdentifier>();
         services.AddScoped<IDirectoryReader, DirectoryReader>();
         services.AddScoped<IFileReader, FileReader>();
 
         // Dependencies for finding duplicates by cryptographic hash.
         services.AddTransient<IHashGenerator, HashGenerator>();
         services.AddScoped<IDuplicateByHashFinder, DuplicateByHashFinder>();
-        
+
         // Dependencies for finding similar audio files.
         services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
         services.AddScoped<ISimilarAudiosFinder, SimilarAudiosFinder>();
-        
-        // Added pgvector dependency for dapper
-        SqlMapper.AddTypeHandler(new VectorTypeHandler());
-        DefaultTypeMap.MatchNamesWithUnderscores = true;
-        
-        builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
+
+        // builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
         // Dependencies for finding similar image files.
-        services.AddTransient<IImageHashGenerator, ImageHashGenerator>();
-        services.AddScoped<IDbHelpers, DbHelpers>();
+        services.AddTransient<IImageHash, DifferenceHash>();
+        // services.AddScoped<IDbHelpers, DbHelpers>();
         services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
 
         var app = builder.Build();
 
-        using (var scope = app.Services.CreateScope())
-        {
-            var provider = scope.ServiceProvider;
-            var contextFactory = provider.GetRequiredService<IDbContextFactory<SimilarityContext>>();
-            using var context = contextFactory.CreateDbContext();
-            context.Database.Migrate();
-        }
+        // using (var scope = app.Services.CreateScope())
+        // {
+        //     var provider = scope.ServiceProvider;
+        //     var contextFactory = provider.GetRequiredService<IDbContextFactory<SimilarityContext>>();
+        //     using var context = contextFactory.CreateDbContext();
+        //     context.Database.Migrate();
+        // }
 
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
@@ -103,20 +98,5 @@ public class Program
         app.MapHub<NotificationHub>("/notifications");
 
         app.Run();
-        
-        return;
-
-        // Database
-        void Options(DbContextOptionsBuilder optionsBuilder)
-        {
-            optionsBuilder
-                .UseNpgsql(builder.Configuration.GetConnectionString("SimilarityContext"), o =>
-                {
-                    o.UseVector();
-                    o.MigrationsHistoryTable("__ef_migrations_history");
-                })
-                .EnableDetailedErrors().EnableSensitiveDataLogging();
-            optionsBuilder.EnableThreadSafetyChecks(false);
-        }
     }
 }
