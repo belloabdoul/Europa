@@ -1,6 +1,7 @@
-﻿using Blake3;
-using CommunityToolkit.HighPerformance.Buffers;
+﻿using System.Buffers;
+using Blake3;
 using Core.Interfaces.DuplicatesByHash;
+using DotNext.Buffers;
 using Microsoft.Win32.SafeHandles;
 
 namespace API.Implementations.DuplicatesByHash;
@@ -16,7 +17,7 @@ public class HashGenerator : IHashGenerator
         const int bufferSize = 1048576;
         
         using var hasher = Hasher.New();
-        using var bytesRead = MemoryOwner<byte>.Allocate(bufferSize);
+        using var bytesRead = new MemoryOwner<byte>(MemoryPool<byte>.Shared, bufferSize);
         var bytesHashed = 0;
         
         while (bytesHashed < bytesToHash)
