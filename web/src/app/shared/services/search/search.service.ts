@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
-import { Observable, Subject } from 'rxjs';
+import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
 import { NotificationType } from '../../models/notification-type';
 import { SearchParameters } from '../../models/search-parameters';
@@ -59,7 +59,11 @@ export class SearchService {
   launchSearch(searchParameters: SearchParameters | null): Observable<any> {
     this.sendSearchParameters(searchParameters);
     const url = `${this.duplicatesApiUrl}findDuplicates`;
-    return this.http.post<any>(url, searchParameters);
+    return this.http.post<any>(url, searchParameters).pipe(
+      catchError((error) => {
+        return of(error.error);
+      })
+    );
   }
 
   sendResults(similarFiles: File[][]): void {

@@ -10,6 +10,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="DotNext" Version="5.7.0" />
         <PackageReference Include="MediaInfo.Wrapper.Core" Version="21.9.3"/>
         <PackageReference Include="NetVips" Version="2.4.1" />
         <PackageReference Include="NetVips.Native" Version="8.15.2" />

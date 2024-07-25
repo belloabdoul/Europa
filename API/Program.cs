@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using API.Implementations.Common;
 using API.Implementations.DuplicatesByHash;
@@ -5,11 +6,13 @@ using API.Implementations.SimilarAudios;
 using API.Implementations.SimilarImages;
 using API.Implementations.SimilarImages.ImageHashGenerators;
 using API.Implementations.SimilarImages.ImageIdentifiers;
+using Core.Entities;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
+using FluentValidation;
 
 namespace API;
 
@@ -30,12 +33,14 @@ public class Program
                 .AllowAnyHeader()
                 .AllowCredentials();
         }));
-
+        
         services.AddControllers().AddJsonOptions(options =>
         {
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+            options.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
 
+        services.AddScoped<IValidator<SearchParameters>, SearchParametersValidator>();
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();

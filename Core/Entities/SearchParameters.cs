@@ -5,21 +5,16 @@ namespace Core.Entities;
 public class SearchParameters
 { 
     // The folders to process
-    [Required(ErrorMessage = "At least one folder must be set")]
     public string[] Folders { get; set; }
+    
+    // The category of the files we will be processing
+    public FileSearchType? FileSearchType { get; set; }
+    
+    // The degree of similarity between images (only for images)
+    public double? DegreeOfSimilarity { get; set; }
 
     // Should we include subfolders or not
-    [Required(ErrorMessage = "No folder inclusion policy set")]
     public bool IncludeSubfolders { get; set; }
-
-    // The category of the files we will be processing
-    [Required(ErrorMessage = "The types of file to process must be set")]
-    public FileSearchType FileSearchType { get; set; }
-
-    // The degree of similarity between images (only for images)
-    [Range(0, 20, ConvertValueInInvariantCulture = true,
-        ErrorMessage = "The degree of similarity must be between 0 and 20", ParseLimitsInInvariantCulture = true)]
-    public double? DegreeOfSimilarity { get; set; }
 
     // The minimum size for files to include in search
     public long? MinSize { get; set; }

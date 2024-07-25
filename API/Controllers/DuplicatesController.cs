@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
+using System.Text.Json;
 using Core.Entities;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -12,14 +14,17 @@ namespace API.Controllers;
 [ApiController]
 public class DuplicatesController : Controller
 {
+    private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly IDirectoryReader _directoryReader;
     private readonly IDuplicateByHashFinder _duplicatesByHashFinder;
     private readonly ISimilarAudiosFinder _similarAudiosFinder;
     private readonly ISimilarImagesFinder _similarImagesFinder;
 
-    public DuplicatesController(IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder,
+
+    public DuplicatesController(IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder,
         ISimilarImagesFinder similarImagesFinder, IDuplicateByHashFinder duplicatesByHashFinder)
     {
+        _searchParametersValidator = searchParametersValidator;
         _directoryReader = directoryReader;
         _duplicatesByHashFinder = duplicatesByHashFinder;
         _similarAudiosFinder = similarAudiosFinder;
@@ -31,9 +36,14 @@ public class DuplicatesController : Controller
     public async Task<ActionResult> FindDuplicates(SearchParameters searchParameters,
         CancellationToken cancellationToken = default)
     {
-        if (!ModelState.IsValid) 
+        var validationResult = await _searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
+
+        if (!validationResult.IsValid)
+        {
+            validationResult.AddToModelState(ModelState);
             return BadRequest(ModelState);
-        
+        }
+
         var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
         
         var duplicatesGroups = searchParameters.FileSearchType switch

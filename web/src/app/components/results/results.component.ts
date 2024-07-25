@@ -205,7 +205,7 @@ export class ResultsComponent implements OnInit, AfterViewInit, OnDestroy {
         }
 
         this.exceptions = [];
-        this.cd.markForCheck();
+        this.cd.detectChanges();
       });
 
     this.notificationSubscription = this.searchService.notification.subscribe(
@@ -217,7 +217,7 @@ export class ResultsComponent implements OnInit, AfterViewInit, OnDestroy {
         else if (notification.type == NotificationType.TotalProgress)
           this.step3Progress = notification.result;
         else this.exceptions.push(notification.result);
-        this.cd.markForCheck();
+        this.cd.detectChanges();
       }
     );
 

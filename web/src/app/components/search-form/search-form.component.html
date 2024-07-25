@@ -1,7 +1,9 @@
-<ion-list class="form" lines="none">
+<ion-list lines="none">
   <ion-item-group class="group">
     <ion-item>
-      <ion-label class="ion-text-nowrap">Add directory</ion-label>
+      <ion-label class="ion-text-nowrap"
+        >Add directory <ion-text color="danger">(Required)</ion-text></ion-label
+      >
       <ion-button
         shape="round"
         matTooltip="Choose directory using dialog"
@@ -86,23 +88,16 @@
   </ion-item-group>
 
   <ion-item>
-    <ion-toggle
-      labelPlacement="start"
-      [(ngModel)]="searchParameters.includeSubFolders"
-      [disabled]="isSearchRunning"
-    >
-      Include subdirectories
-    </ion-toggle>
-  </ion-item>
-
-  <ion-item>
     <ion-select
-      aria-label="Search type"
       interface="popover"
-      label="Search type"
+      placeholder="Select a search type"
       [(ngModel)]="searchParameters.fileSearchType"
       [disabled]="isSearchRunning"
+      name="fileSearchType"
     >
+      <div slot="label">
+        Search type <ion-text color="danger">(Required)</ion-text>
+      </div>
       @for (searchType of fileSearchType | keyvalue; track $index) {
       <ion-select-option [value]="searchType.value">{{
         searchType.key
@@ -114,7 +109,6 @@
   @if(searchParameters.fileSearchType == fileSearchType.Images){
   <ion-item>
     <ion-input
-      label="Degree of similarity"
       type="number"
       placeholder="5"
       counter="1"
@@ -123,9 +117,25 @@
       [(ngModel)]="searchParameters.degreeOfSimilarity"
       label-placement="floating"
       [disabled]="isSearchRunning"
-    ></ion-input>
+      name="degreeOfSimilarity"
+    >
+      <div slot="label">
+        Degree of similarity <ion-text color="danger">(Required)</ion-text>
+      </div>
+    </ion-input>
   </ion-item>
   }
+
+  <ion-item>
+    <ion-toggle
+      labelPlacement="start"
+      [(ngModel)]="searchParameters.includeSubFolders"
+      [disabled]="isSearchRunning"
+      name="includeSubFolders"
+    >
+      Include subdirectories
+    </ion-toggle>
+  </ion-item>
 
   <ion-item>
     <ion-input

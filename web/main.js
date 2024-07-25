@@ -17,6 +17,7 @@ function createWindow() {
             nodeIntegration: true,
             allowRunningInsecureContent: serve,
             contextIsolation: false,
+            backgroundThrottling: false,
         },
     });
     if (serve) {
