@@ -65,21 +65,12 @@ public class Program
         services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
         services.AddScoped<ISimilarAudiosFinder, SimilarAudiosFinder>();
 
-        // builder.Services.AddPooledDbContextFactory<SimilarityContext>(Options);
         // Dependencies for finding similar image files.
         services.AddTransient<IImageHash, DifferenceHash>();
         // services.AddScoped<IDbHelpers, DbHelpers>();
         services.AddScoped<ISimilarImagesFinder, SimilarImageFinder>();
 
         var app = builder.Build();
-
-        // using (var scope = app.Services.CreateScope())
-        // {
-        //     var provider = scope.ServiceProvider;
-        //     var contextFactory = provider.GetRequiredService<IDbContextFactory<SimilarityContext>>();
-        //     using var context = contextFactory.CreateDbContext();
-        //     context.Database.Migrate();
-        // }
 
         // Configure the HTTP request pipeline.
         if (app.Environment.IsDevelopment())
@@ -92,6 +83,8 @@ public class Program
                 });
         }
 
+        NetVips.NetVips.Concurrency = 1;
+        
         app.UseHttpsRedirection();
 
         app.UseCors(apiCorsPolicy);

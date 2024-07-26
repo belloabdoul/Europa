@@ -11,7 +11,7 @@ public class LibVipsImageIdentifier : IFileTypeIdentifier
         FileType fileType;
         try
         {
-            using var image = Image.NewFromFile(path, access: Enums.Access.Random, failOn: Enums.FailOn.Error);
+            using var image = Image.NewFromFile(path, access: Enums.Access.Sequential, failOn: Enums.FailOn.Error);
             var loader = (string)image.Get("vips-loader");
             if (loader.Contains("gif", StringComparison.InvariantCultureIgnoreCase) ||
                 loader.Contains("webp", StringComparison.InvariantCultureIgnoreCase))

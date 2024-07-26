@@ -1,4 +1,5 @@
-﻿using Core.Entities;
+﻿using System.Security;
+using Core.Entities;
 using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
 using File = System.IO.File;
@@ -30,31 +31,36 @@ public class DirectoryReader : IDirectoryReader
     {
         var files = new HashSet<string>();
 
+        var enumerationOptions = new EnumerationOptions()
+            { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System, RecurseSubdirectories = searchParameters.IncludeSubfolders, ReturnSpecialDirectories = true };
+        
         foreach (var folder in searchParameters.Folders)
         {
             try
             {
-                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-                    await _notificationContext.Clients.All.SendAsync("notify",
-                        new Notification(NotificationType.Exception, $"The folder {folder} does not exist."),
-                        cancellationToken: cancellationToken);
-                else if (!HasWriteAccessToFolder(folder))
-                    await _notificationContext.Clients.All.SendAsync("notify",
-                        new Notification(NotificationType.Exception, $"You don't have access the folder {folder}."),
-                        cancellationToken: cancellationToken);
-                else
-                {
-                    files.UnionWith(new DirectoryInfo(folder).EnumerateFiles("*",
-                                searchParameters.IncludeSubfolders
-                                    ? SearchOption.AllDirectories
-                                    : SearchOption.TopDirectoryOnly)
-                        .Where(file => (FileFilter.IsFileToBeIncluded(file.Extension, searchParameters.IncludedFileTypes) || !FileFilter.IsFileToBeExcluded(file.Extension, searchParameters.ExcludedFileTypes)) &&
-                                       FileFilter.IsFileSizeInRange(file.Length, searchParameters.MinSize, searchParameters.MaxSize))
-                        .Select(file => file.FullName));
-                }
+                files.UnionWith(GetFilesInFolderAsync(folder, searchParameters, enumerationOptions));
             }
-            catch (Exception ex)
+            catch (ArgumentNullException ex)
             {
+                Console.WriteLine(ex.Message);
+                await _notificationContext.Clients.All.SendAsync("notify",
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+            }
+            catch (SecurityException ex)
+            {
+                Console.WriteLine(ex.Message);
+                await _notificationContext.Clients.All.SendAsync("notify",
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+            }
+            catch (PathTooLongException ex)
+            {
+                Console.WriteLine(ex.Message);
+                await _notificationContext.Clients.All.SendAsync("notify",
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+            }
+            catch (DirectoryNotFoundException ex)
+            {
+                Console.WriteLine(ex.Message);
                 await _notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
             }
@@ -63,18 +69,13 @@ public class DirectoryReader : IDirectoryReader
         return files;
     }
 
-    private static bool HasWriteAccessToFolder(string folderPath)
+    public static IEnumerable<string> GetFilesInFolderAsync(string folder, SearchParameters searchParameters, EnumerationOptions enumerationOptions)
     {
-        try
-        {
-            var stream = File.Create(string.Concat(folderPath, Path.DirectorySeparatorChar, "Essai.txt"));
-            stream.Close();
-            File.Delete(string.Concat(folderPath, Path.DirectorySeparatorChar, "Essai.txt"));
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions)
+            .Where(file =>
+                (FileFilter.IsFileToBeIncluded(file.Extension, searchParameters.IncludedFileTypes) ||
+                 !FileFilter.IsFileToBeExcluded(file.Extension, searchParameters.ExcludedFileTypes)) &&
+                FileFilter.IsFileSizeInRange(file.Length, searchParameters.MinSize, searchParameters.MaxSize))
+            .Select(file => file.FullName);
     }
 }

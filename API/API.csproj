@@ -7,16 +7,16 @@
         <UserSecretsId>f0208641-85b7-490b-956a-390e0e12f9a1</UserSecretsId>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <PlatformTarget>x64</PlatformTarget>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
     <ItemGroup>
         <PackageReference Include="DotNext" Version="5.8.0" />
+        <PackageReference Include="DotNext.IO" Version="5.7.1" />
+        <PackageReference Include="DotNext.Unsafe" Version="5.7.0" />
         <PackageReference Include="MediaInfo.Wrapper.Core" Version="21.9.3"/>
         <PackageReference Include="NetVips" Version="2.4.1" />
         <PackageReference Include="NetVips.Native" Version="8.15.2" />
-        <PackageReference Include="NoAlloq" Version="0.2.0" />
-        <PackageReference Include="SkiaSharp" Version="3.0.0-preview.4.1" />
-        <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.0.0-preview.4.1" />
         <PackageReference Include="SoundFingerprinting.Emy" Version="10.6.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
     </ItemGroup>

@@ -1,5 +1,4 @@
-﻿using System.Buffers;
-using Blake3;
+﻿using Blake3;
 using Core.Interfaces.DuplicatesByHash;
 using DotNext.Buffers;
 using Microsoft.Win32.SafeHandles;
@@ -17,7 +16,7 @@ public class HashGenerator : IHashGenerator
         const int bufferSize = 1048576;
         
         using var hasher = Hasher.New();
-        using var bytesRead = new MemoryOwner<byte>(MemoryPool<byte>.Shared, bufferSize);
+        using var buffer = new MemoryOwner<byte>(UnmanagedMemoryPool<byte>.Shared, bufferSize);
         var bytesHashed = 0;
         
         while (bytesHashed < bytesToHash)
@@ -26,20 +25,20 @@ public class HashGenerator : IHashGenerator
             if (remainingToHash > bufferSize)
             {
                 // if the file is bigger than 1MiB, make use of blake3's multithreading
-                bytesHashed += await RandomAccess.ReadAsync(fileHandle, bytesRead.Memory[..bufferSize], bytesHashed,
+                bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..bufferSize], bytesHashed,
                     cancellationToken: cancellationToken);
-                hasher.UpdateWithJoin(bytesRead.Span[..bufferSize]);
+                hasher.UpdateWithJoin(buffer.Span[..bufferSize]);
             }
             else
             {
                 // if the file is smaller than 1MB, make use of blake3's multithreading only if the file is bigger than
                 // 128KiB
-                bytesHashed += await RandomAccess.ReadAsync(fileHandle, bytesRead.Memory[.. (int)remainingToHash],
+                bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[.. (int)remainingToHash],
                     bytesHashed, cancellationToken: cancellationToken);
                 if(remainingToHash > 131072)
-                    hasher.UpdateWithJoin(bytesRead.Memory.Span[.. (int)remainingToHash]);
+                    hasher.UpdateWithJoin(buffer.Span[.. (int)remainingToHash]);
                 else
-                    hasher.Update(bytesRead.Span[.. (int)remainingToHash]);
+                    hasher.Update(buffer.Span[.. (int)remainingToHash]);
             }
         }
         
