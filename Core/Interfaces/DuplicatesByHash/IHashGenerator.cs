@@ -5,5 +5,5 @@ namespace Core.Interfaces.DuplicatesByHash;
 
 public interface IHashGenerator
 {
-    Task<Hash?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
+    Task<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
 }

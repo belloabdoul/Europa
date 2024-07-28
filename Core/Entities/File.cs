@@ -14,7 +14,7 @@ public class File
     {
     }
 
-    public File(FileInfo file, Hash hash)
+    public File(FileInfo file, string hash)
     {
         Hash = hash;
         Size = file.Length;
@@ -31,5 +31,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
     
-    public Hash Hash { get; init; }
+    public string Hash { get; init; }
 }

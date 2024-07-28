@@ -5,6 +5,6 @@ namespace Core.Interfaces.SimilarAudios;
 
 public interface ISimilarAudiosFinder
 {
-    Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
+    Task<IEnumerable<IGrouping<string, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
         CancellationToken token);
 }

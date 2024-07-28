@@ -5,6 +5,6 @@ namespace Core.Interfaces.DuplicatesByHash;
 
 public interface IDuplicateByHashFinder
 {
-    Task<IEnumerable<IGrouping<Hash, File>>> FindDuplicateByHash(HashSet<string> hypotheticalDuplicates,
+    Task<IEnumerable<IGrouping<string, File>>> FindDuplicateByHash(HashSet<string> hypotheticalDuplicates,
         CancellationToken token);
 }

@@ -33,7 +33,7 @@ public class SimilarAudiosFinder : ISimilarAudiosFinder
         readLock = new object();
     }
 
-    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;

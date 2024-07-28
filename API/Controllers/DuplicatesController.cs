@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.Text.Json;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Core.Interfaces.Common;
 using Core.Interfaces.DuplicatesByHash;
@@ -38,6 +39,8 @@ public class DuplicatesController : Controller
     {
         var validationResult = await _searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
 
+        StringPool.Shared.Reset();
+        
         if (!validationResult.IsValid)
         {
             validationResult.AddToModelState(ModelState);
@@ -45,6 +48,8 @@ public class DuplicatesController : Controller
         }
 
         var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
+        
+        GC.Collect();
         
         var duplicatesGroups = searchParameters.FileSearchType switch
         {

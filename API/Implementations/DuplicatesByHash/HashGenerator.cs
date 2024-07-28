@@ -1,4 +1,5 @@
 ﻿using Blake3;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Interfaces.DuplicatesByHash;
 using DotNext.Buffers;
 using Microsoft.Win32.SafeHandles;
@@ -7,7 +8,7 @@ namespace API.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
-    public async Task<Hash?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
+    public async Task<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (RandomAccess.GetLength(fileHandle) == 0)
@@ -16,7 +17,7 @@ public class HashGenerator : IHashGenerator
         const int bufferSize = 1048576;
         
         using var hasher = Hasher.New();
-        using var buffer = new MemoryOwner<byte>(UnmanagedMemoryPool<byte>.Shared, bufferSize);
+        using var buffer = new DotNext.Buffers.MemoryOwner<byte>(UnmanagedMemoryPool<byte>.Shared, bufferSize);
         var bytesHashed = 0;
         
         while (bytesHashed < bytesToHash)
@@ -42,6 +43,6 @@ public class HashGenerator : IHashGenerator
             }
         }
         
-        return hasher.Finalize();
+        return StringPool.Shared.GetOrAdd(hasher.Finalize().ToString());
     }
 }
