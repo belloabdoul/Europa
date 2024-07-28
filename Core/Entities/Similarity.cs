@@ -1,15 +1,17 @@
-﻿// ReSharper disable EntityFramework.ModelValidation.UnlimitedStringLength
+﻿using Blake3;
+using Redis.OM.Modeling;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
 namespace Core.Entities;
 
+[Document(StorageType = StorageType.Json)]
 public class Similarity : IEquatable<Similarity>
 {
-    public long OriginalId { get; init; }
-    public ImagesGroup Original { get; init; }
-    public long DuplicateId { get; init; }
-    public ImagesGroup Duplicate { get; init; }
+    public string OriginalId { get; init; }
+    
+    public string DuplicateId { get; init; }
+    
     public double Score { get; init; }
 
     public bool Equals(Similarity? other)
