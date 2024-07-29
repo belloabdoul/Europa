@@ -4,6 +4,7 @@ using System.Text.Json;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Database.Interfaces;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Redis.OM;
 using Redis.OM.Contracts;
 using Redis.OM.Searching;
@@ -41,10 +42,10 @@ public class DbHelpers : IDbHelpers
         await _imagesGroupsCollection.InsertAsync(group);
     }
 
-    public async Task<HashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
+    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
     {
-        return (await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))!.Similarities
-            .Select(similarity => StringPool.Shared.GetOrAdd(similarity.DuplicateId)).ToHashSet();
+        return new ObservableHashSet<string>((await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))!.Similarities
+            .Select(similarity => StringPool.Shared.GetOrAdd(similarity.DuplicateId)));
     }
 
     public async Task<List<Similarity>> GetSimilarImages(string id, Vector<byte[]> imageHash,
@@ -98,7 +99,7 @@ public class DbHelpers : IDbHelpers
         }).ToList();
     }
 
-    public async Task LinkToSimilariImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty)
+    public async Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty)
     {
         var query = new object[newSimilarities.Count + 3];
         query[0] = $"{nameof(ImagesGroup)}:{id}";

@@ -1,5 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Threading.Channels;
 using API.Implementations.Common;
 using Core.Entities;
 using Core.Interfaces.Common;
@@ -26,45 +25,29 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
     public async Task<IEnumerable<IGrouping<string, File>>> FindDuplicateByHash(HashSet<string> hypotheticalDuplicates,
         CancellationToken cancellationToken)
     {
-        var progressChannel = Channel.CreateBounded<Notification>(new BoundedChannelOptions(1)
-            { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.DropNewest });
-
         ConcurrentDictionary<string, ConcurrentQueue<File>> duplicates;
 
-        // Get duplicates after hashing a tenth of each file
-        using (var progressTask = SendProgress(progressChannel.Reader, cancellationToken))
-        {
-            var files = hypotheticalDuplicates;
-            var progressChannelWriter = progressChannel.Writer;
-            using (var hashGenerationTask = Task.Factory.StartNew(
-                       () => SetPartialDuplicates(files, 10, progressChannelWriter, cancellationToken),
-                       cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default))
-            {
-                await Task.WhenAll(await hashGenerationTask, progressTask);
+        using var partialHashGenerationTask = SetPartialDuplicates(hypotheticalDuplicates, 10, cancellationToken);
 
-                duplicates = hashGenerationTask.Result.Result;
+        await partialHashGenerationTask;
 
-                hypotheticalDuplicates = duplicates.Where(group => group.Value.Count > 1)
-                    .SelectMany(group => group.Value.Select(file => file.Path)).ToHashSet();
+        if (partialHashGenerationTask.IsCanceled)
+            return [];
 
-                duplicates.Clear();
-            }
-        }
+        duplicates = partialHashGenerationTask.GetAwaiter().GetResult();
 
-        // Get duplicates after hashing each full file
-        progressChannel = Channel.CreateBounded<Notification>(new BoundedChannelOptions(1)
-            { SingleReader = true, SingleWriter = true, FullMode = BoundedChannelFullMode.DropNewest });
+        hypotheticalDuplicates = duplicates.Where(group => group.Value.Count > 1)
+            .SelectMany(group => group.Value.Select(file => file.Path)).ToHashSet();
 
-        using (var progressTask = SendProgress(progressChannel.Reader, cancellationToken))
-        using (var hashGenerationTask = Task.Factory.StartNew(() =>
-                       SetPartialDuplicates(hypotheticalDuplicates, 1, progressChannel.Writer, cancellationToken),
-                   cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default))
+        duplicates.Clear();
 
-        {
-            await Task.WhenAll(await hashGenerationTask, progressTask);
+        using var fullHashGenerationTask = SetPartialDuplicates(hypotheticalDuplicates, 1, cancellationToken);
+        await fullHashGenerationTask;
 
-            duplicates = hashGenerationTask.Result.Result;
-        }
+        if (fullHashGenerationTask.IsCanceled)
+            return [];
+
+        duplicates = fullHashGenerationTask.GetAwaiter().GetResult();
 
         return duplicates.Where(group => group.Value.Count > 1).SelectMany(group =>
                 group.Value.OrderByDescending(file => file.DateModified)
@@ -73,10 +56,9 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
     }
 
     private async Task<ConcurrentDictionary<string, ConcurrentQueue<File>>> SetPartialDuplicates(
-        HashSet<string> hypotheticalDuplicates, long lengthDivisor, ChannelWriter<Notification> progressChannelWriter,
-        CancellationToken cancellationToken)
+        HashSet<string> hypotheticalDuplicates, long lengthDivisor, CancellationToken cancellationToken)
     {
-        var hashGenerationProgress = 0;
+        var progress = 0;
         var partialDuplicates =
             new ConcurrentDictionary<string, ConcurrentQueue<File>>(Environment.ProcessorCount,
                 hypotheticalDuplicates.Count);
@@ -116,9 +98,9 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
 
                     partialDuplicates[file.Hash].Enqueue(file);
 
-                    var current = Interlocked.Increment(ref hashGenerationProgress);
+                    var current = Interlocked.Increment(ref progress);
 
-                    await progressChannelWriter.WriteAsync(new Notification(lengthDivisor switch
+                    await _notificationContext.Clients.All.SendAsync("notify", new Notification(lengthDivisor switch
                         {
                             10 => NotificationType.HashGenerationProgress,
                             _ => NotificationType.TotalProgress
@@ -137,18 +119,6 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
                 }
             });
 
-        progressChannelWriter.Complete();
-
         return partialDuplicates;
-    }
-
-    private async Task SendProgress(ChannelReader<Notification> progressChannelReader,
-        CancellationToken cancellationToken)
-    {
-        await foreach (var notification in progressChannelReader.ReadAllAsync(cancellationToken: cancellationToken))
-        {
-            await _notificationContext.Clients.All.SendAsync("notify", notification,
-                cancellationToken: cancellationToken);
-        }
     }
 }

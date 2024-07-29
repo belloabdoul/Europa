@@ -1,8 +1,6 @@
-﻿using Blake3;
-using Core.Entities;
+﻿using Core.Entities;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Redis.OM;
-
-// ReSharper disable ParameterTypeCanBeEnumerable.Global
 
 namespace Database.Interfaces;
 
@@ -12,10 +10,10 @@ public interface IDbHelpers
 
     Task CacheHashAsync(ImagesGroup group);
 
-    Task<HashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
+    Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
     
     Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, double degreeOfSimilarity,
         ICollection<string> groupsAlreadyDone);
 
-    Task LinkToSimilariImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty);
+    Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty);
 }
