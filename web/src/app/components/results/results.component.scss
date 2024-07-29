@@ -1,0 +1,22 @@
+/* Add border between files */
+.results-row, .results-row-header {
+    border-bottom: 2px solid #777;
+}
+
+.context{
+    cursor: default;
+}
+
+/* The last file in a group of file has a separate border color */
+.results-row.is-last {
+    border-bottom-color: #4782eb;
+}
+
+/* Make grid occupy available height*/
+.full-height {
+    height: 100%;
+}
+
+.full-width {
+    width: 100%;
+}

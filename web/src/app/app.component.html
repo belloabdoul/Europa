@@ -1,12 +1,15 @@
 <ion-app>
-  <ion-split-pane contentId="main-content">
-    <ion-menu contentId="main-content" type="overlay">
+  <ion-split-pane contentId="form">
+    <ion-menu contentId="form" type="overlay">
       <ion-content>
         <app-search-form></app-search-form>
       </ion-content>
     </ion-menu>
-    <ion-content>
-      <app-results></app-results>
-    </ion-content>
+    <div contentId="main-content" class="main-content">
+      <ion-content [scrollY]="false">
+        <app-results></app-results>
+      </ion-content>
+      <app-progress></app-progress>
+    </div>
   </ion-split-pane>
 </ion-app>

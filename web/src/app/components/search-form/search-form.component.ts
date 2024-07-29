@@ -280,45 +280,41 @@ export class SearchFormComponent implements OnDestroy {
     }
   }
 
-  launchSearch() {
+  async launchSearch() {
     this.isSearchRunning = true;
-    this.searchService
-      .startConnection()
-      .then(() => {
-        console.log('Connection started');
-        this.searchService.addNotificationListener();
+    var error = await this.searchService.startConnection();
+    if (error == '') {
+      console.log('Connection started');
+      this.searchService.addNotificationListener();
 
-        this.searchSubsription = this.searchService
-          .launchSearch(this.searchParameters)
-          .subscribe((result) => {
-            this.searchService.stopConnection();
-            this.isSearchRunning = false;
+      this.searchSubsription = this.searchService
+        .launchSearch(this.searchParameters)
+        .subscribe(async (result) => {
+          var error = await this.searchService.stopConnection();
 
-            let errors: SearchParametersErrors;
+          if (error == '') console.log('Connection stopped');
+          else console.log(`Connection not stopped ${error}`);
 
-            if (result.duplicatesGroups != null) {
-              this.searchService.sendResults(
-                result.duplicatesGroups as File[][]
-              );
+          this.isSearchRunning = false;
 
-              errors = new SearchParametersErrors();
-            } else {
-              for (let key of Object.keys(this.searchParametersErrors)) {
-                if (typeof result[key] == 'undefined') result[key] = [];
-              }
-              errors = result as SearchParametersErrors;
+          let errors: SearchParametersErrors;
+
+          if (result.duplicatesGroups != null) {
+            this.searchService.sendResults(result.duplicatesGroups as File[][]);
+
+            errors = new SearchParametersErrors();
+          } else {
+            for (let key of Object.keys(this.searchParametersErrors)) {
+              if (typeof result[key] == 'undefined') result[key] = [];
             }
+            errors = result as SearchParametersErrors;
+          }
 
-            this.searchParametersErrors = errors;
+          this.searchParametersErrors = errors;
 
-            this.cd.detectChanges();
-          });
-      })
-      .catch((error) => {
-        if (error) {
-          console.log(`Connection not started ${error}`);
-        }
-      });
+          this.cd.detectChanges();
+        });
+    } else console.log(`Connection not started : ${error}`);
   }
 
   cancelSearch() {

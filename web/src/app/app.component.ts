@@ -8,6 +8,7 @@ import {
 } from '@ionic/angular/standalone';
 import { SearchFormComponent } from './components/search-form/search-form.component';
 import { ResultsComponent } from './components/results/results.component';
+import { ProgressComponent } from "./components/progress/progress.component";
 
 @Component({
   selector: 'app-root',
@@ -22,7 +23,8 @@ import { ResultsComponent } from './components/results/results.component';
     IonContent,
     SearchFormComponent,
     ResultsComponent,
-  ],
+    ProgressComponent
+],
 })
 export class AppComponent {
   public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
