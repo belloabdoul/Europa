@@ -1,58 +1,66 @@
-<ag-grid-angular
-  class="full-height ag-theme-material-auto-dark"
-  [columnDefs]="colDefs"
-  [rowData]="similarFiles"
-  enableBrowserTooltips
-  (cellFocused)="setSelectedRow($event)"
-  (keyup.arrowup)="showContentIfPossible()"
-  (keyup.arrowdown)="showContentIfPossible()"
-  (cellClicked)="showContentIfPossible()"
-  (cellDoubleClicked)="openFileInDefaultApplication($event)"
-  [rowBuffer]="0"
-  (cellContextMenu)="showContextMenu($event)"
-  [cdkContextMenuTriggerFor]="contextMenu"
-  #results
-/>
+<div class="grid full-height">
+  <ion-grid class="results-row-header full-width">
+    <ion-row>
+      <ion-col size="1" class="ion-text-center"> Select </ion-col>
+      <ion-col size="5" class="ion-text-center"> Path </ion-col>
+      <ion-col size="1" class="ion-text-center"> Type </ion-col>
+      <ion-col size="2" class="ion-text-center"> Size </ion-col>
+      <ion-col size="3" class="ion-text-center"> Last modified </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <cdk-virtual-scroll-viewport
+    itemSize="56"
+    [minBufferPx]="screenHeight"
+    [maxBufferPx]="screenHeight"
+    class="ion-content-scroll-host full-height"
+  >
+    <ion-grid>
+      <ion-row
+        *cdkVirtualFor="let file of similarFiles"
+        class="results-row"
+        [class.is-last]="file.isLastInGroup"
+        (dblclick)="openFileInDefaultApplication($event)"
+        [cdkContextMenuTriggerFor]="contextMenu"
+        (contextmenu)="setSelectedRow($event)"
+        (click)="showContentIfPossible($event)"
+        tabindex="-1"
+      >
+        <ion-col size="1" class="ion-text-center">
+          <ion-checkbox [(ngModel)]="file.delete"> </ion-checkbox>
+        </ion-col>
+        <ion-col size="5" class="ion-text-center col">{{ file.path }}</ion-col>
+        <ion-col size="1" class="ion-text-center col">
+          {{ file.type }}
+        </ion-col>
+        <ion-col size="2" class="ion-text-center col">
+          {{ file.size }}
+        </ion-col>
+        <ion-col size="3" class="ion-text-center col">
+          {{ file.dateModified | date : "medium" }}
+        </ion-col>
+      </ion-row>
+    </ion-grid>
+  </cdk-virtual-scroll-viewport>
+</div>
 
 <ng-template #contextMenu>
-  <ion-list lines="full" cdkMenu>
+  <ion-list lines="none" cdkMenu>
     <ion-item
-      class="ion-text-nowrap"
+      class="ion-text-nowrap context"
       (click)="openFileInDefaultApplication($event)"
       cdkMenuItem
     >
       <ion-label> Open in default application </ion-label>
-      <ion-icon name="apps"></ion-icon>
+      <ion-icon name="apps" slot="end"></ion-icon>
     </ion-item>
-    <ion-item class="ion-text-nowrap" (click)="openFileLocation()" cdkMenuItem>
+    <ion-item
+      class="ion-text-nowrap context"
+      (click)="openFileLocation()"
+      cdkMenuItem
+    >
       <ion-label> Open file location </ion-label>
-      <ion-icon name="folder-open"></ion-icon>
+      <ion-icon name="folder-open" slot="end"></ion-icon>
     </ion-item>
   </ion-list>
 </ng-template>
-
-<ion-footer class="ion-text-center ion-justify-content-around">
-  <ion-toolbar>
-    <ion-grid>
-      <ion-row>
-        @if(step1Text == ''){
-        <ion-col>No search in progress</ion-col>
-        } @else{ @if(step1Text.includes('cancelled')){
-        <ion-col>{{ step1Text }}</ion-col>
-        } @else{
-        <ion-col
-          >{{ step1Text }} : {{ step1Progress }} hashes processed</ion-col
-        >
-        @if(step2Text != ''){
-        <ion-col
-          >{{ step2Text }} : {{ step2Progress }} hashes processed</ion-col
-        >
-        }
-        <ion-col
-          >{{ step3Text }} : {{ step3Progress }} hashes processed</ion-col
-        >
-        } }
-      </ion-row>
-    </ion-grid>
-  </ion-toolbar>
-</ion-footer>

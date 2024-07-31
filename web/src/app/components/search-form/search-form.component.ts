@@ -19,6 +19,8 @@ import {
   IonPopover,
   IonContent,
   IonChip,
+  IonText,
+  IonNote,
 } from '@ionic/angular/standalone';
 import { FormsModule } from '@angular/forms';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -36,9 +38,10 @@ import {
 } from 'ionicons/icons';
 import { ElectronService } from 'src/app/shared/services/electron/electron.service';
 import { SearchService } from 'src/app/shared/services/search/search.service';
-import { KeyValuePipe } from '@angular/common';
+import { CommonModule, KeyValuePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { File } from 'src/app/shared/models/file';
+import { SearchParametersErrors } from 'src/app/shared/models/search-parameters-errors';
 
 @Component({
   selector: 'app-search-form',
@@ -47,6 +50,8 @@ import { File } from 'src/app/shared/models/file';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    IonNote,
+    IonText,
     IonContent,
     IonPopover,
     IonItemGroup,
@@ -63,10 +68,12 @@ import { File } from 'src/app/shared/models/file';
     MatTooltipModule,
     FormsModule,
     KeyValuePipe,
+    CommonModule,
   ],
 })
 export class SearchFormComponent implements OnDestroy {
   searchParameters: SearchParameters;
+  searchParametersErrors: SearchParametersErrors;
   maxValue: number = Number.MAX_SAFE_INTEGER;
 
   // Handle manual directory popover
@@ -91,6 +98,7 @@ export class SearchFormComponent implements OnDestroy {
     addIcons({ add, close, closeCircle, create, save, ban, search });
 
     this.searchParameters = new SearchParameters();
+    this.searchParametersErrors = new SearchParametersErrors();
     this.manuallyAddedDirectory = '';
     this.isOpen = false;
     this.isSearchRunning = false;
@@ -106,7 +114,7 @@ export class SearchFormComponent implements OnDestroy {
     );
     if (directory != '' && !this.searchParameters.folders.includes(directory)) {
       this.searchParameters.folders.push(directory);
-      this.cd.markForCheck();
+      this.cd.detectChanges();
     }
   }
 
@@ -272,28 +280,41 @@ export class SearchFormComponent implements OnDestroy {
     }
   }
 
-  launchSearch() {
+  async launchSearch() {
     this.isSearchRunning = true;
-    this.searchService
-      .startConnection()
-      .then(() => {
-        console.log('Connection started');
-        this.searchService.addNotificationListener();
+    var error = await this.searchService.startConnection();
+    if (error == '') {
+      console.log('Connection started');
+      this.searchService.addNotificationListener();
 
-        this.searchSubsription = this.searchService
-          .launchSearch(this.searchParameters)
-          .subscribe((result) => {
-            this.searchService.stopConnection();
-            this.isSearchRunning = false;
+      this.searchSubsription = this.searchService
+        .launchSearch(this.searchParameters)
+        .subscribe(async (result) => {
+          var error = await this.searchService.stopConnection();
+
+          if (error == '') console.log('Connection stopped');
+          else console.log(`Connection not stopped ${error}`);
+
+          this.isSearchRunning = false;
+
+          let errors: SearchParametersErrors;
+
+          if (result.duplicatesGroups != null) {
             this.searchService.sendResults(result.duplicatesGroups as File[][]);
-            this.cd.markForCheck();
-          });
-      })
-      .catch((error) => {
-        if (error) {
-          console.log(`Connection not started ${error}`);
-        }
-      });
+
+            errors = new SearchParametersErrors();
+          } else {
+            for (let key of Object.keys(this.searchParametersErrors)) {
+              if (typeof result[key] == 'undefined') result[key] = [];
+            }
+            errors = result as SearchParametersErrors;
+          }
+
+          this.searchParametersErrors = errors;
+
+          this.cd.detectChanges();
+        });
+    } else console.log(`Connection not started : ${error}`);
   }
 
   cancelSearch() {

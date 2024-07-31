@@ -1,10 +1,14 @@
 import { Injectable } from '@angular/core';
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
-import { Observable, Subject } from 'rxjs';
+import {
+  HttpTransportType,
+  HubConnection,
+  HubConnectionBuilder,
+} from '@microsoft/signalr';
+import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
 import { NotificationType } from '../../models/notification-type';
 import { SearchParameters } from '../../models/search-parameters';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { File } from '../../models/file';
 
 @Injectable({
@@ -12,30 +16,39 @@ import { File } from '../../models/file';
 })
 export class SearchService {
   private connection: HubConnection | undefined;
-  notification: Subject<Notification>;
-  searchParameters: Subject<SearchParameters | null>;
-  similarFiles: Subject<File[][]>;
-  private apiUrl: string = 'https://localhost:44373/';
-  private duplicatesApiUrl: string = `${this.apiUrl}api/Duplicates/`;
-  // private httpHeaders: HttpHeaders = new HttpHeaders({
-  //   'Content-Type': 'application/json; charset=utf-8',
-  // });
 
-  constructor(private http: HttpClient) {
-    this.notification = new Subject();
-    this.searchParameters = new Subject();
-    this.similarFiles = new Subject();
-  }
+  private notification: Subject<Notification> = new Subject();
+  public notification$: Observable<Notification> =
+    this.notification.asObservable();
+
+  private searchParameters: Subject<SearchParameters | null> = new Subject();
+  public searchParameters$: Observable<SearchParameters | null> =
+    this.searchParameters.asObservable();
+
+  private similarFiles: Subject<File[][]> = new Subject();
+  public similarFiles$: Observable<File[][]> = this.similarFiles.asObservable();
+
+  private apiUrl: string = 'https://localhost:7138/';
+  private duplicatesApiUrl: string = `${this.apiUrl}api/Duplicates/`;
+
+  constructor(private http: HttpClient) {}
 
   sendSearchParameters(searchParameters: SearchParameters | null): void {
     this.searchParameters.next(searchParameters);
   }
 
-  startConnection(): Promise<void> {
+  async startConnection(): Promise<any> {
     const url = `${this.apiUrl}notifications`;
-    this.connection = new HubConnectionBuilder().withUrl(url).build();
+    this.connection = new HubConnectionBuilder()
+      .withUrl(url, { transport: HttpTransportType.ServerSentEvents })
+      .build();
 
-    return this.connection.start();
+    try {
+      await this.connection.start();
+      return '';
+    } catch (error: any) {
+      return error;
+    }
   }
 
   addNotificationListener() {
@@ -45,21 +58,24 @@ export class SearchService {
     });
   }
 
-  stopConnection() {
-    this.connection
-      ?.stop()
-      .then(() => console.log('Connection closed'))
-      .catch((error) => {
-        if (error) {
-          console.log(`Connection not stopped ${error}`);
-        }
-      });
+  async stopConnection(): Promise<any> {
+    try {
+      await this.connection?.stop();
+      return '';
+    } catch (error: any) {
+      return error;
+    }
   }
 
   launchSearch(searchParameters: SearchParameters | null): Observable<any> {
     this.sendSearchParameters(searchParameters);
+    this.sendResults([]);
     const url = `${this.duplicatesApiUrl}findDuplicates`;
-    return this.http.post<any>(url, searchParameters);
+    return this.http.post<any>(url, searchParameters).pipe(
+      catchError((error) => {
+        return of(error.error);
+      })
+    );
   }
 
   sendResults(similarFiles: File[][]): void {

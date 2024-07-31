@@ -1,21 +1,19 @@
 ﻿using Core.Entities;
-
-// ReSharper disable ParameterTypeCanBeEnumerable.Global
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Redis.OM;
 
 namespace Database.Interfaces;
 
 public interface IDbHelpers
 {
-    // Task<(long Id, Vector? ImageHash)> GetImageInfosAsync(byte[] hash, CancellationToken cancellationToken);
+    Task<Vector<byte[]>?> GetImageInfosAsync(string id);
 
-    Task<long> CacheHashAsync(ImagesGroup group, CancellationToken cancellationToken);
+    Task CacheHashAsync(ImagesGroup group);
 
-    Task<HashSet<long>> GetSimilarImagesGroupsAlreadyDoneInRange(long currentGroupId,
-        double degreeOfSimilarity,
-        CancellationToken cancellationToken);
+    Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
     
-    // Task<List<Similarity>> GetSimilarImagesGroups(long currentGroupId, Vector imageHash, double degreeOfSimilarity,
-    //     ICollection<long> groupsAlreadyDone, CancellationToken cancellationToken);
+    Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, double degreeOfSimilarity,
+        ICollection<string> groupsAlreadyDone);
 
-    Task AddSimilarity(Similarity newSimilarities, CancellationToken cancellationToken);
+    Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty);
 }

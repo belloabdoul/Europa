@@ -11,7 +11,7 @@ public class DuplicatesResponse
 
 public static class DuplicatesResponseMapping
 {
-    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<Hash, File>> duplicatesGroups)
+    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<string, File>> duplicatesGroups)
     {
         var response = new DuplicatesResponse
         {

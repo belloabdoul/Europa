@@ -1,4 +1,4 @@
-﻿namespace Core.Interfaces.SimilarImages;
+﻿namespace Core.Interfaces;
 
 public interface IImageHash
 {

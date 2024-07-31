@@ -5,9 +5,13 @@ namespace API.Implementations.Common;
 
 public class FileReader : IFileReader
 {
-    public FileStream GetFileStream(string path, int bufferSize = 1)
+    public FileStream GetFileStream(string path, int bufferSize = 0, bool isAsync = false)
     {
-        return new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize);
+        return isAsync
+            ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize,
+                FileOptions.Asynchronous | FileOptions.SequentialScan)
+            : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize,
+                FileOptions.SequentialScan);
     }
 
     public SafeFileHandle GetFileHandle(string path, bool isAsync = false)

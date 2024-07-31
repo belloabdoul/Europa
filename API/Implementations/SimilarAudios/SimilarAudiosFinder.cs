@@ -1,9 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
 using Blake3;
+using Core.Interfaces;
 using Core.Interfaces.Common;
-using Core.Interfaces.DuplicatesByHash;
-using Core.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
@@ -11,7 +10,7 @@ using File = Core.Entities.File;
 
 namespace API.Implementations.SimilarAudios;
 
-public class SimilarAudiosFinder : ISimilarAudiosFinder
+public class SimilarAudiosFinder : ISimilarFilesFinder
 {
     private readonly IAudioHashGenerator _audioHashGenerator;
     private readonly IFileReader _fileReader;
@@ -33,7 +32,7 @@ public class SimilarAudiosFinder : ISimilarAudiosFinder
         readLock = new object();
     }
 
-    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarAudiosAsync(HashSet<string> hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(HashSet<string> hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;

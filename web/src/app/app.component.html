@@ -1,12 +1,39 @@
 <ion-app>
   <ion-split-pane contentId="main-content">
     <ion-menu contentId="main-content" type="overlay">
+      <ion-header>
+        <ion-toolbar>
+          <ion-grid>
+            <ion-row>
+              <ion-title class="ion-text-center">Search settings</ion-title>
+              <ion-menu-toggle>
+                <ion-button fill="clear" shape="round"
+                  ><ion-icon name="close" slot="icon-only"></ion-icon
+                ></ion-button>
+              </ion-menu-toggle>
+            </ion-row>
+          </ion-grid>
+        </ion-toolbar>
+      </ion-header>
       <ion-content>
         <app-search-form></app-search-form>
       </ion-content>
     </ion-menu>
-    <ion-content>
-      <app-results></app-results>
-    </ion-content>
+
+    <div id="main-content" class="main-content">
+      <ion-header>
+        <ion-toolbar>
+          <ion-menu-toggle>
+            <ion-button fill="clear" shape="round"
+              ><ion-icon name="menu" slot="icon-only"></ion-icon
+            ></ion-button>
+          </ion-menu-toggle>
+        </ion-toolbar>
+      </ion-header>
+      <ion-content [scrollY]="false">
+        <app-results></app-results>
+      </ion-content>
+      <app-progress></app-progress>
+    </div>
   </ion-split-pane>
 </ion-app>

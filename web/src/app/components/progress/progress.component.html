@@ -1,0 +1,28 @@
+<ion-footer class="ion-text-center ion-justify-content-around">
+  <ion-toolbar>
+    <ion-grid>
+      <ion-row>
+        @if(!(step1Text$ | async)){
+        <ion-col>No search in progress</ion-col>
+        } @else{ @if((step1Text$ | async)?.includes('cancelled')){
+        <ion-col>{{ step1Text$ | async }}</ion-col>
+        } @else{
+        <ion-col
+          >{{ step1Text$ | async }} : {{ step1Progress$ | async }} hashes
+          processed</ion-col
+        >
+        @if(step2Text$ | async){
+        <ion-col
+          >{{ step2Text$ | async }} : {{ step2Progress$ | async }} hashes
+          processed</ion-col
+        >
+        }
+        <ion-col
+          >{{ step3Text$ | async }} : {{ step3Progress$ | async }} hashes
+          processed</ion-col
+        >
+        } }
+      </ion-row>
+    </ion-grid>
+  </ion-toolbar>
+</ion-footer>

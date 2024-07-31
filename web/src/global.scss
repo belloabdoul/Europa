@@ -72,10 +72,6 @@ $app-theme: mat.define-theme((
 /* @import "@ionic/angular/css/palettes/dark.class.css"; */
 @import '@ionic/angular/css/palettes/dark.system.css';
 
-/* Import ag grid core css*/
-@import 'ag-grid-community/styles/ag-grid.css';
-@import 'ag-grid-community/styles/ag-theme-material.css';
-
 html, body { height: 100%; }
 body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
 
@@ -91,48 +87,38 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   pointer-events: none;
 }
 
-/* CSS for allowing component's full width and height */
+/* Make component occupy available height*/
+.full-height {
+  height: 100%;
+}
+
 .full-width {
   width: 100%;
 }
 
-.full-height {
-  height: calc(100vh - 56px) !important;
+/* Make row focusable on click*/
+.results-row:focus {
+  background-color: #777;
 }
 
-/* Center Ag grid cells */
-.ag-header-cell-label, .ag-cell-wrapper {
-  justify-content: center;
+/* Disable pointer all columns except checkbox */
+ion-col.col{
+  pointer-events: none;
 }
 
-.ag-cell {
-  text-align: center;
+/* Avoid virtual scroll content overflow */
+.cdk-virtual-scroll-orientation-vertical .cdk-virtual-scroll-content-wrapper {
+  max-width: 100%;
 }
 
-.ag-cell-value {
-  line-height: 20px !important;
-  word-break: normal;
-  /* prevent words from breaking */
-  padding-top: 5px;
-  /* space top */
-  padding-bottom: 5px;
-  /* space bottom */
+.context {
+  cursor: pointer;
 }
 
-/* Change border color to mark the end of a group of similar files */
-.ag-row:has(.is-last) {
-  border-bottom-color: #4782eb;
+.context:hover {
+  background-color: #777 !important;
 }
 
-.ag-row:not(:has(.is-last)) {
-  border-bottom-color: #777;
-}
-
-.ag-row {
-  border-bottom-width: 2px;
-}
-
-/* Allow ag grid to fill remaining width */
-.ag-center-cols-container{
-  min-width: 100%;
+.context:active {
+  background-color: #777 !important;
 }

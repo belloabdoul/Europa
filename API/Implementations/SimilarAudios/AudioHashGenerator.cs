@@ -1,4 +1,4 @@
-﻿using Core.Interfaces.SimilarAudios;
+﻿using Core.Interfaces;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Builder;

@@ -21,6 +21,7 @@ function createWindow(): BrowserWindow {
       nodeIntegration: true,
       allowRunningInsecureContent: serve,
       contextIsolation: false,
+      backgroundThrottling: false,
     },
   });
 
@@ -52,28 +53,6 @@ function createWindow(): BrowserWindow {
   return win;
 }
 
-// Launch the os folder chooser
-async function handleDirectorySelection(): Promise<string> {
-  const { canceled, filePaths } = await dialog.showOpenDialog({
-    properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent'],
-  });
-  if (!canceled) {
-    return filePaths[0];
-  }
-  return '';
-}
-
-// Open the file in the default application
-async function handleOpeningFileInDefaultApplication(
-  path: string
-): Promise<string> {
-  return await shell.openPath(path);
-}
-
-function handleOpeningFileLocation(path: string): void {
-  shell.showItemInFolder(path);
-}
-
 try {
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
@@ -81,12 +60,25 @@ try {
   // Added 400 ms to fix the black background issue while using transparent window. More detais at https://github.com/electron/electron/issues/15947
   app.on('ready', () =>
     setTimeout(function () {
-      ipcMain.handle('dialog:selectDirectory', handleDirectorySelection);
-      ipcMain.handle('shell:openFileInDefaultApplication', (event, [path]) =>
-        handleOpeningFileInDefaultApplication(path as string)
+      // Launch the os folder chooser
+      ipcMain.handle('dialog:selectDirectory', async () => {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+          properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent'],
+        });
+        if (!canceled) {
+          return filePaths[0];
+        }
+        return '';
+      });
+
+      // Open the file in the default application
+      ipcMain.handle(
+        'shell:openFileInDefaultApplication',
+        async (_event, [path]) => await shell.openPath(path)
       );
-      ipcMain.handle('shell:openFileLocation', (event, [path]) =>
-        handleOpeningFileLocation(path as string)
+
+      ipcMain.handle('shell:openFileLocation', (_event, [path]) =>
+        shell.showItemInFolder(path)
       );
       createWindow();
     }, 400)
