@@ -1,12 +1,12 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.Text.Json;
 using System.Threading.Channels;
 using API.Implementations.Common;
 using Core.Entities;
 using Core.Entities.Redis;
+using Core.Interfaces;
 using Core.Interfaces.Common;
-using Core.Interfaces.DuplicatesByHash;
-using Core.Interfaces.SimilarImages;
 using Database.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Redis.OM;
@@ -14,8 +14,9 @@ using File = Core.Entities.File;
 
 namespace API.Implementations.SimilarImages;
 
-public class SimilarImageFinder : ISimilarImagesFinder
+public class SimilarImageFinder : ISimilarFilesFinder
 {
+    private readonly double _degreeOfSimilarity;
     private readonly IFileReader _fileReader;
     private readonly IFileTypeIdentifier _fileTypeIdentifier;
     private readonly IHashGenerator _hashGenerator;
@@ -24,10 +25,12 @@ public class SimilarImageFinder : ISimilarImagesFinder
     private readonly IImageHash _imageHashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
 
-    public SimilarImageFinder(IHubContext<NotificationHub> notificationContext, IFileReader fileReader,
+    public SimilarImageFinder(double degreeOfSimilarity, IHubContext<NotificationHub> notificationContext,
+        IFileReader fileReader,
         IFileTypeIdentifier fileTypeIdentifier, IHashGenerator hashGenerator,
         IImageHash imageHashGenerator, IDbHelpers dbHelpers)
     {
+        _degreeOfSimilarity = degreeOfSimilarity;
         _notificationContext = notificationContext;
         _fileReader = fileReader;
         _fileTypeIdentifier = fileTypeIdentifier;
@@ -36,9 +39,8 @@ public class SimilarImageFinder : ISimilarImagesFinder
         _dbHelpers = dbHelpers;
     }
 
-    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarImagesAsync(
-        HashSet<string> hypotheticalDuplicates, double degreeOfSimilarity,
-        CancellationToken cancellationToken)
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(
+        HashSet<string> hypotheticalDuplicates, CancellationToken cancellationToken)
     {
         // Part 1 : Generate and cache perceptual hash of non-corrupted files
         using var hashGenerationTask = GenerateImageHashForNonCorruptedFiles(hypotheticalDuplicates, cancellationToken);
@@ -57,12 +59,16 @@ public class SimilarImageFinder : ISimilarImagesFinder
         using var groupingTask = ProcessGroupsForFinalList(groupingChannel.Reader, imagesGroups, finalImages,
             cancellationToken: cancellationToken);
 
-        using var similarityTask = LinkSimilarImagesGroupsToOneAnother(imagesGroups, degreeOfSimilarity,
+        using var similarityTask = LinkSimilarImagesGroupsToOneAnother(imagesGroups, _degreeOfSimilarity,
             groupingChannel.Writer, cancellationToken: cancellationToken);
 
         await Task.WhenAll(similarityTask, groupingTask);
 
-        Console.WriteLine(imagesGroups.Count);
+        foreach (var group in imagesGroups)
+        {
+            Console.WriteLine($"{group.Value.Id} {JsonSerializer.Serialize(group.Value.SimilarImages)}");
+        }
+
         var groups = finalImages.GroupBy(file => file.Hash)
             .Where(i => i.Count() != 1).ToList();
         return groups;
@@ -81,86 +87,97 @@ public class SimilarImageFinder : ISimilarImagesFinder
             new ParallelOptions { CancellationToken = cancellationToken },
             async (hypotheticalDuplicate, hashingToken) =>
             {
-                var type = _fileTypeIdentifier.GetFileType(hypotheticalDuplicate);
-
-                switch (type)
+                try
                 {
-                    case FileType.CorruptUnknownOrUnsupported:
-                        await _notificationContext.Clients.All.SendAsync("notify",
-                            new Notification(NotificationType.Exception,
-                                $"File {hypotheticalDuplicates} is either corrupted, unknown or unsupported"),
-                            cancellationToken: hashingToken);
-                        break;
-                    case FileType.Image:
+                    var type = _fileTypeIdentifier.GetFileType(hypotheticalDuplicate);
+
+                    switch (type)
                     {
-                        using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate);
-
-                        var length = RandomAccess.GetLength(fileHandle);
-
-                        var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length,
-                            cancellationToken: hashingToken);
-
-                        if (string.IsNullOrEmpty(hash))
-                        {
+                        case FileType.CorruptUnknownOrUnsupported:
                             await _notificationContext.Clients.All.SendAsync("notify",
                                 new Notification(NotificationType.Exception,
-                                    $"File {hypotheticalDuplicate} is either of type unknown, corrupted or unsupported"),
+                                    $"File {hypotheticalDuplicates} is either corrupted, unknown or unsupported"),
                                 cancellationToken: hashingToken);
-                            return;
-                        }
-
-                        var isFirst = copiesGroups.TryAdd(hash, new ImagesGroup());
-                        var group = copiesGroups[hash];
-
-                        if (isFirst)
+                            break;
+                        case FileType.Image:
                         {
-                            group.Id = hash;
-                            group.Size = length;
-                            group.DateModified = System.IO.File.GetLastWriteTime(hypotheticalDuplicate);
+                            await using var fileStream =
+                                _fileReader.GetFileStream(hypotheticalDuplicate, bufferSize: 0, isAsync: true);
 
-                            var imageHash = await _dbHelpers.GetImageInfosAsync(group.Id);
+                            var length = fileStream.Length;
 
-                            if (imageHash == null)
+                            var hash = await _hashGenerator.GenerateHashAsync(fileStream, length,
+                                cancellationToken: hashingToken);
+
+                            if (string.IsNullOrEmpty(hash))
                             {
-                                try
+                                await _notificationContext.Clients.All.SendAsync("notify",
+                                    new Notification(NotificationType.Exception,
+                                        $"File {hypotheticalDuplicate} is either of type unknown, corrupted or unsupported"),
+                                    cancellationToken: hashingToken);
+                                return;
+                            }
+
+                            var isFirst = copiesGroups.TryAdd(hash, new ImagesGroup());
+                            var group = copiesGroups[hash];
+
+                            if (isFirst)
+                            {
+                                group.Id = hash;
+                                group.Size = length;
+                                group.DateModified = System.IO.File.GetLastWriteTime(hypotheticalDuplicate);
+
+                                var imageHash = await _dbHelpers.GetImageInfosAsync(group.Id);
+
+                                if (imageHash == null)
                                 {
-                                    group.ImageHash =
-                                        Vector.Of(_imageHashGenerator.GenerateHash(hypotheticalDuplicate));
+                                    try
+                                    {
+                                        group.ImageHash =
+                                            Vector.Of(_imageHashGenerator.GenerateHash(hypotheticalDuplicate));
 
-                                    group.ImageHash.Embed(
-                                        new ByteToFloatVectorizerAttribute(group.ImageHash.Value.Length));
+                                        group.ImageHash.Embed(
+                                            new ByteToFloatVectorizerAttribute(group.ImageHash.Value.Length));
 
-                                    await _dbHelpers.CacheHashAsync(group);
+                                        await _dbHelpers.CacheHashAsync(group);
 
+                                        group.IsCorruptedOrUnsupported = false;
+                                    }
+                                    catch (Exception)
+                                    {
+                                        group.IsCorruptedOrUnsupported = true;
+                                    }
+                                }
+                                else
+                                {
+                                    group.ImageHash = imageHash;
                                     group.IsCorruptedOrUnsupported = false;
                                 }
-                                catch (Exception)
+
+                                if (!group.IsCorruptedOrUnsupported)
                                 {
-                                    group.IsCorruptedOrUnsupported = true;
+                                    var current = Interlocked.Increment(ref progress);
+
+                                    await _notificationContext.Clients.All.SendAsync("notify",
+                                        new Notification(NotificationType.HashGenerationProgress, progress.ToString()),
+                                        cancellationToken: hashingToken);
+
+                                    if (current % 1000 == 0)
+                                        GC.Collect();
                                 }
                             }
-                            else
-                            {
-                                group.ImageHash = imageHash;
-                                group.IsCorruptedOrUnsupported = false;
-                            }
 
-                            if (!group.IsCorruptedOrUnsupported)
-                            {
-                                var current = Interlocked.Increment(ref progress);
-
-                                await _notificationContext.Clients.All.SendAsync("notify",
-                                    new Notification(NotificationType.HashGenerationProgress, progress.ToString()),
-                                    cancellationToken: hashingToken);
-
-                                if (current % 1000 == 0)
-                                    GC.Collect();
-                            }
+                            group.Duplicates.Enqueue(hypotheticalDuplicate);
+                            break;
                         }
-
-                        group.Duplicates.Enqueue(hypotheticalDuplicate);
-                        break;
                     }
+                }
+                catch (IOException)
+                {
+                    await _notificationContext.Clients.All.SendAsync("notify",
+                        new Notification(NotificationType.HashGenerationProgress,
+                            $"File {hypotheticalDuplicate} is being used by another application"),
+                        cancellationToken: hashingToken);
                 }
             });
 
@@ -195,14 +212,18 @@ public class SimilarImageFinder : ISimilarImagesFinder
             {
                 var group = imagesGroups[key];
 
+                // Get cached similar images
                 group.SimilarImages = await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(group.Id);
-
+                
+                // In case in the next step all similar images have been removed, remove group from dictionary to free
+                // memory
                 group.SimilarImages.CollectionChanged += (sender, args) =>
                 {
                     if (args.Action == NotifyCollectionChangedAction.Replace && group.SimilarImages.Count == 0)
                         imagesGroups.Remove(group.Id, out _);
                 };
 
+                // Check for new similar images excluding the ones cached in a previous search and add to cached ones
                 group.Similarities = await _dbHelpers.GetSimilarImages(group.Id, group.ImageHash, degreeOfSimilarity,
                     group.SimilarImages);
 
@@ -211,17 +232,18 @@ public class SimilarImageFinder : ISimilarImagesFinder
                 foreach (var similarity in group.Similarities)
                     group.SimilarImages.Add(similarity.DuplicateId);
 
+                // If there were new similar images, associate them to the group
                 if (group.Similarities.Count > 0)
                     await _dbHelpers.LinkToSimilarImagesAsync(group.Id, group.Similarities, isEmpty);
 
+                // Send progress
                 var current = Interlocked.Increment(ref progress);
 
                 await _notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.SimilaritySearchProgress, progress.ToString()),
                     cancellationToken: similarityToken);
 
-                // The current group is sent for grouping if it has at least another similar image or there are  m
-                // at least 2 copies of the same image
+                // Queue to the next step
                 await groupingChannelWriter.WriteAsync(key, cancellationToken: similarityToken);
 
                 if (current % 1000 == 0)
@@ -241,59 +263,45 @@ public class SimilarImageFinder : ISimilarImagesFinder
 
         var groupsDone = new HashSet<string>();
 
-
         await foreach (var groupId in groupingChannelReader.ReadAllAsync(
                            cancellationToken: cancellationToken))
         {
-            // This image's similar images have already been partially or fully processed
-            // If fully processed this command will trigger the removal of the group
-            // If partially processed the group will stay there until the remaining similar
-            // images it is associated to trigger their removal
-            switch (imagesGroups[groupId].SimilarImages.Count)
+            var group = imagesGroups[groupId];
+
+            // Remove similar images which have been processed before this one
+            group.SimilarImages.ExceptWith(groupsDone);
+
+            // If among these removed images there is the current image's own id, it will be skipped and will only be
+            // removed if there are no other similar images associated
+            if (group.SimilarImages.Count == 0)
+                continue;
+
+            group.SimilarImages.Add(group.Id);
+            
+            // Here an image has never been processed. It is either alone with no duplicates
+            // (delete) or it has multiple copies (associate them then delete)
+            if (group.SimilarImages.Count == 1 && group.Duplicates.Count == 1)
             {
-                case > 1:
-                case 1 when imagesGroups[groupId].Duplicates.Count > 1:
-                {
-                    if (groupsDone.Contains(groupId))
-                        imagesGroups[groupId].SimilarImages.ExceptWith(groupsDone);
-                    else
-                    {
-                        // Here an image has never been processed. It is either alone with no duplicates
-                        // (delete) or it has multiple copies (associate them and delete) or it has
-                        // similar images no matter how many copies (associate them and delete)
-                        LinkImagesToParentGroup(groupId, imagesGroups, finalImages,
-                            cancellationToken);
-
-                        foreach (var similarImage in imagesGroups[groupId].SimilarImages)
-                        {
-                            var added = groupsDone.Add(similarImage);
-                            if (added)
-                                continue;
-
-                            try
-                            {
-                                imagesGroups[similarImage].SimilarImages.ExceptWith(groupsDone);
-                            }
-                            catch (Exception e)
-                            {
-                                Console.WriteLine(e.Message);
-                                Console.WriteLine(imagesGroups.ContainsKey(similarImage));
-                            }
-                        }
-
-                        imagesGroups[groupId].SimilarImages.Clear();
-
-                        await _notificationContext.Clients.All.SendAsync("notify",
-                            new Notification(NotificationType.TotalProgress,
-                                (++progress).ToString()), cancellationToken: cancellationToken);
-                    }
-
-                    break;
-                }
-                default:
-                    imagesGroups[groupId].SimilarImages.Clear();
-                    break;
+                group.SimilarImages.Clear();
+                continue;
             }
+
+            // Here is where the association is done
+            LinkImagesToParentGroup(groupId, imagesGroups, finalImages,
+                cancellationToken);
+
+            // After associating the current images with its remaining similar images, we add them to the list of already
+            // processed images. We also make use of this opportunity to check if among them there are skipped images
+            // and if so, we remove its similar files.
+            foreach (var similarImage in group.SimilarImages)
+                groupsDone.Add(similarImage);
+
+            group.SimilarImages.Clear();
+
+            await _notificationContext.Clients.All.SendAsync("notify",
+                new Notification(NotificationType.TotalProgress,
+                    (++progress).ToString()), cancellationToken: cancellationToken);
+
 
             if (decimal.Remainder(progress, notificationCeiling) == 0)
                 GC.Collect();

@@ -1,14 +1,14 @@
 ﻿using System.Collections.Concurrent;
 using API.Implementations.Common;
 using Core.Entities;
+using Core.Interfaces;
 using Core.Interfaces.Common;
-using Core.Interfaces.DuplicatesByHash;
 using Microsoft.AspNetCore.SignalR;
 using File = Core.Entities.File;
 
 namespace API.Implementations.DuplicatesByHash;
 
-public class DuplicateByHashFinder : IDuplicateByHashFinder
+public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IFileReader _fileReader;
     private readonly IHashGenerator _hashGenerator;
@@ -22,11 +22,9 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
         _notificationContext = notificationContext;
     }
 
-    public async Task<IEnumerable<IGrouping<string, File>>> FindDuplicateByHash(HashSet<string> hypotheticalDuplicates,
-        CancellationToken cancellationToken)
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(
+        HashSet<string> hypotheticalDuplicates, CancellationToken cancellationToken = default)
     {
-        ConcurrentDictionary<string, ConcurrentQueue<File>> duplicates;
-
         using var partialHashGenerationTask = SetPartialDuplicates(hypotheticalDuplicates, 10, cancellationToken);
 
         await partialHashGenerationTask;
@@ -34,7 +32,7 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
         if (partialHashGenerationTask.IsCanceled)
             return [];
 
-        duplicates = partialHashGenerationTask.GetAwaiter().GetResult();
+        ConcurrentDictionary<string, ConcurrentQueue<File>> duplicates = partialHashGenerationTask.GetAwaiter().GetResult();
 
         hypotheticalDuplicates = duplicates.Where(group => group.Value.Count > 1)
             .SelectMany(group => group.Value.Select(file => file.Path)).ToHashSet();
@@ -69,13 +67,14 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
             {
                 try
                 {
-                    using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate);
+                    await using var fileStream =
+                        _fileReader.GetFileStream(hypotheticalDuplicate, bufferSize: 0, isAsync: true);
 
-                    var size = RandomAccess.GetLength(fileHandle);
+                    var size = fileStream.Length;
 
                     var bytesToHash = size / lengthDivisor;
 
-                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, bytesToHash,
+                    var hash = await _hashGenerator.GenerateHashAsync(fileStream, bytesToHash,
                         cancellationToken: cancellationToken);
 
                     if (string.IsNullOrEmpty(hash))
@@ -86,11 +85,13 @@ public class DuplicateByHashFinder : IDuplicateByHashFinder
                         return;
                     }
 
+                    using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate, isAsync: true);
+
                     var file = new File
                     {
                         Path = hypotheticalDuplicate,
                         DateModified = System.IO.File.GetLastWriteTime(fileHandle),
-                        Size = RandomAccess.GetLength(fileHandle),
+                        Size = size,
                         Hash = hash,
                     };
 

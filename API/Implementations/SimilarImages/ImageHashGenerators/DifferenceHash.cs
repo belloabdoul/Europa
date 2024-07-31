@@ -1,4 +1,4 @@
-﻿using Core.Interfaces.SimilarImages;
+﻿using Core.Interfaces;
 using DotNext.Buffers;
 using NetVips;
 

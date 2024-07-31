@@ -1,11 +1,8 @@
 ﻿using System.Diagnostics;
-using System.Text.Json;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
+using Core.Interfaces;
 using Core.Interfaces.Common;
-using Core.Interfaces.DuplicatesByHash;
-using Core.Interfaces.SimilarAudios;
-using Core.Interfaces.SimilarImages;
 using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
@@ -17,19 +14,14 @@ public class DuplicatesController : Controller
 {
     private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly IDirectoryReader _directoryReader;
-    private readonly IDuplicateByHashFinder _duplicatesByHashFinder;
-    private readonly ISimilarAudiosFinder _similarAudiosFinder;
-    private readonly ISimilarImagesFinder _similarImagesFinder;
+    private readonly ISearchTypeImplementationFactory _searchTypeImplementationFactory;
 
 
-    public DuplicatesController(IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader, ISimilarAudiosFinder similarAudiosFinder,
-        ISimilarImagesFinder similarImagesFinder, IDuplicateByHashFinder duplicatesByHashFinder)
+    public DuplicatesController(IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader, ISearchTypeImplementationFactory searchTypeImplementationFactory)
     {
         _searchParametersValidator = searchParametersValidator;
         _directoryReader = directoryReader;
-        _duplicatesByHashFinder = duplicatesByHashFinder;
-        _similarAudiosFinder = similarAudiosFinder;
-        _similarImagesFinder = similarImagesFinder;
+        _searchTypeImplementationFactory = searchTypeImplementationFactory;
     }
 
     // GET api/Duplicates/findDuplicates
@@ -51,15 +43,11 @@ public class DuplicatesController : Controller
         
         GC.Collect();
         
-        var duplicatesGroups = searchParameters.FileSearchType switch
-        {
-            FileSearchType.All => await _duplicatesByHashFinder.FindDuplicateByHash(
-                hypotheticalDuplicates, cancellationToken),
-            FileSearchType.Audios => await _similarAudiosFinder.FindSimilarAudiosAsync(
-                hypotheticalDuplicates, cancellationToken),
-            FileSearchType.Images => await _similarImagesFinder.FindSimilarImagesAsync(hypotheticalDuplicates,
-                searchParameters.DegreeOfSimilarity!.Value, cancellationToken)
-        };
+        var searchImplementation =
+            _searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
+                searchParameters.DegreeOfSimilarity ?? 0);
+        
+        var duplicatesGroups = await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
         
         return Ok(duplicatesGroups.ToResponseDto());
     }
