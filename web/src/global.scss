@@ -87,12 +87,38 @@ body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
   pointer-events: none;
 }
 
+/* Make component occupy available height*/
+.full-height {
+  height: 100%;
+}
+
+.full-width {
+  width: 100%;
+}
+
 /* Make row focusable on click*/
 .results-row:focus {
-  background-color: gray;
+  background-color: #777;
 }
 
 /* Disable pointer all columns except checkbox */
 ion-col.col{
   pointer-events: none;
+}
+
+/* Avoid virtual scroll content overflow */
+.cdk-virtual-scroll-orientation-vertical .cdk-virtual-scroll-content-wrapper {
+  max-width: 100%;
+}
+
+.context {
+  cursor: pointer;
+}
+
+.context:hover {
+  background-color: #777 !important;
+}
+
+.context:active {
+  background-color: #777 !important;
 }
