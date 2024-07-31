@@ -1,5 +1,9 @@
 import { Injectable } from '@angular/core';
-import { HubConnection, HubConnectionBuilder } from '@microsoft/signalr';
+import {
+  HttpTransportType,
+  HubConnection,
+  HubConnectionBuilder,
+} from '@microsoft/signalr';
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
 import { NotificationType } from '../../models/notification-type';
@@ -22,10 +26,9 @@ export class SearchService {
     this.searchParameters.asObservable();
 
   private similarFiles: Subject<File[][]> = new Subject();
-  public similarFiles$: Observable<File[][]> =
-    this.similarFiles.asObservable();
+  public similarFiles$: Observable<File[][]> = this.similarFiles.asObservable();
 
-  private apiUrl: string = 'https://localhost:44373/';
+  private apiUrl: string = 'https://localhost:7138/';
   private duplicatesApiUrl: string = `${this.apiUrl}api/Duplicates/`;
 
   constructor(private http: HttpClient) {}
@@ -36,7 +39,9 @@ export class SearchService {
 
   async startConnection(): Promise<any> {
     const url = `${this.apiUrl}notifications`;
-    this.connection = new HubConnectionBuilder().withUrl(url).build();
+    this.connection = new HubConnectionBuilder()
+      .withUrl(url, { transport: HttpTransportType.ServerSentEvents })
+      .build();
 
     try {
       await this.connection.start();

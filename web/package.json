@@ -45,7 +45,6 @@
     "ionicons": "^7.2.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "ws": "^8.18.0",
     "zone.js": "~0.14.2"
   },
   "devDependencies": {
