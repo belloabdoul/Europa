@@ -32,7 +32,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         if (partialHashGenerationTask.IsCanceled)
             return [];
 
-        ConcurrentDictionary<string, ConcurrentQueue<File>> duplicates = partialHashGenerationTask.GetAwaiter().GetResult();
+        var duplicates = partialHashGenerationTask.GetAwaiter().GetResult();
 
         hypotheticalDuplicates = duplicates.Where(group => group.Value.Count > 1)
             .SelectMany(group => group.Value.Select(file => file.Path)).ToHashSet();
@@ -67,14 +67,15 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             {
                 try
                 {
-                    await using var fileStream =
-                        _fileReader.GetFileStream(hypotheticalDuplicate, bufferSize: 0, isAsync: true);
+                    using var fileHandle =
+                        _fileReader.GetFileHandle(hypotheticalDuplicate, isAsync: false);
 
-                    var size = fileStream.Length;
+                    var size = RandomAccess.GetLength(fileHandle);
 
-                    var bytesToHash = size / lengthDivisor;
+                    var bytesToHash = Convert.ToInt64(Math.Round(decimal.Divide(size, lengthDivisor),
+                        MidpointRounding.ToPositiveInfinity));
 
-                    var hash = await _hashGenerator.GenerateHashAsync(fileStream, bytesToHash,
+                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, bytesToHash,
                         cancellationToken: cancellationToken);
 
                     if (string.IsNullOrEmpty(hash))
@@ -84,8 +85,6 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                                 $"File {hypotheticalDuplicate} is corrupted"), similarityToken);
                         return;
                     }
-
-                    using var fileHandle = _fileReader.GetFileHandle(hypotheticalDuplicate, isAsync: true);
 
                     var file = new File
                     {

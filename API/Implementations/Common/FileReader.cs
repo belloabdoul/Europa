@@ -17,7 +17,7 @@ public class FileReader : IFileReader
     public SafeFileHandle GetFileHandle(string path, bool isAsync = false)
     {
         return isAsync
-            ? File.OpenHandle(path, options: FileOptions.RandomAccess | FileOptions.Asynchronous)
-            : File.OpenHandle(path, options: FileOptions.RandomAccess);
+            ? File.OpenHandle(path, options: FileOptions.SequentialScan | FileOptions.Asynchronous)
+            : File.OpenHandle(path, options: FileOptions.SequentialScan);
     }
 }
