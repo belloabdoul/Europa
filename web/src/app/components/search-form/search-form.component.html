@@ -58,6 +58,13 @@
         </ng-template>
       </ion-popover>
     </ion-item>
+    @if (searchParametersErrors.folders.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.folders[0] }}
+      </ion-note>
+    </ion-item>
+    }
     <ion-item>
       @if(searchParameters.folders.length == 0) {
       <ion-label class="ion-text-center"
@@ -87,43 +94,61 @@
     </ion-item>
   </ion-item-group>
 
-  <ion-item>
-    <ion-select
-      interface="popover"
-      placeholder="Select a search type"
-      [(ngModel)]="searchParameters.fileSearchType"
-      [disabled]="isSearchRunning"
-      name="fileSearchType"
-    >
-      <div slot="label">
-        Search type <ion-text color="danger">(Required)</ion-text>
-      </div>
-      @for (searchType of fileSearchType | keyvalue; track $index) {
-      <ion-select-option [value]="searchType.value">{{
-        searchType.key
-      }}</ion-select-option>
-      }
-    </ion-select>
-  </ion-item>
+  <ion-item-group>
+    <ion-item>
+      <ion-select
+        interface="popover"
+        placeholder="Select a search type"
+        [(ngModel)]="searchParameters.fileSearchType"
+        (ngModelChange)="clearErrorMessages('fileSearchType')"
+        [disabled]="isSearchRunning"
+      >
+        <div slot="label">
+          Search type <ion-text color="danger">(Required)</ion-text>
+        </div>
+        @for (searchType of fileSearchType | keyvalue; track $index) {
+        <ion-select-option [value]="searchType.value">{{
+          searchType.key
+        }}</ion-select-option>
+        }
+      </ion-select>
+    </ion-item>
+    @if (searchParametersErrors.fileSearchType.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.fileSearchType[0] }}
+      </ion-note>
+    </ion-item>
+    }
+  </ion-item-group>
 
   @if(searchParameters.fileSearchType == fileSearchType.Images){
-  <ion-item>
-    <ion-input
-      type="number"
-      placeholder="5"
-      counter="1"
-      max="20"
-      min="0"
-      [(ngModel)]="searchParameters.degreeOfSimilarity"
-      label-placement="floating"
-      [disabled]="isSearchRunning"
-      name="degreeOfSimilarity"
-    >
-      <div slot="label">
-        Degree of similarity <ion-text color="danger">(Required)</ion-text>
-      </div>
-    </ion-input>
-  </ion-item>
+  <ion-item-group>
+    <ion-item>
+      <ion-input
+        type="number"
+        placeholder="5"
+        counter="1"
+        max="20"
+        min="0"
+        [(ngModel)]="searchParameters.degreeOfSimilarity"
+        (ngModelChange)="clearErrorMessages('degreeOfSimilarity')"
+        label-placement="floating"
+        [disabled]="isSearchRunning"
+      >
+        <div slot="label">
+          Degree of similarity <ion-text color="danger">(Required)</ion-text>
+        </div>
+      </ion-input>
+    </ion-item>
+    @if (searchParametersErrors.degreeOfSimilarity.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.degreeOfSimilarity[0] }}
+      </ion-note>
+    </ion-item>
+    }
+  </ion-item-group>
   }
 
   <ion-item>
@@ -131,39 +156,57 @@
       labelPlacement="start"
       [(ngModel)]="searchParameters.includeSubFolders"
       [disabled]="isSearchRunning"
-      name="includeSubFolders"
     >
       Include subdirectories
     </ion-toggle>
   </ion-item>
+  <ion-item-group>
+    <ion-item>
+      <ion-input
+        label="Minimum size"
+        type="number"
+        placeholder="5"
+        counter="1"
+        [max]="maxValue"
+        min="0"
+        [(ngModel)]="searchParameters.minSize"
+        (ngModelChange)="clearErrorMessages('minSize')"
+        label-placement="floating"
+        [disabled]="isSearchRunning"
+      ></ion-input>
+    </ion-item>
+    @if (searchParametersErrors.minSize.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.minSize[0] }}
+      </ion-note>
+    </ion-item>
+    }
+  </ion-item-group>
 
-  <ion-item>
-    <ion-input
-      label="Minimum size"
-      type="number"
-      placeholder="5"
-      counter="1"
-      [max]="maxValue"
-      min="0"
-      [(ngModel)]="searchParameters.minSize"
-      label-placement="floating"
-      [disabled]="isSearchRunning"
-    ></ion-input>
-  </ion-item>
-
-  <ion-item>
-    <ion-input
-      label="Maximum size"
-      type="number"
-      placeholder="5"
-      counter="1"
-      [max]="maxValue"
-      min="0"
-      [(ngModel)]="searchParameters.maxSize"
-      label-placement="floating"
-      [disabled]="isSearchRunning"
-    ></ion-input>
-  </ion-item>
+  <ion-item-group>
+    <ion-item>
+      <ion-input
+        label="Maximum size"
+        type="number"
+        placeholder="5"
+        counter="1"
+        [max]="maxValue"
+        min="0"
+        [(ngModel)]="searchParameters.maxSize"
+        (ngModelChange)="clearErrorMessages('maxSize')"
+        label-placement="floating"
+        [disabled]="isSearchRunning"
+      ></ion-input>
+    </ion-item>
+    @if (searchParametersErrors.maxSize.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.maxSize[0] }}
+      </ion-note>
+    </ion-item>
+    }
+  </ion-item-group>
 
   <ion-item>
     <div class="ion-chip-group full-width">
@@ -206,7 +249,8 @@
 <ion-button shape="round" class="ion-float-end" (click)="cancelSearch()">
   <ion-icon color="danger" name="ban" slot="icon-only"></ion-icon>
 </ion-button>
-}
+} @else{
 <ion-button shape="round" class="ion-float-end" (click)="launchSearch()">
   <ion-icon name="search" slot="icon-only"></ion-icon>
 </ion-button>
+}

@@ -73,7 +73,7 @@ export class ProgressComponent implements OnInit, OnDestroy {
     this.searchParametersSubscription =
       this.searchService.searchParameters$.subscribe((searchParameters) => {
         if (searchParameters == null) {
-          this.step1Text.next('Search cancelled by the user');
+          this.step1Text.next('Search cancelled');
         } else if (searchParameters.fileSearchType == FileSearchType.All) {
           this.step1Text.next('Generating partial hash');
           this.step1Progress.next('0');

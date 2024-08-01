@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Specialized;
-using System.Text.Json;
 using System.Threading.Channels;
 using API.Implementations.Common;
 using Core.Entities;
@@ -63,12 +62,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
             groupingChannel.Writer, cancellationToken: cancellationToken);
 
         await Task.WhenAll(similarityTask, groupingTask);
-
-        foreach (var group in imagesGroups)
-        {
-            Console.WriteLine($"{group.Value.Id} {JsonSerializer.Serialize(group.Value.SimilarImages)}");
-        }
-
+        
         var groups = finalImages.GroupBy(file => file.Hash)
             .Where(i => i.Count() != 1).ToList();
         return groups;
@@ -101,12 +95,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
                             break;
                         case FileType.Image:
                         {
-                            await using var fileStream =
-                                _fileReader.GetFileStream(hypotheticalDuplicate, bufferSize: 0, isAsync: true);
+                            using var fileHandle =
+                                _fileReader.GetFileHandle(hypotheticalDuplicate, isAsync: true);
 
-                            var length = fileStream.Length;
+                            var length = RandomAccess.GetLength(fileHandle);
 
-                            var hash = await _hashGenerator.GenerateHashAsync(fileStream, length,
+                            var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length,
                                 cancellationToken: hashingToken);
 
                             if (string.IsNullOrEmpty(hash))

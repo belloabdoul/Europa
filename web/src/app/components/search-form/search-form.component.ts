@@ -114,6 +114,7 @@ export class SearchFormComponent implements OnDestroy {
     );
     if (directory != '' && !this.searchParameters.folders.includes(directory)) {
       this.searchParameters.folders.push(directory);
+      this.clearErrorMessages('folders');
       this.cd.detectChanges();
     }
   }
@@ -136,6 +137,7 @@ export class SearchFormComponent implements OnDestroy {
       this.searchParameters.folders.push(this.manuallyAddedDirectory);
     }
     this.manuallyAddedDirectory = '';
+    this.clearErrorMessages('folders');
     this.popover?.dismiss();
   }
 
@@ -280,6 +282,32 @@ export class SearchFormComponent implements OnDestroy {
     }
   }
 
+  clearErrorMessages(field: string) {
+    if (field == 'minSize') {
+      if (this.searchParameters.minSize == null) {
+        this.searchParametersErrors.minSize.length = 0;
+        this.searchParametersErrors.maxSize.length = 0;
+      } else if (
+        this.searchParameters.maxSize == null ||
+        this.searchParameters.minSize <= this.searchParameters.maxSize
+      ) {
+        this.searchParametersErrors.minSize.length = 0;
+        this.searchParametersErrors.maxSize.length = 0;
+      }
+    } else if (field == 'maxSize') {
+      if (this.searchParameters.maxSize == null) {
+        this.searchParametersErrors.minSize.length = 0;
+        this.searchParametersErrors.maxSize.length = 0;
+      } else if (
+        this.searchParameters.minSize == null ||
+        this.searchParameters.minSize <= this.searchParameters.maxSize
+      ) {
+        this.searchParametersErrors.minSize.length = 0;
+        this.searchParametersErrors.maxSize.length = 0;
+      }
+    } else ((this.searchParametersErrors as any)[field] as string[]).length = 0;
+  }
+
   async launchSearch() {
     this.isSearchRunning = true;
     var error = await this.searchService.startConnection();
@@ -297,20 +325,21 @@ export class SearchFormComponent implements OnDestroy {
 
           this.isSearchRunning = false;
 
-          let errors: SearchParametersErrors;
-
           if (result.duplicatesGroups != null) {
             this.searchService.sendResults(result.duplicatesGroups as File[][]);
 
-            errors = new SearchParametersErrors();
+            this.searchParametersErrors = new SearchParametersErrors();
           } else {
             for (let key of Object.keys(this.searchParametersErrors)) {
-              if (typeof result[key] == 'undefined') result[key] = [];
+              if (result[key] != null) {
+                (this.searchParametersErrors as any)[key] = result[key];
+              } else {
+                (this.searchParametersErrors as any)[key] = [];
+              }
             }
-            errors = result as SearchParametersErrors;
-          }
 
-          this.searchParametersErrors = errors;
+            this.searchService.sendSearchParameters(null);
+          }
 
           this.cd.detectChanges();
         });
