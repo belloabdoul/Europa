@@ -36,7 +36,6 @@ import {
   ban,
   search,
 } from 'ionicons/icons';
-import { ElectronService } from 'src/app/shared/services/electron/electron.service';
 import { SearchService } from 'src/app/shared/services/search/search.service';
 import { CommonModule, KeyValuePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
@@ -91,7 +90,6 @@ export class SearchFormComponent implements OnDestroy {
   searchSubsription: Subscription | undefined;
 
   constructor(
-    private electronService: ElectronService,
     private cd: ChangeDetectorRef,
     private searchService: SearchService
   ) {
@@ -109,9 +107,7 @@ export class SearchFormComponent implements OnDestroy {
   }
 
   async selectDirectory(): Promise<void> {
-    let directory: string = await this.electronService.ipcRenderer.invoke(
-      'dialog:selectDirectory'
-    );
+    let directory: string = await window.electronAPI?.selectDirectory();
     if (directory != '' && !this.searchParameters.folders.includes(directory)) {
       this.searchParameters.folders.push(directory);
       this.clearErrorMessages('folders');

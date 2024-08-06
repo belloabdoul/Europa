@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
   HostListener,
@@ -16,7 +17,6 @@ import {
 import { Subscription } from 'rxjs';
 import { File } from 'src/app/shared/models/file';
 import { SearchService } from 'src/app/shared/services/search/search.service';
-import { ElectronService } from 'src/app/shared/services/electron/electron.service';
 import { addIcons } from 'ionicons';
 import { folderOpen, apps } from 'ionicons/icons';
 import { CdkMenu, CdkMenuItem, CdkContextMenuTrigger } from '@angular/cdk/menu';
@@ -29,6 +29,7 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './results.component.html',
   styleUrls: ['./results.component.scss'],
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     IonCheckbox,
     IonGrid,
@@ -58,9 +59,8 @@ export class ResultsComponent implements OnInit, OnDestroy {
   path: string;
 
   constructor(
-    private cd: ChangeDetectorRef,
     private searchService: SearchService,
-    private electronService: ElectronService
+    private cd: ChangeDetectorRef
   ) {
     this.similarFiles = [];
     addIcons({ folderOpen, apps });
@@ -80,6 +80,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
             }
           );
         }
+        this.cd.detectChanges();
       }
     );
   }
@@ -108,9 +109,9 @@ export class ResultsComponent implements OnInit, OnDestroy {
     else path = this.path;
 
     if (path != '') {
-      await this.electronService.ipcRenderer
-        .invoke('shell:openFileInDefaultApplication', [path])
-        .catch((error) => {
+      await window.electronAPI
+        ?.openFileInDefaultApplication(path)
+        .catch((error: any) => {
           console.log(`Opening ${path} in default app failed : ${error}`);
         });
       this.path = '';
@@ -125,11 +126,9 @@ export class ResultsComponent implements OnInit, OnDestroy {
 
   async openFileLocation() {
     const path = this.path;
-    await this.electronService.ipcRenderer
-      .invoke('shell:openFileLocation', [path])
-      .catch((error) => {
-        console.log(`Opening ${path} folder failed : ${error}`);
-      });
+    await window.electronAPI?.openFileLocation(path).catch((error: any) => {
+      console.log(`Opening ${path} folder failed : ${error}`);
+    });
     this.path = '';
   }
 }
