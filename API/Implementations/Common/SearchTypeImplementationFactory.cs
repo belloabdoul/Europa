@@ -12,7 +12,6 @@ namespace API.Implementations.Common;
 public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
 {
     // Search implementations dependencies
-    private readonly IFileReader _fileReader;
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
     private readonly IFileTypeIdentifier _fileTypeIdentifier;
@@ -26,12 +25,11 @@ public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
     private ISimilarFilesFinder? _similarImagesFinder;
 
 
-    public SearchTypeImplementationFactory(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier,
+    public SearchTypeImplementationFactory(IFileTypeIdentifier fileTypeIdentifier,
         IHashGenerator hashGenerator,
         IAudioHashGenerator audioHashGenerator, IHubContext<NotificationHub> notificationContext,
         IImageHash imageHashGenerator, IDbHelpers dbHelpers)
     {
-        _fileReader = fileReader;
         _fileTypeIdentifier = fileTypeIdentifier;
         _hashGenerator = hashGenerator;
         _audioHashGenerator = audioHashGenerator;
@@ -46,13 +44,13 @@ public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
         {
             case FileSearchType.All:
                 return _duplicateByHashFinder ??=
-                    new DuplicateByHashFinder(_fileReader, _hashGenerator, _notificationContext);
+                    new DuplicateByHashFinder(_hashGenerator, _notificationContext);
             case FileSearchType.Audios:
-                return _similarAudiosFinder ??= new SimilarAudiosFinder(_fileReader, _fileTypeIdentifier,
+                return _similarAudiosFinder ??= new SimilarAudiosFinder(_fileTypeIdentifier,
                     _audioHashGenerator, _hashGenerator);
             case FileSearchType.Images:
             default:
-                return _similarImagesFinder ??= new SimilarImageFinder(degreeOfSimilarity, _notificationContext, _fileReader,
+                return _similarImagesFinder ??= new SimilarImageFinder(degreeOfSimilarity, _notificationContext,
                     _fileTypeIdentifier, _hashGenerator, _imageHashGenerator, _dbHelpers);
         }
     }

@@ -13,6 +13,8 @@ using Database.Implementations;
 using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
+using MessagePack;
+using Microsoft.AspNetCore.Http.Connections;
 using Redis.OM;
 
 namespace API;
@@ -29,7 +31,7 @@ public class Program
         services.AddCors(options => options.AddPolicy(apiCorsPolicy, corsPolicyBuilder =>
         {
             corsPolicyBuilder
-                .SetIsOriginAllowed(host => host == "http://localhost:4200")
+                .WithOrigins("http://localhost:4200")
                 .AllowAnyMethod()
                 .AllowAnyHeader()
                 .AllowCredentials();
@@ -45,7 +47,13 @@ public class Program
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
-        services.AddSignalR(hubConnection => { hubConnection.ClientTimeoutInterval = TimeSpan.FromHours(1); });
+        services.AddSignalR(hubConnection =>
+        {
+            hubConnection.EnableDetailedErrors = true;
+        }).AddMessagePackProtocol(options =>
+        {
+            options.SerializerOptions = MessagePackSerializerOptions.Standard;
+        });
 
         // Create index on database if not done
         services.AddSingleton(new RedisConnectionProvider(builder.Configuration["RedisConnectionString"]!));
@@ -60,7 +68,6 @@ public class Program
         // Dependency for all or most features
         services.AddSingleton<IFileTypeIdentifier, LibVipsImageIdentifier>();
         services.AddSingleton<IDirectoryReader, DirectoryReader>();
-        services.AddSingleton<IFileReader, FileReader>();
 
         // Dependencies for finding duplicates by cryptographic hash.
         services.AddSingleton<IHashGenerator, HashGenerator>();
@@ -96,8 +103,12 @@ public class Program
 
         app.MapControllers();
 
-        app.MapHub<NotificationHub>("/notifications");
-
+        app.MapHub<NotificationHub>("/notifications", options =>
+        {
+            options.Transports = HttpTransportType.WebSockets;
+            options.AllowStatefulReconnects = true;
+        });
+        
         app.Run();
     }
 }

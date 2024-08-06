@@ -3,9 +3,9 @@ using Microsoft.Win32.SafeHandles;
 
 namespace API.Implementations.Common;
 
-public class FileReader : IFileReader
+public static class FileReader
 {
-    public FileStream GetFileStream(string path, int bufferSize = 0, bool isAsync = false)
+    public static  FileStream GetFileStream(string path, int bufferSize = 0, bool isAsync = false)
     {
         return isAsync
             ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize,
@@ -14,7 +14,7 @@ public class FileReader : IFileReader
                 FileOptions.SequentialScan);
     }
 
-    public SafeFileHandle GetFileHandle(string path, bool isAsync = false)
+    public static SafeFileHandle GetFileHandle(string path, bool isAsync = false)
     {
         return isAsync
             ? File.OpenHandle(path, options: FileOptions.SequentialScan | FileOptions.Asynchronous)

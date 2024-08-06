@@ -17,7 +17,8 @@ public class DuplicatesController : Controller
     private readonly ISearchTypeImplementationFactory _searchTypeImplementationFactory;
 
 
-    public DuplicatesController(IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader, ISearchTypeImplementationFactory searchTypeImplementationFactory)
+    public DuplicatesController(IValidator<SearchParameters> searchParametersValidator,
+        IDirectoryReader directoryReader, ISearchTypeImplementationFactory searchTypeImplementationFactory)
     {
         _searchParametersValidator = searchParametersValidator;
         _directoryReader = directoryReader;
@@ -32,23 +33,25 @@ public class DuplicatesController : Controller
         var validationResult = await _searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
 
         StringPool.Shared.Reset();
-        
+
         if (!validationResult.IsValid)
         {
             validationResult.AddToModelState(ModelState);
             return BadRequest(ModelState);
         }
 
-        var hypotheticalDuplicates = await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
-        
-        GC.Collect();
-        
+        var hypotheticalDuplicates =
+            await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
+
         var searchImplementation =
             _searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
                 searchParameters.DegreeOfSimilarity ?? 0);
-        
-        var duplicatesGroups = await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
-        
+
+        GC.Collect(generation: 2, GCCollectionMode.Default, true, true);
+
+        var duplicatesGroups =
+            await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
+
         return Ok(duplicatesGroups.ToResponseDto());
     }
 

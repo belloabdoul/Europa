@@ -3,7 +3,7 @@ namespace Core.Interfaces;
 
 public interface ISimilarFilesFinder
 {
-    Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(HashSet<string> hypotheticalDuplicates, CancellationToken token =
+    Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, CancellationToken token =
         default);
     
 }

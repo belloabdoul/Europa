@@ -3,7 +3,6 @@ using CommunityToolkit.HighPerformance.Buffers;
 using Core.Interfaces;
 using DotNext.Buffers;
 using Microsoft.Win32.SafeHandles;
-using MemoryOwner = DotNext.Buffers.MemoryOwner<byte>;
 
 namespace API.Implementations.DuplicatesByHash;
 
@@ -17,7 +16,7 @@ public class HashGenerator : IHashGenerator
 
         const int bufferSize = 1048576;
 
-        using var buffer = new MemoryOwner(UnmanagedMemoryPool<byte>.Shared, bufferSize);
+        using var buffer = UnmanagedMemoryPool<byte>.Shared.Rent(bufferSize);
         using var hasher = Hasher.New();
         var bytesHashed = 0;
         
@@ -25,19 +24,17 @@ public class HashGenerator : IHashGenerator
         {
             var remainingToHash = bytesToHash - bytesHashed;
             if (remainingToHash > bufferSize)
-            {
-                bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory, bytesHashed,
-                    cancellationToken: cancellationToken);
-                hasher.Update(buffer.Span);
-            }
+                remainingToHash = bufferSize;
+
+            bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..(int)remainingToHash],
+                fileOffset: bytesHashed, cancellationToken: cancellationToken);
+
+            if (remainingToHash >= 131072)
+                hasher.UpdateWithJoin(buffer.Memory[..(int)remainingToHash].Span);
             else
-            {
-                bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..(int)remainingToHash],
-                    bytesHashed, cancellationToken: cancellationToken);
-                hasher.Update(buffer.Span[..(int)remainingToHash]);
-            }
+                hasher.Update(buffer.Memory[..(int)remainingToHash].Span);
         }
-        
+
         return StringPool.Shared.GetOrAdd(hasher.Finalize().ToString());
     }
 }
