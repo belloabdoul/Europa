@@ -12,6 +12,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
+    public int DegreeOfSimilarity { get; set; }
 
     public DuplicateByHashFinder(IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext)
@@ -67,7 +68,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                     .Select(files => new { group.Key, Value = files }))
             .ToLookup(group => group.Key, group => group.Value);
     }
-
+    
     private async Task<ConcurrentDictionary<string, ConcurrentQueue<File>>> SetPartialDuplicates(
         string[] hypotheticalDuplicates, ChannelWriter<Notification> progressChannelWriter, long lengthDivisor,
         CancellationToken cancellationToken)
@@ -78,7 +79,8 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 hypotheticalDuplicates.Length);
 
         await Parallel.ForAsync(0, hypotheticalDuplicates.Length,
-            new ParallelOptions { CancellationToken = cancellationToken },
+            new ParallelOptions
+                { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount / 2 },
             async (i, similarityToken) =>
             {
                 var added = await GenerateHashAsync(hypotheticalDuplicates[i], lengthDivisor, partialDuplicates,
@@ -111,7 +113,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         try
         {
             using var fileHandle =
-                FileReader.GetFileHandle(hypotheticalDuplicate, isAsync: false);
+                FileReader.GetFileHandle(hypotheticalDuplicate, sequential: true, isAsync: true);
 
             var size = RandomAccess.GetLength(fileHandle);
 
@@ -131,7 +133,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             var file = new File
             {
                 Path = hypotheticalDuplicate,
-                DateModified = System.IO.File.GetLastWriteTime(fileHandle),
+                DateModified = System.IO.File.GetLastWriteTime(hypotheticalDuplicate),
                 Size = size,
                 Hash = hash,
             };

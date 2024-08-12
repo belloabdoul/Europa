@@ -13,16 +13,17 @@ namespace API.Implementations.SimilarAudios;
 public class SimilarAudiosFinder : ISimilarFilesFinder
 {
     private readonly IAudioHashGenerator _audioHashGenerator;
-    private readonly IFileTypeIdentifier _fileTypeIdentifier;
+    private readonly List<IFileTypeIdentifier> _audioIdentifiers;
     private readonly IHashGenerator _hashGenerator;
     private readonly IAudioService _mediaService;
     private readonly IModelService _modelService;
     private readonly object readLock;
+    public int DegreeOfSimilarity { get; set; }
 
-    public SimilarAudiosFinder(IFileTypeIdentifier fileTypeIdentifier,
+    public SimilarAudiosFinder(List<IFileTypeIdentifier> audioIdentifiers,
         IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
     {
-        _fileTypeIdentifier = fileTypeIdentifier;
+        _audioIdentifiers = audioIdentifiers;
         _audioHashGenerator = audioHashGenerator;
         _hashGenerator = hashGenerator;
         _modelService = EmyModelService.NewInstance("localhost", 3399);
