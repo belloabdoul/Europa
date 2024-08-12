@@ -1,6 +1,8 @@
-﻿namespace Core.Interfaces;
+﻿using Microsoft.Win32.SafeHandles;
+
+namespace Core.Interfaces;
 
 public interface IHashGenerator
 {
-    Task<string?> GenerateHashAsync(FileStream fileHandle, long bytesToHash, CancellationToken cancellationToken);
+    ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
 }

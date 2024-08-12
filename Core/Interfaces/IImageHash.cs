@@ -2,5 +2,7 @@
 
 public interface IImageHash
 {
-    public byte[] GenerateHash(string path);
+    int GetRequiredWidth();
+    int GetRequiredHeight();
+    byte[] GenerateHash(byte[] pixels);
 }

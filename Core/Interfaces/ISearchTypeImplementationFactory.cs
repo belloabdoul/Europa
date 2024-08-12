@@ -4,5 +4,5 @@ namespace Core.Interfaces;
 
 public interface ISearchTypeImplementationFactory
 {
-    ISimilarFilesFinder GetSearchImplementation(FileSearchType searchType, double degreeOfSimilarity = 0);
+    ISimilarFilesFinder GetSearchImplementation(FileSearchType searchType, int degreeOfSimilarity = 0);
 }

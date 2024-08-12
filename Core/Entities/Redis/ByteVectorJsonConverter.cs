@@ -9,7 +9,7 @@ public class ByteVectorJsonConverter : JsonConverter<Vector<byte[]>>
     private readonly ByteToFloatVectorizerAttribute _vectorizerAttribute;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="VectorJsonConverter{T}"/> class.
+    /// Initializes a new instance of the <see cref="ByteVectorJsonConverter"/> class.
     /// </summary>
     /// <param name="attribute">the attribute that will be used for vectorization.</param>
     internal ByteVectorJsonConverter(ByteToFloatVectorizerAttribute attribute)

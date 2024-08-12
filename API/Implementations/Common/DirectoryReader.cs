@@ -26,7 +26,7 @@ public class DirectoryReader : IDirectoryReader
         return File.Exists(filePath);
     }
 
-    public async Task<HashSet<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
+    public async Task<string[]> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
         var files = new HashSet<string>();
@@ -38,7 +38,7 @@ public class DirectoryReader : IDirectoryReader
         {
             try
             {
-                files.UnionWith(GetFilesInFolderAsync(folder, searchParameters, enumerationOptions));
+                files.UnionWith(GetFilesInFolder(folder, searchParameters, enumerationOptions));
             }
             catch (ArgumentNullException ex)
             {
@@ -66,10 +66,10 @@ public class DirectoryReader : IDirectoryReader
             }
         }
 
-        return files;
+        return files.ToArray();
     }
 
-    public static IEnumerable<string> GetFilesInFolderAsync(string folder, SearchParameters searchParameters, EnumerationOptions enumerationOptions)
+    public static IEnumerable<string> GetFilesInFolder(string folder, SearchParameters searchParameters, EnumerationOptions enumerationOptions)
     {
         return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions)
             .Where(file =>

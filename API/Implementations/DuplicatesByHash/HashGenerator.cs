@@ -2,33 +2,39 @@
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Interfaces;
 using DotNext.Buffers;
-using MemoryOwner = DotNext.Buffers.MemoryOwner<byte>;
+using Microsoft.Win32.SafeHandles;
 
 namespace API.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
-    public async Task<string?> GenerateHashAsync(FileStream fileHandle, long bytesToHash,
+    public async ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
-        if (fileHandle.Length == 0)
+        if (bytesToHash == 0)
             return null;
 
         const int bufferSize = 1048576;
 
-        using var buffer = new MemoryOwner(UnmanagedMemoryPool<byte>.Shared, bufferSize);
-        await using var blake3Stream = new Blake3Stream(fileHandle);
+        using var buffer = UnmanagedMemoryPool<byte>.Shared.Rent(bufferSize);
+        using var hasher = Hasher.New();
         var bytesHashed = 0;
         
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = bytesToHash - bytesHashed;
             if (remainingToHash > bufferSize)
-                bytesHashed += await blake3Stream.ReadAsync(buffer.Memory, cancellationToken: cancellationToken);
+                remainingToHash = bufferSize;
+
+            bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..(int)remainingToHash],
+                fileOffset: bytesHashed, cancellationToken: cancellationToken);
+
+            if (remainingToHash >= 131072)
+                hasher.UpdateWithJoin(buffer.Memory[..(int)remainingToHash].Span);
             else
-                bytesHashed += await blake3Stream.ReadAsync(buffer.Memory[..(int)remainingToHash], cancellationToken: cancellationToken);
+                hasher.Update(buffer.Memory[..(int)remainingToHash].Span);
         }
-        
-        return StringPool.Shared.GetOrAdd(blake3Stream.ComputeHash().ToString());
+
+        return StringPool.Shared.GetOrAdd(hasher.Finalize().ToString());
     }
 }

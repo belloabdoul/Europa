@@ -1,5 +1,4 @@
-﻿using System.Globalization;
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
@@ -49,7 +48,7 @@ public class DbHelpers : IDbHelpers
     }
 
     public async Task<List<Similarity>> GetSimilarImages(string id, Vector<byte[]> imageHash,
-        double degreeOfSimilarity, ICollection<string> groupsAlreadyDone)
+        int degreeOfSimilarity, ICollection<string> groupsAlreadyDone)
     {
         var query = new object[16];
         query[0] = QueryParts[1];
@@ -78,7 +77,7 @@ public class DbHelpers : IDbHelpers
         query[2] = QueryParts[2];
         query[3] = QueryParts[3];
         query[4] = QueryParts[4];
-        query[5] = Math.Sqrt(double.Sqrt(degreeOfSimilarity)).ToString(NumberFormatInfo.InvariantInfo);
+        query[5] = degreeOfSimilarity;
         query[6] = QueryParts[5];
         query[7] = imageHash.Embedding!;
         query[8] = QueryParts[6];

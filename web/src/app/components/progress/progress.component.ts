@@ -46,9 +46,6 @@ export class ProgressComponent implements OnInit, OnDestroy {
   private step3Progress: BehaviorSubject<string> = new BehaviorSubject('');
   step3Progress$: Observable<string>;
 
-  // The exceptions which happens during the search
-  exceptions: string[];
-
   // Subscriber for getting and processing notifications and search parameters
   notificationSubscription: Subscription | undefined;
   searchParametersSubscription: Subscription | undefined;
@@ -65,15 +62,13 @@ export class ProgressComponent implements OnInit, OnDestroy {
 
     this.step3Text$ = this.step3Text.asObservable();
     this.step3Progress$ = this.step3Progress.asObservable();
-
-    this.exceptions = [];
   }
 
   ngOnInit() {
     this.searchParametersSubscription =
       this.searchService.searchParameters$.subscribe((searchParameters) => {
         if (searchParameters == null) {
-          this.step1Text.next('Search cancelled by the user');
+          this.step1Text.next('Search cancelled');
         } else if (searchParameters.fileSearchType == FileSearchType.All) {
           this.step1Text.next('Generating partial hash');
           this.step1Progress.next('0');
@@ -91,8 +86,6 @@ export class ProgressComponent implements OnInit, OnDestroy {
           this.step3Text.next('Grouping similar images');
           this.step3Progress.next('0');
         }
-
-        this.exceptions = [];
       });
 
     this.notificationSubscription = this.searchService.notification$.subscribe(
@@ -103,7 +96,6 @@ export class ProgressComponent implements OnInit, OnDestroy {
           this.step2Progress.next(notification.result);
         else if (notification.type == NotificationType.TotalProgress)
           this.step3Progress.next(notification.result);
-        else this.exceptions.push(notification.result);
       }
     );
   }

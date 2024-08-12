@@ -1,7 +1,10 @@
 import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as url from 'url';
 import debug from 'electron-debug';
+const __filename = url.fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 let win = null;
 const args = process.argv.slice(1), serve = args.some((val) => val === '--serve');
 // Create application
@@ -14,10 +17,10 @@ function createWindow() {
         width: size.width,
         height: size.height,
         webPreferences: {
-            nodeIntegration: true,
             allowRunningInsecureContent: serve,
-            contextIsolation: false,
             backgroundThrottling: false,
+            safeDialogs: true,
+            preload: path.join(__dirname, 'preload.cjs'),
         },
     });
     if (serve) {

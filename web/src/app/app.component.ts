@@ -19,6 +19,15 @@ import { ResultsComponent } from './components/results/results.component';
 import { ProgressComponent } from './components/progress/progress.component';
 import { addIcons } from 'ionicons';
 import { close, menu } from 'ionicons/icons';
+import { ErrorComponent } from './components/error/error.component';
+import { IElectronAPI } from 'interface';
+
+declare global {
+  interface Window {
+    electronAPI: IElectronAPI;
+  }
+}
+
 @Component({
   selector: 'app-root',
   templateUrl: 'app.component.html',
@@ -41,6 +50,7 @@ import { close, menu } from 'ionicons/icons';
     ResultsComponent,
     ProgressComponent,
     IonMenuToggle,
+    ErrorComponent,
   ],
 })
 export class AppComponent {

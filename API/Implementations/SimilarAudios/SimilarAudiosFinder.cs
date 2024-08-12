@@ -13,18 +13,17 @@ namespace API.Implementations.SimilarAudios;
 public class SimilarAudiosFinder : ISimilarFilesFinder
 {
     private readonly IAudioHashGenerator _audioHashGenerator;
-    private readonly IFileReader _fileReader;
-    private readonly IFileTypeIdentifier _fileTypeIdentifier;
+    private readonly List<IFileTypeIdentifier> _audioIdentifiers;
     private readonly IHashGenerator _hashGenerator;
     private readonly IAudioService _mediaService;
     private readonly IModelService _modelService;
     private readonly object readLock;
+    public int DegreeOfSimilarity { get; set; }
 
-    public SimilarAudiosFinder(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier,
+    public SimilarAudiosFinder(List<IFileTypeIdentifier> audioIdentifiers,
         IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
     {
-        _fileReader = fileReader;
-        _fileTypeIdentifier = fileTypeIdentifier;
+        _audioIdentifiers = audioIdentifiers;
         _audioHashGenerator = audioHashGenerator;
         _hashGenerator = hashGenerator;
         _modelService = EmyModelService.NewInstance("localhost", 3399);
@@ -32,7 +31,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         readLock = new object();
     }
 
-    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(HashSet<string> hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;

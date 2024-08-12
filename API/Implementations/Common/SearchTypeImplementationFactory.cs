@@ -12,11 +12,11 @@ namespace API.Implementations.Common;
 public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
 {
     // Search implementations dependencies
-    private readonly IFileReader _fileReader;
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
-    private readonly IFileTypeIdentifier _fileTypeIdentifier;
+    private readonly FileTypeIdentifierResolver _fileTypeIdentifierResolver;
     private readonly IAudioHashGenerator _audioHashGenerator;
+    private readonly List<IThumbnailGenerator> _thumbnailGenerators;
     private readonly IImageHash _imageHashGenerator;
     private readonly IDbHelpers _dbHelpers;
 
@@ -26,34 +26,40 @@ public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
     private ISimilarFilesFinder? _similarImagesFinder;
 
 
-    public SearchTypeImplementationFactory(IFileReader fileReader, IFileTypeIdentifier fileTypeIdentifier,
-        IHashGenerator hashGenerator,
-        IAudioHashGenerator audioHashGenerator, IHubContext<NotificationHub> notificationContext,
-        IImageHash imageHashGenerator, IDbHelpers dbHelpers)
+    public SearchTypeImplementationFactory(FileTypeIdentifierResolver fileTypeIdentifierResolver,
+        IHashGenerator hashGenerator, IAudioHashGenerator audioHashGenerator,
+        IEnumerable<IThumbnailGenerator> thumbnailGenerators, IImageHash imageHashGenerator,
+        IHubContext<NotificationHub> notificationContext, IDbHelpers dbHelpers)
     {
-        _fileReader = fileReader;
-        _fileTypeIdentifier = fileTypeIdentifier;
+        _fileTypeIdentifierResolver = fileTypeIdentifierResolver;
         _hashGenerator = hashGenerator;
         _audioHashGenerator = audioHashGenerator;
-        _notificationContext = notificationContext;
+        _thumbnailGenerators = thumbnailGenerators.ToList();
         _imageHashGenerator = imageHashGenerator;
+        _notificationContext = notificationContext;
         _dbHelpers = dbHelpers;
     }
 
-    public ISimilarFilesFinder GetSearchImplementation(FileSearchType searchType, double degreeOfSimilarity = 0)
+    public ISimilarFilesFinder GetSearchImplementation(FileSearchType searchType, int degreeOfSimilarity = 0)
     {
         switch (searchType)
         {
             case FileSearchType.All:
                 return _duplicateByHashFinder ??=
-                    new DuplicateByHashFinder(_fileReader, _hashGenerator, _notificationContext);
+                    new DuplicateByHashFinder(_hashGenerator, _notificationContext);
             case FileSearchType.Audios:
-                return _similarAudiosFinder ??= new SimilarAudiosFinder(_fileReader, _fileTypeIdentifier,
+                return _similarAudiosFinder ??= new SimilarAudiosFinder(
+                    _fileTypeIdentifierResolver(FileSearchType.Audios),
                     _audioHashGenerator, _hashGenerator);
             case FileSearchType.Images:
             default:
-                return _similarImagesFinder ??= new SimilarImageFinder(degreeOfSimilarity, _notificationContext, _fileReader,
-                    _fileTypeIdentifier, _hashGenerator, _imageHashGenerator, _dbHelpers);
+                if (_similarImagesFinder != null)
+                    _similarImagesFinder.DegreeOfSimilarity = degreeOfSimilarity;
+                else
+                    _similarImagesFinder = new SimilarImageFinder(_notificationContext,
+                        _fileTypeIdentifierResolver(FileSearchType.Images), _hashGenerator, _thumbnailGenerators,
+                        _imageHashGenerator, _dbHelpers) { DegreeOfSimilarity = degreeOfSimilarity };
+                return _similarImagesFinder;
         }
     }
 }

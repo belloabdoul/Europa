@@ -34,5 +34,18 @@ public class ByteToFloatVectorizer : IVectorizer<byte[]>
     public int Dim { get; }
 
     /// <inheritdoc />
-    public byte[] Vectorize(byte[] obj) => obj.SelectMany(val => BinaryToFloatBytes[val]).ToArray();
+    public byte[] Vectorize(byte[] obj)
+    {
+        var vector = new byte[Dim * sizeof(float)];
+        for (var i = 0; i < Dim; i++)
+        {
+            var floatBytes = BinaryToFloatBytes[obj[i]];
+            vector[sizeof(float) * i] = floatBytes[0];
+            vector[sizeof(float) * i + 1] = floatBytes[1];
+            vector[sizeof(float) * i + 2] = floatBytes[2];
+            vector[sizeof(float) * i + 3] = floatBytes[3];
+        }
+        
+        return vector;
+    }
 }

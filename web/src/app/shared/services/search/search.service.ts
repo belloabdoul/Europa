@@ -3,6 +3,7 @@ import {
   HttpTransportType,
   HubConnection,
   HubConnectionBuilder,
+  LogLevel,
 } from '@microsoft/signalr';
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
@@ -10,6 +11,7 @@ import { NotificationType } from '../../models/notification-type';
 import { SearchParameters } from '../../models/search-parameters';
 import { HttpClient } from '@angular/common/http';
 import { File } from '../../models/file';
+import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 
 @Injectable({
   providedIn: 'root',
@@ -38,9 +40,13 @@ export class SearchService {
   }
 
   async startConnection(): Promise<any> {
-    const url = `${this.apiUrl}notifications`;
+    const url = `${this.apiUrl}notifications/`;
     this.connection = new HubConnectionBuilder()
-      .withUrl(url, { transport: HttpTransportType.ServerSentEvents })
+      .withUrl(url, {
+        transport: HttpTransportType.WebSockets,
+      })
+      .withStatefulReconnect()
+      .withHubProtocol(new MessagePackHubProtocol())
       .build();
 
     try {

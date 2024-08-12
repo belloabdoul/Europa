@@ -1,23 +1,15 @@
-﻿using Core.Interfaces.Common;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 
 namespace API.Implementations.Common;
 
-public class FileReader : IFileReader
+public static class FileReader
 {
-    public FileStream GetFileStream(string path, int bufferSize = 0, bool isAsync = false)
+    public static SafeFileHandle GetFileHandle(string path, bool sequential = false, bool isAsync = false)
     {
-        return isAsync
-            ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize,
-                FileOptions.Asynchronous | FileOptions.SequentialScan)
-            : new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize,
-                FileOptions.SequentialScan);
-    }
-
-    public SafeFileHandle GetFileHandle(string path, bool isAsync = false)
-    {
-        return isAsync
-            ? File.OpenHandle(path, options: FileOptions.RandomAccess | FileOptions.Asynchronous)
-            : File.OpenHandle(path, options: FileOptions.RandomAccess);
+        var options = FileOptions.None;
+        options |= sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess;
+        if (isAsync)
+            options |= FileOptions.Asynchronous;
+        return File.OpenHandle(path, options: options);
     }
 }
