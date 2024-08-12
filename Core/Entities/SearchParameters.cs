@@ -11,7 +11,7 @@ public class SearchParameters
     public FileSearchType? FileSearchType { get; set; }
     
     // The degree of similarity between images (only for images)
-    public double? DegreeOfSimilarity { get; set; }
+    public int? DegreeOfSimilarity { get; set; }
 
     // Should we include subfolders or not
     public bool IncludeSubfolders { get; set; }

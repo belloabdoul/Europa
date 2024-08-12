@@ -12,7 +12,7 @@ public interface IDbHelpers
 
     Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
     
-    Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, double degreeOfSimilarity,
+    Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, int degreeOfSimilarity,
         ICollection<string> groupsAlreadyDone);
 
     Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty);

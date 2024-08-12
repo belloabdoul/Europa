@@ -13,6 +13,8 @@ namespace Core.Entities;
 public class ImagesGroup
 {
     [RedisIdField] [Indexed] public string Id { get; set; }
+    
+    [JsonIgnore] public FileType FileType { get; set; }
 
     [JsonIgnore] public bool IsCorruptedOrUnsupported { get; set; }
 
