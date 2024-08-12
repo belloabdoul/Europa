@@ -1,15 +1,13 @@
-﻿using System.ComponentModel.DataAnnotations;
-
-namespace Core.Entities;
+﻿namespace Core.Entities;
 
 public class SearchParameters
-{ 
+{
     // The folders to process
     public string[] Folders { get; set; }
-    
+
     // The category of the files we will be processing
     public FileSearchType? FileSearchType { get; set; }
-    
+
     // The degree of similarity between images (only for images)
     public int? DegreeOfSimilarity { get; set; }
 

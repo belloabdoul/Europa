@@ -1,14 +1,9 @@
-﻿using System.Runtime.InteropServices;
-using Core.Entities;
+﻿using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
-using DotNext;
-using DotNext.Buffers;
 using Microsoft.IO;
 using NetVips;
-using Pipelines.Sockets.Unofficial;
 using Sdcb.LibRaw;
-using File = Core.Entities.File;
 
 namespace API.Implementations.SimilarImages.ImageProcessors;
 
@@ -57,7 +52,8 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
 
     public byte[] GenerateThumbnail(ProcessedImage image, int width, int height)
     {
-        using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize), image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
+        using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize),
+            image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
         using var resizedImage = imageFromBuffer.ThumbnailImage(width, height: height, size: Enums.Size.Force);
         using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
         using var imageWithoutAlpha = grayscaleImage.Flatten();

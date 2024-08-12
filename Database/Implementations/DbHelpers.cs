@@ -43,7 +43,8 @@ public class DbHelpers : IDbHelpers
 
     public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
     {
-        return new ObservableHashSet<string>((await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))!.Similarities
+        return new ObservableHashSet<string>(
+            (await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))!.Similarities
             .Select(similarity => StringPool.Shared.GetOrAdd(similarity.DuplicateId)));
     }
 

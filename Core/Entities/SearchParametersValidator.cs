@@ -13,10 +13,12 @@ public class SearchParametersValidator : AbstractValidator<SearchParameters>
             .WithMessage("The degree of similarity is required").When(searchParameters =>
                 searchParameters.FileSearchType == FileSearchType.Images);
         RuleFor(searchParameters => searchParameters.MinSize)
-            .LessThanOrEqualTo(searchParameters => searchParameters.MaxSize).WithMessage("Min size must be lower than max size").When(searchParameters =>
+            .LessThanOrEqualTo(searchParameters => searchParameters.MaxSize)
+            .WithMessage("Min size must be lower than max size").When(searchParameters =>
                 searchParameters.MinSize.HasValue && searchParameters.MaxSize.HasValue);
         RuleFor(searchParameters => searchParameters.MaxSize)
-            .GreaterThanOrEqualTo(searchParameters => searchParameters.MinSize).WithMessage("Min size must be lower than max size").When(searchParameters =>
+            .GreaterThanOrEqualTo(searchParameters => searchParameters.MinSize)
+            .WithMessage("Min size must be lower than max size").When(searchParameters =>
                 searchParameters.MinSize.HasValue && searchParameters.MaxSize.HasValue);
     }
 }

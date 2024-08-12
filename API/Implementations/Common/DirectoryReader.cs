@@ -15,7 +15,7 @@ public class DirectoryReader : IDirectoryReader
     ];
 
     private readonly IHubContext<NotificationHub> _notificationContext;
-    
+
     public DirectoryReader(IHubContext<NotificationHub> notificationContext)
     {
         _notificationContext = notificationContext;
@@ -32,8 +32,11 @@ public class DirectoryReader : IDirectoryReader
         var files = new HashSet<string>();
 
         var enumerationOptions = new EnumerationOptions()
-            { IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System, RecurseSubdirectories = searchParameters.IncludeSubfolders, ReturnSpecialDirectories = true };
-        
+        {
+            IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System,
+            RecurseSubdirectories = searchParameters.IncludeSubfolders, ReturnSpecialDirectories = true
+        };
+
         foreach (var folder in searchParameters.Folders)
         {
             try
@@ -69,7 +72,8 @@ public class DirectoryReader : IDirectoryReader
         return files.ToArray();
     }
 
-    public static IEnumerable<string> GetFilesInFolder(string folder, SearchParameters searchParameters, EnumerationOptions enumerationOptions)
+    public static IEnumerable<string> GetFilesInFolder(string folder, SearchParameters searchParameters,
+        EnumerationOptions enumerationOptions)
     {
         return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions)
             .Where(file =>

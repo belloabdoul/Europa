@@ -67,7 +67,7 @@ public class Program
         var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
         DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
         DynamicallyLoadedBindings.Initialize();
-        
+
         // Register images identifiers
         services.AddSingleton<IFileTypeIdentifier, MagicScalerImageProcessor>();
         services.AddSingleton<IFileTypeIdentifier, LibRawImageProcessor>();
@@ -76,7 +76,7 @@ public class Program
         // Register main thumbnail generators : these are to be used for libRaw only
         services.AddSingleton<IMainThumbnailGenerator, MagicScalerImageProcessor>();
         services.AddSingleton<IMainThumbnailGenerator, LibVipsImageProcessor>();
-        
+
         // Register thumbnail generators
         services.AddSingleton<IThumbnailGenerator, MagicScalerImageProcessor>();
         services.AddSingleton<IThumbnailGenerator, LibRawImageProcessor>();

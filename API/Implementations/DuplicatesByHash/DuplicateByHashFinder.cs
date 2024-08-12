@@ -68,7 +68,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                     .Select(files => new { group.Key, Value = files }))
             .ToLookup(group => group.Key, group => group.Value);
     }
-    
+
     private async Task<ConcurrentDictionary<string, ConcurrentQueue<File>>> SetPartialDuplicates(
         string[] hypotheticalDuplicates, ChannelWriter<Notification> progressChannelWriter, long lengthDivisor,
         CancellationToken cancellationToken)

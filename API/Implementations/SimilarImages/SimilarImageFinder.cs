@@ -261,7 +261,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     imageHashGenerator.GetRequiredHeight());
 
                 // If the image is properly resized there is no reason for the rest to fail
-                if (pixels.Length == 0)
+                if (pixels.Length != 0)
                 {
                     imagesGroup.ImageHash = Vector.Of(imageHashGenerator.GenerateHash(pixels));
 

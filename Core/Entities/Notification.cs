@@ -13,9 +13,7 @@ public class Notification
         Result = result;
     }
 
-    [Key("type")]
-    public NotificationType Type { get; set; }
-    
-    [Key("result")]
-    public string Result { get; set; }
+    [Key("type")] public NotificationType Type { get; set; }
+
+    [Key("result")] public string Result { get; set; }
 }
