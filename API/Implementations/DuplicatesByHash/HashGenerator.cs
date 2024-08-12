@@ -19,7 +19,7 @@ public class HashGenerator : IHashGenerator
         using var buffer = UnmanagedMemoryPool<byte>.Shared.Rent(bufferSize);
         using var hasher = Hasher.New();
         var bytesHashed = 0;
-        
+
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = bytesToHash - bytesHashed;

@@ -16,11 +16,11 @@ public static class FileFilter
 
     public static bool IsFileSizeInRange(long fileSize, long? minSize, long? maxSize)
     {
-        if(minSize.HasValue && maxSize.HasValue)
+        if (minSize.HasValue && maxSize.HasValue)
             return fileSize >= minSize && fileSize <= maxSize;
-        if(minSize.HasValue)
+        if (minSize.HasValue)
             return fileSize >= minSize;
-        if(maxSize.HasValue)
+        if (maxSize.HasValue)
             return fileSize <= maxSize;
         return true;
     }

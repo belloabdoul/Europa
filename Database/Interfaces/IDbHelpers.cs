@@ -11,7 +11,7 @@ public interface IDbHelpers
     Task CacheHashAsync(ImagesGroup group);
 
     Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
-    
+
     Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, int degreeOfSimilarity,
         ICollection<string> groupsAlreadyDone);
 

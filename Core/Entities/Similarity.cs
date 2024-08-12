@@ -1,5 +1,4 @@
-﻿using Blake3;
-using Redis.OM.Modeling;
+﻿using Redis.OM.Modeling;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
@@ -9,9 +8,9 @@ namespace Core.Entities;
 public class Similarity : IEquatable<Similarity>
 {
     public string OriginalId { get; init; }
-    
+
     public string DuplicateId { get; init; }
-    
+
     public double Score { get; init; }
 
     public bool Equals(Similarity? other)

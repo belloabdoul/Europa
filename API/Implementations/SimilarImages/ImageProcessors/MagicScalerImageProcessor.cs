@@ -13,7 +13,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 {
     public FileSearchType GetAssociatedSearchType() => FileSearchType.Images;
     private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
-    
+
     public FileType GetFileType(string path)
     {
         FileType fileType;
@@ -74,7 +74,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
                 ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
                 HybridMode = HybridScaleMode.FavorSpeed
             });
-        
+
         pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
 
         var pixels = new byte[width * height];
