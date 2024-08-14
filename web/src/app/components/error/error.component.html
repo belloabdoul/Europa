@@ -18,22 +18,39 @@
   <ng-template>
     <ion-content scroll-y="false">
       <cdk-virtual-scroll-viewport
-        itemSize="56"
-        [minBufferPx]="screenHeight"
-        [maxBufferPx]="screenHeight"
+        itemSize="51.2"
+        [minBufferPx]="this.screenHeight / 4"
+        [maxBufferPx]="this.screenHeight / 4"
         class="ion-content-scroll-host"
+        [ngStyle]="{
+          'height.px':
+            errors.length == 0
+              ? 65
+              : errors.length * 51.2 >= screenHeight / 4
+              ? screenHeight / 4
+              : errors.length * 51.2
+        }"
       >
         <ion-list lines="none">
-          @if(errors.length == 0){
-          <ion-item>No errors for the moment</ion-item>
-          } @else {
-          <ion-item *cdkVirtualFor="let error of errors" tabindex="-1">
+          @if(this.errors.length != 0){
+          <ion-item *cdkVirtualFor="let error of errors">
             <ion-label class="ion-text-nowrap" [matTooltip]="error">
               {{ error }}
             </ion-label>
-            <ion-button shape="round" slot="end" (click)="deleteError($event)">
+            <ion-button
+              shape="round"
+              size="small"
+              slot="end"
+              (click)="deleteError($event)"
+            >
               <ion-icon name="close" slot="icon-only"></ion-icon>
             </ion-button>
+          </ion-item>
+          } @else {
+          <ion-item>
+            <ion-label class="ion-text-center">
+              No errors for the moment
+            </ion-label>
           </ion-item>
           }
         </ion-list>

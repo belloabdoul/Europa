@@ -7,7 +7,6 @@ import {
 } from '@microsoft/signalr';
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
-import { NotificationType } from '../../models/notification-type';
 import { SearchParameters } from '../../models/search-parameters';
 import { HttpClient } from '@angular/common/http';
 import { File } from '../../models/file';
@@ -59,8 +58,7 @@ export class SearchService {
 
   addNotificationListener() {
     this.connection!.on('notify', (notification: Notification) => {
-      if (notification.type == NotificationType.Exception) {
-      } else this.notification.next(notification);
+      this.notification.next(notification);
     });
   }
 

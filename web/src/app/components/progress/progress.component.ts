@@ -50,10 +50,7 @@ export class ProgressComponent implements OnInit, OnDestroy {
   notificationSubscription: Subscription | undefined;
   searchParametersSubscription: Subscription | undefined;
 
-  constructor(
-    private cd: ChangeDetectorRef,
-    private searchService: SearchService
-  ) {
+  constructor(private searchService: SearchService) {
     this.step1Text$ = this.step1Text.asObservable();
     this.step1Progress$ = this.step1Progress.asObservable();
 

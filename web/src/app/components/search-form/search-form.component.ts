@@ -111,7 +111,7 @@ export class SearchFormComponent implements OnDestroy {
     if (directory != '' && !this.searchParameters.folders.includes(directory)) {
       this.searchParameters.folders.push(directory);
       this.clearErrorMessages('folders');
-      this.cd.detectChanges();
+      this.cd.markForCheck();
     }
   }
 
@@ -337,7 +337,7 @@ export class SearchFormComponent implements OnDestroy {
             this.searchService.sendSearchParameters(null);
           }
 
-          this.cd.detectChanges();
+          this.cd.markForCheck();
         });
     } else console.log(`Connection not started : ${error}`);
   }

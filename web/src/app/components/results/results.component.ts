@@ -80,7 +80,7 @@ export class ResultsComponent implements OnInit, OnDestroy {
             }
           );
         }
-        this.cd.detectChanges();
+        this.cd.markForCheck();
       }
     );
   }

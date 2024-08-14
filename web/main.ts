@@ -21,6 +21,8 @@ function createWindow(): BrowserWindow {
     y: 0,
     width: size.width,
     height: size.height,
+    minHeight: size.height / 2,
+    minWidth: size.width / 2,
     webPreferences: {
       allowRunningInsecureContent: serve,
       backgroundThrottling: false,
