@@ -13,13 +13,13 @@ public class DifferenceHash : IImageHash
     {
         var hash = new byte[(Width - 1) * Height];
 
-        var pixelNewLine = 0;
-        for (var i = 0; i < pixels.Length; i++)
+        for (var y = 0; y < Height; y++)
         {
-            if ((i + 1) % Width == 0)
-                pixelNewLine++;
-            else if (pixels[i] < pixels[i + 1])
-                hash[i - pixelNewLine] = 1;
+            for (var x = 0; x < Width - 1; x++)
+            {
+                if (pixels[y * Width + x] < pixels[y * Width + x + 1])
+                    hash[y * Height + x] = 1;
+            }
         }
 
         return hash;

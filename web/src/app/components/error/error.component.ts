@@ -1,11 +1,13 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   HostListener,
   OnDestroy,
   OnInit,
   ViewChild,
 } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { NotificationType } from 'src/app/shared/models/notification-type';
 import { SearchService } from 'src/app/shared/services/search/search.service';
@@ -16,16 +18,8 @@ import {
   IonContent,
   IonItem,
   IonInput,
-  IonGrid,
-  IonRow,
   IonList,
-  IonCol,
-  IonCheckbox,
-  IonItemGroup,
   IonLabel,
-  IonText,
-  IonInfiniteScroll,
-  IonInfiniteScrollContent,
 } from '@ionic/angular/standalone';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ScrollingModule } from '@angular/cdk/scrolling';
@@ -39,16 +33,8 @@ import { addIcons } from 'ionicons';
   changeDetection: ChangeDetectionStrategy.OnPush,
   standalone: true,
   imports: [
-    IonInfiniteScrollContent,
-    IonInfiniteScroll,
-    IonText,
     IonLabel,
-    IonItemGroup,
-    IonCheckbox,
-    IonCol,
     IonList,
-    IonRow,
-    IonGrid,
     IonInput,
     IonItem,
     IonContent,
@@ -57,6 +43,7 @@ import { addIcons } from 'ionicons';
     IonIcon,
     MatTooltip,
     ScrollingModule,
+    CommonModule,
   ],
 })
 export class ErrorComponent implements OnInit, OnDestroy {
@@ -71,12 +58,14 @@ export class ErrorComponent implements OnInit, OnDestroy {
   // Screen height
   screenHeight: number;
 
-  constructor(private searchService: SearchService) {
+  constructor(
+    private cd: ChangeDetectorRef,
+    private searchService: SearchService
+  ) {
     this.errors = [];
     this.isOpen = false;
     addIcons({ alert, close });
     this.screenHeight = window.innerHeight;
-    console.log(this.screenHeight);
   }
 
   @HostListener('window:resize', ['$event.target.innerWidth'])
@@ -88,9 +77,8 @@ export class ErrorComponent implements OnInit, OnDestroy {
     this.errorSubsription = this.searchService.notification$.subscribe(
       (notification) => {
         if (notification.type == NotificationType.Exception) {
-          console.log(notification.result);
-          if (notification.result.length == 0) this.errors.length = 0;
-          else this.errors.push(notification.result);
+          this.errors = [...this.errors, notification.result];
+          this.cd.markForCheck();
         }
       }
     );
@@ -110,6 +98,11 @@ export class ErrorComponent implements OnInit, OnDestroy {
   }
 
   deleteError(event: MouseEvent) {
-    throw new Error('Method not implemented.');
+    const message = (
+      event.target as HTMLElement
+    ).previousElementSibling?.textContent?.trim()!;
+    const index = this.errors.indexOf(message);
+    this.errors.splice(index, 1);
+    this.errors = [...this.errors];
   }
 }
