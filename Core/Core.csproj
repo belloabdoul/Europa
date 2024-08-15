@@ -7,17 +7,17 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Blake3" Version="1.1.0" />
-        <PackageReference Include="FluentValidation" Version="11.9.2" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="9.0.0-preview.6.24328.4" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0-preview.6.24327.4" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-preview.6.24327.7" />
-        <PackageReference Include="Redis.OM" Version="0.7.4" />
-        <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6" />
-        <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1" />
-        <PackageReference Include="Sdcb.LibRaw.runtime.win32" Version="0.21.1" />
-        <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1" />
-        <PackageReference Include="SoundFingerprinting" Version="10.6.0" />
+        <PackageReference Include="Blake3" Version="1.1.0"/>
+        <PackageReference Include="FluentValidation" Version="11.9.2"/>
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="9.0.0-preview.6.24328.4"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0-preview.6.24327.4"/>
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-preview.6.24327.7"/>
+        <PackageReference Include="Redis.OM" Version="0.7.4"/>
+        <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6"/>
+        <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1"/>
+        <PackageReference Include="Sdcb.LibRaw.runtime.win32" Version="0.21.1"/>
+        <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1"/>
+        <PackageReference Include="SoundFingerprinting" Version="10.6.0"/>
     </ItemGroup>
 
 </Project>

@@ -11,8 +11,12 @@ namespace API.Implementations.SimilarImages.ImageProcessors;
 
 public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
-    public FileSearchType GetAssociatedSearchType() => FileSearchType.Images;
     private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
+
+    public FileSearchType GetAssociatedSearchType()
+    {
+        return FileSearchType.Images;
+    }
 
     public FileType GetFileType(string path)
     {
@@ -35,6 +39,27 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         }
 
         return fileType;
+    }
+
+    public byte[] GenerateThumbnail(ProcessedImage image, int width, int height)
+    {
+        using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
+
+        using var pipeline = MagicImageProcessor.BuildPipeline(stream,
+            new ProcessImageSettings
+            {
+                Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
+                ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
+                HybridMode = HybridScaleMode.FavorSpeed
+            });
+
+        pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
+
+        var pixels = new byte[width * height];
+
+        pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
+
+        return pixels;
     }
 
     public byte[] GenerateThumbnail(string imagePath, int width, int height)
@@ -61,26 +86,5 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         {
             return [];
         }
-    }
-
-    public byte[] GenerateThumbnail(ProcessedImage image, int width, int height)
-    {
-        using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
-
-        using var pipeline = MagicImageProcessor.BuildPipeline(stream,
-            new ProcessImageSettings
-            {
-                Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
-                ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
-                HybridMode = HybridScaleMode.FavorSpeed
-            });
-
-        pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
-
-        var pixels = new byte[width * height];
-
-        pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
-
-        return pixels;
     }
 }

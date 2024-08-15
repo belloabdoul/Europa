@@ -11,5 +11,5 @@ public enum FileType
     Audio,
     Video,
     File,
-    CorruptUnknownOrUnsupported,
+    CorruptUnknownOrUnsupported
 }

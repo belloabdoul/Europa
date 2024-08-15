@@ -12,7 +12,6 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
-    public int DegreeOfSimilarity { get; set; }
 
     public DuplicateByHashFinder(IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext)
@@ -20,6 +19,8 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         _hashGenerator = hashGenerator;
         _notificationContext = notificationContext;
     }
+
+    public int DegreeOfSimilarity { get; set; }
 
     public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(
         string[] hypotheticalDuplicates, CancellationToken cancellationToken = default)
@@ -29,7 +30,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
         // Partial hash generation
         using var partialHashProgressTask =
-            SendProgress(progressChannel, _notificationContext, cancellationToken: cancellationToken);
+            SendProgress(progressChannel, _notificationContext, cancellationToken);
 
         using var partialHashGenerationTask =
             SetPartialDuplicates(hypotheticalDuplicates, progressChannel, 10, cancellationToken);
@@ -51,7 +52,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             { SingleReader = true, SingleWriter = false, FullMode = BoundedChannelFullMode.DropNewest });
 
         using var fullHashProgressTask =
-            SendProgress(progressChannel, _notificationContext, cancellationToken: cancellationToken);
+            SendProgress(progressChannel, _notificationContext, cancellationToken);
 
         using var fullHashGenerationTask =
             SetPartialDuplicates(hypotheticalDuplicates, progressChannel.Writer, 1, cancellationToken);
@@ -84,7 +85,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             async (i, similarityToken) =>
             {
                 var added = await GenerateHashAsync(hypotheticalDuplicates[i], lengthDivisor, partialDuplicates,
-                    _hashGenerator, _notificationContext, cancellationToken: similarityToken);
+                    _hashGenerator, _notificationContext, similarityToken);
 
                 if (!added)
                     return;
@@ -95,10 +96,10 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 {
                     10 => NotificationType.HashGenerationProgress,
                     _ => NotificationType.TotalProgress
-                }, current.ToString()), cancellationToken: similarityToken);
+                }, current.ToString()), similarityToken);
 
                 if (current % 1000 == 0)
-                    GC.Collect(generation: 2, GCCollectionMode.Default, blocking: false, compacting: true);
+                    GC.Collect(2, GCCollectionMode.Default, false, true);
             });
 
         progressChannelWriter.Complete();
@@ -113,7 +114,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         try
         {
             using var fileHandle =
-                FileReader.GetFileHandle(hypotheticalDuplicate, sequential: true, isAsync: true);
+                FileReader.GetFileHandle(hypotheticalDuplicate, true, true);
 
             var size = RandomAccess.GetLength(fileHandle);
 
@@ -121,12 +122,12 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 MidpointRounding.ToPositiveInfinity));
 
             var hash = await hashGenerator.GenerateHashAsync(fileHandle, bytesToHash,
-                cancellationToken: cancellationToken);
+                cancellationToken);
 
             if (string.IsNullOrEmpty(hash))
             {
                 await SendError($"File {hypotheticalDuplicate} is corrupted", notificationContext,
-                    cancellationToken: cancellationToken);
+                    cancellationToken);
                 return false;
             }
 
@@ -135,7 +136,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 Path = hypotheticalDuplicate,
                 DateModified = System.IO.File.GetLastWriteTime(hypotheticalDuplicate),
                 Size = size,
-                Hash = hash,
+                Hash = hash
             };
 
             var group = partialDuplicates.GetOrAdd(file.Hash, new ConcurrentQueue<File>());
@@ -148,7 +149,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         catch (IOException)
         {
             await SendError($"File {hypotheticalDuplicate} is already being used by another application",
-                notificationContext, cancellationToken: cancellationToken);
+                notificationContext, cancellationToken);
         }
 
         return false;
@@ -158,27 +159,25 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         CancellationToken cancellationToken)
     {
         await SendNotification(new Notification(NotificationType.Exception, message), notificationContext,
-            cancellationToken: cancellationToken);
+            cancellationToken);
     }
 
     public static async Task SendProgress(ChannelReader<Notification> progressChannelReader,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
-        await foreach (var progress in progressChannelReader.ReadAllAsync(cancellationToken: cancellationToken))
-        {
-            await SendNotification(progress, notificationContext, cancellationToken: cancellationToken);
-        }
+        await foreach (var progress in progressChannelReader.ReadAllAsync(cancellationToken))
+            await SendNotification(progress, notificationContext, cancellationToken);
     }
 
     public static Task SendNotification(Notification notification, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
     {
-        return notificationContext.Clients.All.SendAsync("notify", notification, cancellationToken: cancellationToken);
+        return notificationContext.Clients.All.SendAsync("notify", notification, cancellationToken);
     }
 
     public static ValueTask WriteToChannelAsync<T>(ChannelWriter<T> channelWriter, T valueToWrite,
         CancellationToken cancellationToken)
     {
-        return channelWriter.WriteAsync(valueToWrite, cancellationToken: cancellationToken);
+        return channelWriter.WriteAsync(valueToWrite, cancellationToken);
     }
 }

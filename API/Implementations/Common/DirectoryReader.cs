@@ -31,14 +31,13 @@ public class DirectoryReader : IDirectoryReader
     {
         var files = new HashSet<string>();
 
-        var enumerationOptions = new EnumerationOptions()
+        var enumerationOptions = new EnumerationOptions
         {
             IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System,
             RecurseSubdirectories = searchParameters.IncludeSubfolders, ReturnSpecialDirectories = true
         };
 
         foreach (var folder in searchParameters.Folders)
-        {
             try
             {
                 files.UnionWith(GetFilesInFolder(folder, searchParameters, enumerationOptions));
@@ -47,27 +46,26 @@ public class DirectoryReader : IDirectoryReader
             {
                 Console.WriteLine(ex.Message);
                 await _notificationContext.Clients.All.SendAsync("notify",
-                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (SecurityException ex)
             {
                 Console.WriteLine(ex.Message);
                 await _notificationContext.Clients.All.SendAsync("notify",
-                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (PathTooLongException ex)
             {
                 Console.WriteLine(ex.Message);
                 await _notificationContext.Clients.All.SendAsync("notify",
-                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (DirectoryNotFoundException ex)
             {
                 Console.WriteLine(ex.Message);
                 await _notificationContext.Clients.All.SendAsync("notify",
-                    new Notification(NotificationType.Exception, ex.Message), cancellationToken: cancellationToken);
+                    new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
-        }
 
         return files.ToArray();
     }

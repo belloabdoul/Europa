@@ -12,8 +12,8 @@ namespace API.Controllers;
 [ApiController]
 public class DuplicatesController : Controller
 {
-    private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly IDirectoryReader _directoryReader;
+    private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly ISearchTypeImplementationFactory _searchTypeImplementationFactory;
 
 
@@ -47,7 +47,7 @@ public class DuplicatesController : Controller
             _searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
                 searchParameters.DegreeOfSimilarity ?? 0);
 
-        GC.Collect(generation: 2, GCCollectionMode.Default, true, true);
+        GC.Collect(2, GCCollectionMode.Default, true, true);
 
         var duplicatesGroups =
             await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);

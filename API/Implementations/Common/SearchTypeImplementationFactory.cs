@@ -11,14 +11,16 @@ namespace API.Implementations.Common;
 
 public class SearchTypeImplementationFactory : ISearchTypeImplementationFactory
 {
+    private readonly IAudioHashGenerator _audioHashGenerator;
+    private readonly IDbHelpers _dbHelpers;
+
+    private readonly FileTypeIdentifierResolver _fileTypeIdentifierResolver;
+
     // Search implementations dependencies
     private readonly IHashGenerator _hashGenerator;
-    private readonly IHubContext<NotificationHub> _notificationContext;
-    private readonly FileTypeIdentifierResolver _fileTypeIdentifierResolver;
-    private readonly IAudioHashGenerator _audioHashGenerator;
-    private readonly List<IThumbnailGenerator> _thumbnailGenerators;
     private readonly IImageHash _imageHashGenerator;
-    private readonly IDbHelpers _dbHelpers;
+    private readonly IHubContext<NotificationHub> _notificationContext;
+    private readonly List<IThumbnailGenerator> _thumbnailGenerators;
 
     // Singleton implementation
     private ISimilarFilesFinder? _duplicateByHashFinder;

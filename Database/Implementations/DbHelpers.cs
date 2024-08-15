@@ -15,20 +15,20 @@ namespace Database.Implementations;
 
 public class DbHelpers : IDbHelpers
 {
-    private readonly IRedisConnection _redisConnectionProvider;
-    private readonly RedisCollection<ImagesGroup> _imagesGroupsCollection;
-
     private static readonly string[] QueryParts =
     [
         "FT.SEARCH", nameof(ImagesGroup), "PARAMS", "4", "distance", "vector", "SORTBY", "RETURN",
         $"$.{nameof(ImagesGroup.ImageHash)}", "DIALECT", "2"
     ];
 
+    private readonly RedisCollection<ImagesGroup> _imagesGroupsCollection;
+    private readonly IRedisConnection _redisConnectionProvider;
+
     public DbHelpers(RedisConnectionProvider redisConnectionProvider)
     {
         _redisConnectionProvider = redisConnectionProvider.Connection;
         _imagesGroupsCollection =
-            (RedisCollection<ImagesGroup>)redisConnectionProvider.RedisCollection<ImagesGroup>(saveState: false);
+            (RedisCollection<ImagesGroup>)redisConnectionProvider.RedisCollection<ImagesGroup>(false);
     }
 
     public async Task<Vector<byte[]>?> GetImageInfosAsync(string id)
