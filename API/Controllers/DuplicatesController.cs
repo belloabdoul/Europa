@@ -54,21 +54,4 @@ public class DuplicatesController : Controller
 
         return Ok(duplicatesGroups.ToResponseDto());
     }
-
-    // GET api/Commons/openFileLocation
-    [HttpGet("openFileLocation")]
-    public ActionResult OpenFileLocation([FromQuery] FileDto request)
-    {
-        try
-        {
-            if (!_directoryReader.FileExists(request.Path))
-                return StatusCode(404, $"The file {request.Path} does not exist.");
-            Process.Start("explorer.exe", "/select, " + Path.GetFullPath(request.Path));
-            return StatusCode(200);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, ex.Message);
-        }
-    }
 }
