@@ -9,7 +9,7 @@ public class ByteVectorJsonConverter : JsonConverter<Vector<byte[]>>
     private readonly ByteToFloatVectorizerAttribute _vectorizerAttribute;
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ByteVectorJsonConverter"/> class.
+    ///     Initializes a new instance of the <see cref="ByteVectorJsonConverter" /> class.
     /// </summary>
     /// <param name="attribute">the attribute that will be used for vectorization.</param>
     internal ByteVectorJsonConverter(ByteToFloatVectorizerAttribute attribute)
@@ -17,7 +17,7 @@ public class ByteVectorJsonConverter : JsonConverter<Vector<byte[]>>
         _vectorizerAttribute = attribute;
     }
 
-    public override Vector<byte[]>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Vector<byte[]> Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         reader.Read();
 
@@ -37,10 +37,7 @@ public class ByteVectorJsonConverter : JsonConverter<Vector<byte[]>>
     {
         writer.WriteStartArray();
 
-        foreach (var binaryValue in value.Value)
-        {
-            writer.WriteNumberValue(binaryValue);
-        }
+        foreach (var binaryValue in value.Value) writer.WriteNumberValue(binaryValue);
 
         writer.WriteEndArray();
     }

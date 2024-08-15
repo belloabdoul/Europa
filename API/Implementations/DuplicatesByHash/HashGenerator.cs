@@ -27,7 +27,7 @@ public class HashGenerator : IHashGenerator
                 remainingToHash = bufferSize;
 
             bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..(int)remainingToHash],
-                fileOffset: bytesHashed, cancellationToken: cancellationToken);
+                bytesHashed, cancellationToken);
 
             if (remainingToHash >= 131072)
                 hasher.UpdateWithJoin(buffer.Memory[..(int)remainingToHash].Span);

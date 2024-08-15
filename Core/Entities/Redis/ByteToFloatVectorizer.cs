@@ -4,7 +4,7 @@ using Redis.OM.Modeling;
 namespace Core.Entities.Redis;
 
 /// <summary>
-/// A vectorizer for a byte array composed of 0 and 1.
+///     A vectorizer for a byte array composed of 0 and 1.
 /// </summary>
 public class ByteToFloatVectorizer : IVectorizer<byte[]>
 {
@@ -19,7 +19,7 @@ public class ByteToFloatVectorizer : IVectorizer<byte[]>
     };
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="ByteToFloatVectorizer"/> class.
+    ///     Initializes a new instance of the <see cref="ByteToFloatVectorizer" /> class.
     /// </summary>
     /// <param name="dim">The dimensions.</param>
     public ByteToFloatVectorizer(int dim)
@@ -45,7 +45,7 @@ public class ByteToFloatVectorizer : IVectorizer<byte[]>
             vector[sizeof(float) * i + 2] = floatBytes[2];
             vector[sizeof(float) * i + 3] = floatBytes[3];
         }
-        
+
         return vector;
     }
 }

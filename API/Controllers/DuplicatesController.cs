@@ -12,8 +12,8 @@ namespace API.Controllers;
 [ApiController]
 public class DuplicatesController : Controller
 {
-    private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly IDirectoryReader _directoryReader;
+    private readonly IValidator<SearchParameters> _searchParametersValidator;
     private readonly ISearchTypeImplementationFactory _searchTypeImplementationFactory;
 
 
@@ -47,28 +47,11 @@ public class DuplicatesController : Controller
             _searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
                 searchParameters.DegreeOfSimilarity ?? 0);
 
-        GC.Collect(generation: 2, GCCollectionMode.Default, true, true);
+        GC.Collect(2, GCCollectionMode.Default, true, true);
 
         var duplicatesGroups =
             await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
 
         return Ok(duplicatesGroups.ToResponseDto());
-    }
-
-    // GET api/Commons/openFileLocation
-    [HttpGet("openFileLocation")]
-    public ActionResult OpenFileLocation([FromQuery] FileDto request)
-    {
-        try
-        {
-            if (!_directoryReader.FileExists(request.Path))
-                return StatusCode(404, $"The file {request.Path} does not exist.");
-            Process.Start("explorer.exe", "/select, " + Path.GetFullPath(request.Path));
-            return StatusCode(200);
-        }
-        catch (Exception ex)
-        {
-            return StatusCode(500, ex.Message);
-        }
     }
 }

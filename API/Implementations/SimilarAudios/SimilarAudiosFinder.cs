@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
-using Blake3;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using SoundFingerprinting;
@@ -18,7 +17,6 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
     private readonly IAudioService _mediaService;
     private readonly IModelService _modelService;
     private readonly object readLock;
-    public int DegreeOfSimilarity { get; set; }
 
     public SimilarAudiosFinder(List<IFileTypeIdentifier> audioIdentifiers,
         IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
@@ -30,6 +28,8 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         _mediaService = new FFmpegAudioService();
         readLock = new object();
     }
+
+    public int DegreeOfSimilarity { get; set; }
 
     public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
         CancellationToken token)
