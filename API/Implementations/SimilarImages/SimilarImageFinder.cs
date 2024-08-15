@@ -135,7 +135,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     switch (fileType!.Value)
                     {
                         case FileType.CorruptUnknownOrUnsupported:
-                            Console.WriteLine(hypotheticalDuplicates[i]);
                             await SendError(
                                 $"File {hypotheticalDuplicates[i]} is either of type unknown, corrupted or unsupported",
                                 _notificationContext, corruptionToken);
@@ -205,6 +204,18 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                         await WriteToChannelAsync(imagesForPerceptualHashing, group,
                             cancellationToken);
+                    }
+                    else if (group.IsCorruptedOrUnsupported)
+                    {
+                        // if the file is not the first, there is the possibility that the file was a corrupt one who was
+                        // already removed in the next step and ImagesGroup.IsCorruptedOrUnsupported was set to true.
+                        // If so, also send the proper message and remove the current one
+                        for (var i = 0; i < group.Duplicates.Count; i++)
+                        {
+                            if (group.Duplicates.TryDequeue(out var duplicate))
+                                await SendError($"File {duplicate} is either of type unknown, corrupted or unsupported",
+                                    _notificationContext, cancellationToken);
+                        }
                     }
                 }
                 catch (IOException)
@@ -280,9 +291,9 @@ public class SimilarImageFinder : ISimilarFilesFinder
             {
                 for (var i = 0; i < imagesGroup.Duplicates.Count; i++)
                 {
-                    imagesGroup.Duplicates.TryDequeue(out var duplicate);
-                    await SendError($"File {duplicate} is either of type unknown, corrupted or unsupported",
-                        notificationContext, cancellationToken);
+                    if (imagesGroup.Duplicates.TryDequeue(out var duplicate))
+                        await SendError($"File {duplicate} is either of type unknown, corrupted or unsupported",
+                            notificationContext, cancellationToken);
                 }
             }
         }
