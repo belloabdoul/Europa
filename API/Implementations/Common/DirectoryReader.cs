@@ -2,17 +2,16 @@
 using Core.Entities;
 using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
-using File = System.IO.File;
 
 namespace API.Implementations.Common;
 
 public class DirectoryReader : IDirectoryReader
 {
-    private static readonly HashSet<string> AudioFormats =
-    [
-        ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".aiff", ".pcm", ".aif", ".aiff", ".aifc", ".m3a", ".mp2",
-        ".mp4a", ".mp2a", ".mpga", ".wave", ".weba", ".wma", ".oga"
-    ];
+    // private static readonly HashSet<string> AudioFormats =
+    // [
+    //     ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".aiff", ".pcm", ".aif", ".aiff", ".aifc", ".m3a", ".mp2",
+    //     ".mp4a", ".mp2a", ".mpga", ".wave", ".weba", ".wma", ".oga"
+    // ];
 
     private readonly IHubContext<NotificationHub> _notificationContext;
 
@@ -21,26 +20,17 @@ public class DirectoryReader : IDirectoryReader
         _notificationContext = notificationContext;
     }
 
-    public bool FileExists(string filePath)
-    {
-        return File.Exists(filePath);
-    }
-
     public async Task<string[]> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
         var files = new HashSet<string>();
 
-        var enumerationOptions = new EnumerationOptions
-        {
-            IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System,
-            RecurseSubdirectories = searchParameters.IncludeSubfolders, ReturnSpecialDirectories = true
-        };
-
         foreach (var folder in searchParameters.Folders)
             try
             {
-                files.UnionWith(GetFilesInFolder(folder, searchParameters, enumerationOptions));
+                files.UnionWith(GetFilesInFolder(folder, searchParameters.MinSize, searchParameters.MaxSize,
+                    searchParameters.IncludedFileTypes, searchParameters.ExcludedFileTypes,
+                    searchParameters.IncludeSubFolders));
             }
             catch (ArgumentNullException ex)
             {
@@ -70,14 +60,19 @@ public class DirectoryReader : IDirectoryReader
         return files.ToArray();
     }
 
-    public static IEnumerable<string> GetFilesInFolder(string folder, SearchParameters searchParameters,
-        EnumerationOptions enumerationOptions)
+    public IEnumerable<string> GetFilesInFolder(string folder, long? minSize, long? maxSize, string[] includedFileTypes,
+        string[] excludedFileTypes, bool includeSubFolders = false)
     {
-        return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions)
-            .Where(file =>
-                (FileFilter.IsFileToBeIncluded(file.Extension, searchParameters.IncludedFileTypes) ||
-                 !FileFilter.IsFileToBeExcluded(file.Extension, searchParameters.ExcludedFileTypes)) &&
-                FileFilter.IsFileSizeInRange(file.Length, searchParameters.MinSize, searchParameters.MaxSize))
+        var enumerationOptions = new EnumerationOptions
+        {
+            IgnoreInaccessible = true, AttributesToSkip = FileAttributes.System,
+            RecurseSubdirectories = includeSubFolders, ReturnSpecialDirectories = true
+        };
+
+        return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions).Where(file =>
+                (FileFilter.IsFileToBeIncluded(file.Extension, includedFileTypes) ||
+                 !FileFilter.IsFileToBeExcluded(file.Extension, excludedFileTypes)) &&
+                FileFilter.IsFileSizeInRange(file.Length, minSize, maxSize))
             .Select(file => file.FullName);
     }
 }

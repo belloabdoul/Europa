@@ -12,7 +12,7 @@ public class SearchParameters
     public int? DegreeOfSimilarity { get; set; }
 
     // Should we include subfolders or not
-    public bool IncludeSubfolders { get; set; }
+    public bool IncludeSubFolders { get; set; }
 
     // The minimum size for files to include in search
     public long? MinSize { get; set; }
