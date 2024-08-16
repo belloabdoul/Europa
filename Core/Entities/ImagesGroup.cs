@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
 using Core.Entities.Redis;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
+using ObservableCollections;
 using Redis.OM;
 using Redis.OM.Modeling;
 

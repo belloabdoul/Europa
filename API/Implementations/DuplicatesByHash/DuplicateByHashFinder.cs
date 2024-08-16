@@ -92,7 +92,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
                 var current = Interlocked.Increment(ref progress);
 
-                await WriteToChannelAsync(progressChannelWriter, new Notification(lengthDivisor switch
+                await progressChannelWriter.WriteAsync(new Notification(lengthDivisor switch
                 {
                     10 => NotificationType.HashGenerationProgress,
                     _ => NotificationType.TotalProgress
@@ -107,7 +107,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         return partialDuplicates;
     }
 
-    public static async Task<bool> GenerateHashAsync(string hypotheticalDuplicate, long lengthDivisor,
+    public async Task<bool> GenerateHashAsync(string hypotheticalDuplicate, long lengthDivisor,
         ConcurrentDictionary<string, ConcurrentQueue<File>> partialDuplicates, IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
@@ -155,29 +155,16 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         return false;
     }
 
-    public static async Task SendError(string message, IHubContext<NotificationHub> notificationContext,
+    public async Task SendError(string message, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
     {
-        await SendNotification(new Notification(NotificationType.Exception, message), notificationContext,
-            cancellationToken);
+        await notificationContext.Clients.All.SendAsync("notify", new Notification(NotificationType.Exception, message), cancellationToken);
     }
 
-    public static async Task SendProgress(ChannelReader<Notification> progressChannelReader,
+    public async Task SendProgress(ChannelReader<Notification> progressChannelReader,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
         await foreach (var progress in progressChannelReader.ReadAllAsync(cancellationToken))
-            await SendNotification(progress, notificationContext, cancellationToken);
-    }
-
-    public static Task SendNotification(Notification notification, IHubContext<NotificationHub> notificationContext,
-        CancellationToken cancellationToken)
-    {
-        return notificationContext.Clients.All.SendAsync("notify", notification, cancellationToken);
-    }
-
-    public static ValueTask WriteToChannelAsync<T>(ChannelWriter<T> channelWriter, T valueToWrite,
-        CancellationToken cancellationToken)
-    {
-        return channelWriter.WriteAsync(valueToWrite, cancellationToken);
+            await notificationContext.Clients.All.SendAsync("notify", progress, cancellationToken);
     }
 }

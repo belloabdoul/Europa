@@ -3,7 +3,7 @@ using System.Text.Json;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Database.Interfaces;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
+using ObservableCollections;
 using Redis.OM;
 using Redis.OM.Contracts;
 using Redis.OM.Searching;
@@ -49,7 +49,7 @@ public class DbHelpers : IDbHelpers
     }
 
     public async Task<List<Similarity>> GetSimilarImages(string id, Vector<byte[]> imageHash,
-        int degreeOfSimilarity, ICollection<string> groupsAlreadyDone)
+        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone)
     {
         var query = new object[16];
         query[0] = QueryParts[1];
