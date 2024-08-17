@@ -8,31 +8,34 @@ namespace API.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
+    private const int BufferSize = 1048576;
+
+    // public async ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
+    //     IntPtr bufferPointer, int bufferSize, CancellationToken cancellationToken)
     public async ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
             return null;
 
-        const int bufferSize = 1048576;
-
-        using var buffer = UnmanagedMemoryPool<byte>.Shared.Rent(bufferSize);
+        // using var buffer = new UnmanagedMemoryManager<byte>(bufferPointer, bufferSize);
+        using var buffer = UnmanagedMemoryPool<byte>.Shared.Rent(BufferSize);
         using var hasher = Hasher.New();
         var bytesHashed = 0;
 
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = bytesToHash - bytesHashed;
-            if (remainingToHash > bufferSize)
-                remainingToHash = bufferSize;
+            if (remainingToHash > BufferSize)
+                remainingToHash = BufferSize;
 
             bytesHashed += await RandomAccess.ReadAsync(fileHandle, buffer.Memory[..(int)remainingToHash],
                 bytesHashed, cancellationToken);
 
             if (remainingToHash >= 131072)
-                hasher.UpdateWithJoin(buffer.Memory[..(int)remainingToHash].Span);
+                hasher.UpdateWithJoin(buffer.Memory.Span[..(int)remainingToHash]);
             else
-                hasher.Update(buffer.Memory[..(int)remainingToHash].Span);
+                hasher.Update(buffer.Memory.Span[..(int)remainingToHash]);
         }
 
         return StringPool.Shared.GetOrAdd(hasher.Finalize().ToString());

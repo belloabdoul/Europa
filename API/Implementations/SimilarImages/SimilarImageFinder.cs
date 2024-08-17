@@ -22,6 +22,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
     private readonly List<IFileTypeIdentifier> _imagesIdentifiers;
     private readonly IHubContext<NotificationHub> _notificationContext;
     private readonly List<IThumbnailGenerator> _thumbnailGenerators;
+    private const int BufferSize = 1048576;
 
     public SimilarImageFinder(IHubContext<NotificationHub> notificationContext,
         List<IFileTypeIdentifier> imagesIdentifiers, IHashGenerator hashGenerator,
@@ -44,11 +45,13 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
         // Part 1 : Generate and cache perceptual hash of non-corrupted files
         var nonCorruptedImages = Channel.CreateBounded<(string Path, FileType FileType)>(
-            new BoundedChannelOptions(maxDegreeOfParallelism) { SingleReader = false, SingleWriter = false });
+            new BoundedChannelOptions(maxDegreeOfParallelism)
+                { SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = true });
 
         // A channel with multithreaded read for most images
         var smallImagesForPerceptualHashing = Channel.CreateBounded<ImagesGroup>(
-            new BoundedChannelOptions(maxDegreeOfParallelism) { SingleReader = false, SingleWriter = false });
+            new BoundedChannelOptions(maxDegreeOfParallelism)
+                { SingleReader = false, SingleWriter = false, AllowSynchronousContinuations = true });
 
         // The channel for managing progress
         var progress = Channel.CreateUnbounded<NotificationType>(new UnboundedChannelOptions
@@ -172,6 +175,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
             async (hypotheticalDuplicate, hashingToken) =>
             {
+                // var pointer = IntPtr.Zero;
+
                 try
                 {
                     using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicate.Path, true,
@@ -179,8 +184,14 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                     var length = RandomAccess.GetLength(fileHandle);
 
-                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length,
-                        hashingToken);
+                    // unsafe
+                    // {
+                    //     pointer = new IntPtr(FileReader.AllocateAlignedMemory(BufferSize));
+                    // }
+
+                    // var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, pointer, BufferSize,
+                    //     hashingToken);
+                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, hashingToken);
 
                     if (string.IsNullOrEmpty(hash))
                     {
@@ -221,6 +232,11 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     await SendError($"File {hypotheticalDuplicate} is being used by another application",
                         _notificationContext, hashingToken);
                 }
+                // finally
+                // {
+                //     if (pointer != IntPtr.Zero)
+                //         FileReader.FreeAlignedMemory(pointer);
+                // }
             });
 
         imagesForPerceptualHashing.Complete();
@@ -303,7 +319,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
     public static async Task SendError(string message, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
     {
-        await notificationContext.Clients.All.SendAsync("notify", new Notification(NotificationType.Exception, message), cancellationToken);
+        await notificationContext.Clients.All.SendAsync("notify", new Notification(NotificationType.Exception, message),
+            cancellationToken);
     }
 
     public async Task SendProgress(ChannelReader<NotificationType> progressChannelReader,

@@ -12,6 +12,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
+    private const int BufferSize = 1048576;
 
     public DuplicateByHashFinder(IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext)
@@ -81,7 +82,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
         await Parallel.ForAsync(0, hypotheticalDuplicates.Length,
             new ParallelOptions
-                { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount / 2 },
+                { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
             async (i, similarityToken) =>
             {
                 var added = await GenerateHashAsync(hypotheticalDuplicates[i], lengthDivisor, partialDuplicates,
@@ -111,6 +112,8 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         ConcurrentDictionary<string, ConcurrentQueue<File>> partialDuplicates, IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
+        // var pointer = IntPtr.Zero;
+
         try
         {
             using var fileHandle =
@@ -121,8 +124,14 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             var bytesToHash = Convert.ToInt64(Math.Round(decimal.Divide(size, lengthDivisor),
                 MidpointRounding.ToPositiveInfinity));
 
-            var hash = await hashGenerator.GenerateHashAsync(fileHandle, bytesToHash,
-                cancellationToken);
+            // unsafe
+            // {
+            //     pointer = new IntPtr(FileReader.AllocateAlignedMemory(BufferSize));
+            // }
+            
+            // var hash = await hashGenerator.GenerateHashAsync(fileHandle, bytesToHash, pointer, BufferSize,
+            //     cancellationToken);
+            var hash = await _hashGenerator.GenerateHashAsync(fileHandle, bytesToHash, cancellationToken);
 
             if (string.IsNullOrEmpty(hash))
             {
@@ -151,6 +160,11 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             await SendError($"File {hypotheticalDuplicate} is already being used by another application",
                 notificationContext, cancellationToken);
         }
+        // finally
+        // {
+        //     if(pointer != IntPtr.Zero)
+        //         FileReader.FreeAlignedMemory(pointer);
+        // }
 
         return false;
     }

@@ -49,6 +49,8 @@ function createWindow() {
     return win;
 }
 try {
+    app.commandLine.appendSwitch('ignore-certificate-errors');
+    app.commandLine.appendSwitch('allow-insecure-localhost', 'true');
     // This method will be called when Electron has finished
     // initialization and is ready to create browser windows.
     // Some APIs can only be used after this event occurs.
