@@ -22,7 +22,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
     private readonly List<IFileTypeIdentifier> _imagesIdentifiers;
     private readonly IHubContext<NotificationHub> _notificationContext;
     private readonly List<IThumbnailGenerator> _thumbnailGenerators;
-    private const int BufferSize = 1048576;
+    private const int BufferSize = 1_048_576;
 
     public SimilarImageFinder(IHubContext<NotificationHub> notificationContext,
         List<IFileTypeIdentifier> imagesIdentifiers, IHashGenerator hashGenerator,
@@ -175,7 +175,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
             async (hypotheticalDuplicate, hashingToken) =>
             {
-                // var pointer = IntPtr.Zero;
+                var pointer = IntPtr.Zero;
 
                 try
                 {
@@ -184,14 +184,15 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                     var length = RandomAccess.GetLength(fileHandle);
 
-                    // unsafe
-                    // {
-                    //     pointer = new IntPtr(FileReader.AllocateAlignedMemory(BufferSize));
-                    // }
+                    unsafe
+                    {
+                        pointer = new IntPtr(FileReader.AllocateAlignedMemory(BufferSize));
+                    }
 
-                    // var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, pointer, BufferSize,
-                    //     hashingToken);
-                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, hashingToken);
+                    using var buffer = FileReader.GetUnmanagedMemoryManager(pointer, BufferSize);
+                    
+                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, buffer.Memory, hashingToken);
+                    // var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, hashingToken);
 
                     if (string.IsNullOrEmpty(hash))
                     {
@@ -232,11 +233,11 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     await SendError($"File {hypotheticalDuplicate} is being used by another application",
                         _notificationContext, hashingToken);
                 }
-                // finally
-                // {
-                //     if (pointer != IntPtr.Zero)
-                //         FileReader.FreeAlignedMemory(pointer);
-                // }
+                finally
+                {
+                    if (pointer != IntPtr.Zero)
+                        FileReader.FreeAlignedMemory(pointer);
+                }
             });
 
         imagesForPerceptualHashing.Complete();
