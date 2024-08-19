@@ -1,6 +1,5 @@
 ﻿using System.Text;
 using System.Text.Json;
-using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Database.Interfaces;
 using ObservableCollections;
@@ -31,25 +30,26 @@ public class DbHelpers : IDbHelpers
             (RedisCollection<ImagesGroup>)redisConnectionProvider.RedisCollection<ImagesGroup>(false);
     }
 
-    public async Task<Vector<byte[]>?> GetImageInfosAsync(string id)
+    public async Task<Vector<byte[]>?> GetImageInfosAsync(HashKey id)
     {
         return (await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))?.ImageHash;
     }
 
     public async Task CacheHashAsync(ImagesGroup group)
     {
+        // Console.WriteLine(group.Id.GetType().IsValueType);
         await _imagesGroupsCollection.InsertAsync(group);
     }
 
-    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
+    public async Task<ObservableHashSet<HashKey>> GetSimilarImagesAlreadyDoneInRange(HashKey id)
     {
-        return new ObservableHashSet<string>(
+        return new ObservableHashSet<HashKey>(
             (await _imagesGroupsCollection.FindByIdAsync($"{nameof(ImagesGroup)}:{id}"))!.Similarities
-            .Select(similarity => StringPool.Shared.GetOrAdd(similarity.DuplicateId)));
+            .Select(similarity => similarity.DuplicateId));
     }
 
-    public async Task<List<Similarity>> GetSimilarImages(string id, Vector<byte[]> imageHash,
-        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone)
+    public async Task<List<Similarity>> GetSimilarImages(HashKey id, Vector<byte[]> imageHash,
+        int degreeOfSimilarity, IReadOnlyCollection<HashKey> groupsAlreadyDone)
     {
         var query = new object[16];
         query[0] = QueryParts[1];
@@ -94,12 +94,12 @@ public class DbHelpers : IDbHelpers
 
         return result.Documents.Values.Select(group => new Similarity
         {
-            OriginalId = id, DuplicateId = StringPool.Shared.GetOrAdd(group[nameof(ImagesGroup.Id)]),
+            OriginalId = id, DuplicateId = new HashKey(Convert.FromHexString(group[nameof(ImagesGroup.Id)])),
             Score = Convert.ToDouble(group[QueryParts[4]])
         }).ToList();
     }
 
-    public async Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty)
+    public async Task LinkToSimilarImagesAsync(HashKey id, ICollection<Similarity> newSimilarities, bool isEmpty)
     {
         var query = new object[newSimilarities.Count + 3];
         query[0] = $"{nameof(ImagesGroup)}:{id}";

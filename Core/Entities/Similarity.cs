@@ -1,4 +1,6 @@
-﻿using Redis.OM.Modeling;
+﻿using System.Text.Json.Serialization;
+using Core.Entities.Redis;
+using Redis.OM.Modeling;
 
 #pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
 
@@ -7,9 +9,11 @@ namespace Core.Entities;
 [Document(StorageType = StorageType.Json)]
 public class Similarity : IEquatable<Similarity>
 {
-    public string OriginalId { get; init; }
+    [JsonConverter(typeof(HashKeyJsonConverter))]
+    public HashKey OriginalId { get; init; }
 
-    public string DuplicateId { get; init; }
+    [JsonConverter(typeof(HashKeyJsonConverter))]
+    public HashKey DuplicateId { get; init; }
 
     public double Score { get; init; }
 

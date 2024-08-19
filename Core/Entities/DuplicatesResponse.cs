@@ -9,7 +9,7 @@ public class DuplicatesResponse
 
 public static class DuplicatesResponseMapping
 {
-    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<string, File>> duplicatesGroups)
+    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<HashKey, File>> duplicatesGroups)
     {
         var response = new DuplicatesResponse
         {

@@ -6,14 +6,14 @@ namespace Database.Interfaces;
 
 public interface IDbHelpers
 {
-    Task<Vector<byte[]>?> GetImageInfosAsync(string id);
+    Task<Vector<byte[]>?> GetImageInfosAsync(HashKey id);
 
     Task CacheHashAsync(ImagesGroup group);
 
-    Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
+    Task<ObservableHashSet<HashKey>> GetSimilarImagesAlreadyDoneInRange(HashKey currentGroupId);
 
-    Task<List<Similarity>> GetSimilarImages(string currentGroupId, Vector<byte[]> imageHash, int degreeOfSimilarity,
-        IReadOnlyCollection<string> groupsAlreadyDone);
+    Task<List<Similarity>> GetSimilarImages(HashKey currentGroupId, Vector<byte[]> imageHash, int degreeOfSimilarity,
+        IReadOnlyCollection<HashKey> groupsAlreadyDone);
 
-    Task LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities, bool isEmpty);
+    Task LinkToSimilarImagesAsync(HashKey id, ICollection<Similarity> newSimilarities, bool isEmpty);
 }

@@ -12,7 +12,10 @@ namespace Core.Entities;
 [Document(StorageType = StorageType.Json, Prefixes = [nameof(ImagesGroup)], IndexName = nameof(ImagesGroup))]
 public class ImagesGroup
 {
-    [RedisIdField] [Indexed] public string Id { get; set; }
+    [RedisIdField]
+    [Indexed]
+    [JsonConverter(typeof(HashKeyJsonConverter))]
+    public HashKey Id { get; set; }
 
     [JsonIgnore] public FileType FileType { get; set; }
 
@@ -28,7 +31,7 @@ public class ImagesGroup
 
     [JsonIgnore] public ConcurrentQueue<string> Duplicates { get; } = [];
 
-    [JsonIgnore] public ObservableHashSet<string> SimilarImages { get; set; } = [];
+    [JsonIgnore] public ObservableHashSet<HashKey> SimilarImages { get; set; } = [];
 
     public List<Similarity> Similarities { get; set; } = [];
 }

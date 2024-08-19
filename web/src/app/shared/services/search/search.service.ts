@@ -10,7 +10,6 @@ import { Notification } from '../../models/notification';
 import { SearchParameters } from '../../models/search-parameters';
 import { HttpClient } from '@angular/common/http';
 import { File } from '../../models/file';
-import { MessagePackHubProtocol } from '@microsoft/signalr-protocol-msgpack';
 
 @Injectable({
   providedIn: 'root',
@@ -29,8 +28,8 @@ export class SearchService {
   private similarFiles: Subject<File[][]> = new Subject();
   public similarFiles$: Observable<File[][]> = this.similarFiles.asObservable();
 
-  private apiUrl: string = 'https://localhost:7138/';
-  private duplicatesApiUrl: string = `${this.apiUrl}api/Duplicates/`;
+  private apiUrl: string = 'http://localhost:5206/';
+  private duplicatesApiUrl: string = `${this.apiUrl}duplicates/`;
 
   constructor(private http: HttpClient) {}
 
@@ -45,7 +44,6 @@ export class SearchService {
         transport: HttpTransportType.WebSockets,
       })
       .withStatefulReconnect()
-      .withHubProtocol(new MessagePackHubProtocol())
       .build();
 
     try {

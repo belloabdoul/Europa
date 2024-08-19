@@ -12,7 +12,7 @@ public class File
     {
     }
 
-    public File(FileInfo file, string hash)
+    public File(FileInfo file, HashKey hash)
     {
         Hash = hash;
         Size = file.Length;
@@ -29,5 +29,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
 
-    public string Hash { get; init; }
+    public HashKey Hash { get; init; }
 }
