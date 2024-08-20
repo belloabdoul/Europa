@@ -23,12 +23,12 @@ public class DirectoryReader : IDirectoryReader
     public async Task<string[]> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
-        var files = new HashSet<string>();
+        var files = new List<string>();
 
         foreach (var folder in searchParameters.Folders)
             try
             {
-                files.UnionWith(GetFilesInFolder(folder, searchParameters.MinSize, searchParameters.MaxSize,
+                files.AddRange(GetFilesInFolder(folder, searchParameters.MinSize, searchParameters.MaxSize,
                     searchParameters.IncludedFileTypes, searchParameters.ExcludedFileTypes,
                     searchParameters.IncludeSubFolders));
             }

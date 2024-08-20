@@ -41,7 +41,7 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         using var context = RawContext.OpenFile(imagePath);
         try
         {
-            using var image = context.ExportThumbnail(0);
+            using var image = context.ExportThumbnail();
 
             if (image.ImageType == ProcessedImageType.Jpeg)
                 return _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height);
