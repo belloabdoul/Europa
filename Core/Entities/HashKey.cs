@@ -1,7 +1,10 @@
 ﻿using System.Runtime.Intrinsics;
+using System.Text.Json.Serialization;
+using Core.Entities.Redis;
 
 namespace Core.Entities;
 
+[JsonConverter(typeof(HashKeyJsonConverter))]
 public readonly struct HashKey : IEquatable<HashKey>
 {
     private Vector256<byte> Hash { get; }
@@ -10,33 +13,18 @@ public readonly struct HashKey : IEquatable<HashKey>
     {
         Hash = Vector256.Create(hash);
     }
+    
+    public HashKey(string hash)
+    {
+        Hash = Vector256.Create(Convert.FromHexString(hash));
+    }
 
     public override string ToString()
     {
         Span<byte> hash = stackalloc byte[Vector256<byte>.Count];
         Hash.CopyTo(hash);
-        return Convert.ToHexStringLower(hash);
+        return Convert.ToHexString(hash);
     }
-
-    private static readonly char[] Hex =
-    [
-        '0',
-        '1',
-        '2',
-        '3',
-        '4',
-        '5',
-        '6',
-        '7',
-        '8',
-        '9',
-        'a',
-        'b',
-        'c',
-        'd',
-        'e',
-        'f'
-    ];
 
     public bool Equals(HashKey other)
     {

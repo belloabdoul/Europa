@@ -1,5 +1,8 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
+using Api.DatabaseRepository.Implementations;
+using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.Common;
 using Api.Implementations.DuplicatesByHash;
 using Api.Implementations.SimilarAudios;
@@ -9,8 +12,6 @@ using Core.Entities;
 using Core.Entities.Redis;
 using Core.Interfaces;
 using Core.Interfaces.Common;
-using Database.Implementations;
-using Database.Interfaces;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Connections;
@@ -24,7 +25,7 @@ using PhotoSauce.NativeCodecs.Libjpeg;
 using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
-using Redis.OM;
+using StackExchange.Redis;
 
 namespace Api;
 
@@ -45,7 +46,7 @@ public class Program
         });
 
         const string apiCorsPolicy = "ApiCorsPolicy";
-        
+
         // Add services to the container.
         services.AddCors(options => options.AddPolicy(apiCorsPolicy, corsPolicyBuilder =>
         {
@@ -61,7 +62,7 @@ public class Program
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
-        
+
         // Add signalR
         services.AddSignalR(hubConnection => { hubConnection.EnableDetailedErrors = true; });
         builder.Services.Configure<JsonHubProtocolOptions>(o =>
@@ -70,7 +71,8 @@ public class Program
         });
 
         // Create index on database if not done
-        services.AddSingleton(new RedisConnectionProvider(builder.Configuration["RedisConnectionString"]!));
+        var redis = ConnectionMultiplexer.Connect("localhost");
+        services.AddSingleton(redis.GetDatabase());
         services.AddHostedService<RedisService>();
 
         // Initialize FFmpeg
@@ -143,40 +145,40 @@ public class Program
             codecs.UseLibpng();
             codecs.UseLibwebp();
         });
-        
+
         app.UseCors(apiCorsPolicy);
-        
+
         app.UseAuthorization();
-        
+
         var todosApi = app.MapGroup("/duplicates");
-        
+
         todosApi.MapPost("/findDuplicates", async (SearchParameters searchParameters,
             IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader,
             ISearchTypeImplementationFactory searchTypeImplementationFactory,
             CancellationToken cancellationToken = default) =>
         {
             var validationResult = await searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
-        
+
             if (!validationResult.IsValid)
             {
                 return Results.BadRequest(validationResult.ToDictionary());
             }
-        
+
             var hypotheticalDuplicates =
                 await directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
-        
+
             var searchImplementation =
                 searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
                     searchParameters.DegreeOfSimilarity ?? 0);
-        
+
             GC.Collect(2, GCCollectionMode.Default, true, true);
-        
+
             var duplicatesGroups =
                 await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
-        
+
             return Results.Ok(duplicatesGroups.ToResponseDto());
         });
-        
+
         app.MapHub<NotificationHub>("/notifications", options =>
         {
             options.Transports = HttpTransportType.WebSockets;
@@ -193,6 +195,11 @@ public class Program
 [JsonSerializable(typeof(Ok))]
 [JsonSerializable(typeof(DuplicatesResponse))]
 [JsonSerializable(typeof(Notification))]
-internal partial class AppJsonSerializerContext : JsonSerializerContext
+[JsonSerializable(typeof(ImagesGroup))]
+[JsonSerializable(typeof(JsonArray))]
+[JsonSerializable(typeof(JsonNode))]
+[JsonSerializable(typeof(HashKey))]
+[JsonSerializable(typeof(Similarity))]
+public partial class AppJsonSerializerContext : JsonSerializerContext
 {
 }

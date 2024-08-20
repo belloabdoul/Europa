@@ -1,10 +1,10 @@
-﻿using Api.Implementations.DuplicatesByHash;
+﻿using Api.DatabaseRepository.Interfaces;
+using Api.Implementations.DuplicatesByHash;
 using Api.Implementations.SimilarAudios;
 using Api.Implementations.SimilarImages;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
-using Database.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 
 namespace Api.Implementations.Common;
