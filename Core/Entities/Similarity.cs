@@ -1,39 +1,37 @@
-﻿#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
+﻿using Blake3;
 
 namespace Core.Entities;
 
-public class Similarity : IEquatable<Similarity>
+public readonly struct Similarity : IEquatable<Similarity>
 {
-    public HashKey OriginalId { get; init; }
+    public Hash OriginalId { get; init; }
 
-    public HashKey DuplicateId { get; init; }
+    public Hash DuplicateId { get; init; }
 
     public int Score { get; init; }
-
-    public bool Equals(Similarity? other)
-    {
-        return other is not null &&
-               ((OriginalId == other.OriginalId && DuplicateId == other.DuplicateId) ||
-                (OriginalId == other.DuplicateId && DuplicateId == other.OriginalId)) && Score.Equals(other.Score);
-    }
-
-    public override bool Equals(object? obj)
-    {
-        return obj is Similarity similarity && Equals(similarity);
-    }
 
     public override int GetHashCode()
     {
         return HashCode.Combine(OriginalId, DuplicateId, Score);
     }
 
-    public static bool operator ==(Similarity? left, Similarity? right)
+    public override bool Equals(object? obj)
     {
-        return (left is null && right is null) || (left is not null && left.Equals(right));
+        return obj is Similarity other && Equals(other);
+    }
+    
+    public bool Equals(Similarity other)
+    {
+        return OriginalId.Equals(other.OriginalId) && DuplicateId.Equals(other.DuplicateId) && Score == other.Score;
     }
 
-    public static bool operator !=(Similarity? left, Similarity? right)
+    public static bool operator ==(Similarity left, Similarity right)
     {
-        return !(left == right);
+        return left.Equals(right);
+    }
+
+    public static bool operator !=(Similarity left, Similarity right)
+    {
+        return !left.Equals(right);
     }
 }

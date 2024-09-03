@@ -3,13 +3,13 @@ using System.Collections.Specialized;
 using System.Threading.Channels;
 using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.Common;
+using Blake3;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
 using ObservableCollections;
 using File = Core.Entities.File;
-using HashKey = Core.Entities.HashKey;
 using ImagesGroup = Core.Entities.ImagesGroup;
 using NotificationType = Core.Entities.NotificationType;
 
@@ -38,7 +38,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
     public int DegreeOfSimilarity { get; set; }
 
-    public async Task<IEnumerable<IGrouping<HashKey, File>>> FindSimilarFilesAsync(
+    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarFilesAsync(
         string[] hypotheticalDuplicates, CancellationToken cancellationToken)
     {
         var maxDegreeOfParallelism = Environment.ProcessorCount;
@@ -88,7 +88,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
         progress = Channel.CreateUnbounded<NotificationType>(new UnboundedChannelOptions
             { SingleReader = true, SingleWriter = false });
 
-        var groupingChannel = Channel.CreateUnbounded<HashKey>(new UnboundedChannelOptions
+        var groupingChannel = Channel.CreateUnbounded<Hash>(new UnboundedChannelOptions
             { SingleReader = true, SingleWriter = false });
 
         var finalImages = new ConcurrentQueue<File>();
@@ -166,12 +166,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
         nonCorruptedImages.Complete();
     }
 
-    private async Task<ConcurrentDictionary<HashKey, ImagesGroup>> GroupDuplicateImages(
+    private async Task<ConcurrentDictionary<Hash, ImagesGroup>> GroupDuplicateImages(
         ChannelReader<(string Path, FileType FileType)> nonCorruptedImages,
         ChannelWriter<ImagesGroup> imagesForPerceptualHashing, CancellationToken cancellationToken)
     {
         var copiesGroups =
-            new ConcurrentDictionary<HashKey, ImagesGroup>();
+            new ConcurrentDictionary<Hash, ImagesGroup>();
 
         // Generate integrity hash and group perfect copies together.
         // If for any reason another application block access to the
@@ -188,7 +188,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     var length = RandomAccess.GetLength(fileHandle);
 
                     var hash = _hashGenerator.GenerateHash(fileHandle, length, hashingToken);
-                    // var hash = await _hashGenerator.GenerateHashAsync(fileHandle, length, hashingToken);
 
                     if (!hash.HasValue)
                     {
@@ -290,8 +289,9 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     imagesGroup.IsCorruptedOrUnsupported = true;
                 }
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                Console.WriteLine(e);
                 for (var i = 0; i < imagesGroup.Duplicates.Count; i++)
                     if (imagesGroup.Duplicates.TryDequeue(out var duplicate))
                         await SendError($"File {duplicate} is either of type unknown, corrupted or unsupported",
@@ -325,8 +325,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
         }
     }
 
-    private async Task LinkSimilarImagesGroupsToOneAnother(ConcurrentDictionary<HashKey, ImagesGroup> imagesGroups,
-        int degreeOfSimilarity, ChannelWriter<HashKey> groupingChannelWriter,
+    private async Task LinkSimilarImagesGroupsToOneAnother(ConcurrentDictionary<Hash, ImagesGroup> imagesGroups,
+        int degreeOfSimilarity, ChannelWriter<Hash> groupingChannelWriter,
         ChannelWriter<NotificationType> progressWriter, CancellationToken cancellationToken)
     {
         var progress = 0;
@@ -368,13 +368,13 @@ public class SimilarImageFinder : ISimilarFilesFinder
         groupingChannelWriter.Complete();
     }
 
-    private async Task ProcessGroupsForFinalList(ChannelReader<HashKey> groupingChannelReader,
-        ConcurrentDictionary<HashKey, ImagesGroup> imagesGroups, ConcurrentQueue<File> finalImages,
+    private async Task ProcessGroupsForFinalList(ChannelReader<Hash> groupingChannelReader,
+        ConcurrentDictionary<Hash, ImagesGroup> imagesGroups, ConcurrentQueue<File> finalImages,
         CancellationToken cancellationToken)
     {
         var progress = 0;
 
-        var groupsDone = new HashSet<HashKey>();
+        var groupsDone = new HashSet<Hash>();
 
         await foreach (var groupId in groupingChannelReader.ReadAllAsync(
                            cancellationToken))
@@ -403,7 +403,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 continue;
             }
 
-            // Here there are either multiple images group remaining or it is a single image with multiple duplciates
+            // Here there are either multiple images group remaining or it is a single image with multiple duplicates
             // We associate them to one another.
             LinkImagesToParentGroup(groupId, imagesGroups, finalImages);
 
@@ -421,9 +421,9 @@ public class SimilarImageFinder : ISimilarFilesFinder
     }
 
     private void SetCollectionChangedActionToDeleteGroupIfSimilarImagesEmpty(
-        ConcurrentDictionary<HashKey, ImagesGroup> imagesGroups, ImagesGroup group)
+        ConcurrentDictionary<Hash, ImagesGroup> imagesGroups, ImagesGroup group)
     {
-        group.SimilarImages.CollectionChanged += (in NotifyCollectionChangedEventArgs<HashKey> args) =>
+        group.SimilarImages.CollectionChanged += (in NotifyCollectionChangedEventArgs<Hash> args) =>
         {
             if (args.Action != NotifyCollectionChangedAction.Reset &&
                 (args.Action != NotifyCollectionChangedAction.Remove || group.SimilarImages.Count != 0))
@@ -436,8 +436,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
         };
     }
 
-    private static void LinkImagesToParentGroup(HashKey parentGroupId,
-        ConcurrentDictionary<HashKey, ImagesGroup> imagesGroups, ConcurrentQueue<File> finalImages)
+    private static void LinkImagesToParentGroup(Hash parentGroupId,
+        ConcurrentDictionary<Hash, ImagesGroup> imagesGroups, ConcurrentQueue<File> finalImages)
     {
         // Associated the current group of images with its similar group of images.
         // In the case of the current group, it will not be used after so we dequeue

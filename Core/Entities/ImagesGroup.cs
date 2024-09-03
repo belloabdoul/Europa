@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
+using Blake3;
 using Core.Entities.Redis;
 using ObservableCollections;
 
@@ -7,7 +8,8 @@ namespace Core.Entities;
 
 public class ImagesGroup
 {
-    public HashKey Id { get; set; }
+    [JsonConverter(typeof(HashKeyJsonConverter))]
+    public Hash Id { get; set; }
 
     [JsonIgnore] public FileType FileType { get; set; }
 
@@ -22,7 +24,7 @@ public class ImagesGroup
 
     [JsonIgnore] public ConcurrentQueue<string> Duplicates { get; } = [];
 
-    [JsonIgnore] public ObservableHashSet<HashKey> SimilarImages { get; set; } = [];
+    [JsonIgnore] public ObservableHashSet<Hash> SimilarImages { get; set; } = [];
 
     public List<Similarity> Similarities { get; set; } = [];
 }

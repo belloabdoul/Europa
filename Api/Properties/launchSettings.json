@@ -8,7 +8,7 @@
       "applicationUrl": "http://localhost:5206",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "MALLOC_TRIM_THRESHOLD_": 0
+        "MALLOC_TRIM_THRESHOLD_": "0"
       }
     }
   }

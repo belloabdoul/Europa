@@ -1,11 +1,11 @@
-﻿using Core.Entities;
+﻿using Blake3;
 using Microsoft.Win32.SafeHandles;
 
 namespace Core.Interfaces;
 
 public interface IHashGenerator
 {
-    HashKey? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
+    Hash? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
 
     // ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash, IntPtr bufferPointer,
     //     int bufferSize, CancellationToken cancellationToken);

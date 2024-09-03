@@ -94,7 +94,7 @@ public class Program
         services.AddSingleton<IThumbnailGenerator, MagicScalerImageProcessor>();
         services.AddSingleton<IThumbnailGenerator, LibRawImageProcessor>();
         services.AddSingleton<IThumbnailGenerator, LibVipsImageProcessor>();
-
+        
         // Register dependency resolver for fileType identifier depending on file types
         services.AddSingleton<FileTypeIdentifierResolver>(serviceProvider => searchType =>
         {
@@ -112,7 +112,7 @@ public class Program
         services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddSingleton<IImageHash, DifferenceHash>();
+        services.AddSingleton<IImageHash, PerceptualHash>();
         services.AddSingleton<IDbHelpers, DbHelpers>();
 
         services.AddSingleton<ISearchTypeImplementationFactory, SearchTypeImplementationFactory>();
@@ -198,7 +198,6 @@ public class Program
 [JsonSerializable(typeof(ImagesGroup))]
 [JsonSerializable(typeof(JsonArray))]
 [JsonSerializable(typeof(JsonNode))]
-[JsonSerializable(typeof(HashKey))]
 [JsonSerializable(typeof(Similarity))]
 public partial class AppJsonSerializerContext : JsonSerializerContext
 {

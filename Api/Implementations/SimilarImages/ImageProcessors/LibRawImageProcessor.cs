@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using Core.Entities;
+﻿using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using Sdcb.LibRaw;
@@ -11,7 +10,6 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
     private readonly IMainThumbnailGenerator _libVipsThumbnailGenerator;
     private readonly IMainThumbnailGenerator _magicScalerThumbnailGenerator;
 
-    [SuppressMessage("ReSharper", "PossibleMultipleEnumeration")]
     public LibRawImageProcessor(IEnumerable<IMainThumbnailGenerator> thumbnailGenerators)
     {
         _magicScalerThumbnailGenerator = thumbnailGenerators.First();
@@ -43,10 +41,9 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         {
             using var image = context.ExportThumbnail();
 
-            if (image.ImageType == ProcessedImageType.Jpeg)
-                return _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height);
-
-            return _libVipsThumbnailGenerator.GenerateThumbnail(image, width, height);
+            return image.ImageType == ProcessedImageType.Jpeg
+                ? _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height)
+                : _libVipsThumbnailGenerator.GenerateThumbnail(image, width, height);
         }
         catch (Exception)
         {

@@ -1,4 +1,4 @@
-﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
+﻿using Blake3;
 
 namespace Core.Entities;
 
@@ -9,7 +9,7 @@ public class DuplicatesResponse
 
 public static class DuplicatesResponseMapping
 {
-    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<HashKey, File>> duplicatesGroups)
+    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<Hash, File>> duplicatesGroups)
     {
         var response = new DuplicatesResponse
         {

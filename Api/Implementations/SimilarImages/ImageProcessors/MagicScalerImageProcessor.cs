@@ -79,7 +79,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
             var pixels = new byte[width * height];
 
             pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
-
+            
             return pixels;
         }
         catch (Exception)

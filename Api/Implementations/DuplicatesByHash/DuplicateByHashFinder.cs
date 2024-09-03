@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Threading.Channels;
 using Api.Implementations.Common;
+using Blake3;
 using Core.Entities;
 using Core.Interfaces;
 using Microsoft.AspNetCore.SignalR;
@@ -12,7 +13,6 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
-    private const int BufferSize = 1_048_576;
 
     public DuplicateByHashFinder(IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext)
@@ -23,7 +23,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
     public int DegreeOfSimilarity { get; set; }
 
-    public async Task<IEnumerable<IGrouping<HashKey, File>>> FindSimilarFilesAsync(
+    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarFilesAsync(
         string[] hypotheticalDuplicates, CancellationToken cancellationToken = default)
     {
         // Partial hash generation
@@ -58,13 +58,13 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             .ToLookup(group => group.Key, group => group.Value);
     }
 
-    private async Task<ConcurrentDictionary<HashKey, ConcurrentQueue<File>>> SetPartialDuplicates(
+    private async Task<ConcurrentDictionary<Hash, ConcurrentQueue<File>>> SetPartialDuplicates(
         string[] hypotheticalDuplicates, long lengthDivisor, CancellationToken cancellationToken)
     {
         var progress = 0;
 
         var partialDuplicates =
-            new ConcurrentDictionary<HashKey, ConcurrentQueue<File>>(Environment.ProcessorCount,
+            new ConcurrentDictionary<Hash, ConcurrentQueue<File>>(Environment.ProcessorCount,
                 hypotheticalDuplicates.Length);
 
         var progressChannel = Channel.CreateBounded<int>(new BoundedChannelOptions(1)
@@ -92,7 +92,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 _ => NotificationType.TotalProgress
             }, hashProcessed.ToString()), cancellationToken);
             if (hashProcessed % 1000 == 0)
-                GC.Collect();
+                GC.Collect(2, GCCollectionMode.Default, false, true);
         }
 
 
@@ -102,7 +102,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     }
 
     public static async ValueTask<bool> GenerateHashAsync(string hypotheticalDuplicate, long lengthDivisor,
-        ConcurrentDictionary<HashKey, ConcurrentQueue<File>> partialDuplicates, IHashGenerator hashGenerator,
+        ConcurrentDictionary<Hash, ConcurrentQueue<File>> partialDuplicates, IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
         try
@@ -143,11 +143,6 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             await SendError($"File {hypotheticalDuplicate} is already being used by another application",
                 notificationContext, cancellationToken);
         }
-        // finally
-        // {
-        //     if (pointer != IntPtr.Zero)
-        //         FileReader.FreeAlignedMemory(pointer);
-        // }
 
         return false;
     }

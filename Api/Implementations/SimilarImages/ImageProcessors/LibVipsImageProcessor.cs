@@ -1,16 +1,14 @@
 ﻿using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
-using Microsoft.IO;
 using NetVips;
 using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
-public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
+public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator,
+    IMainThumbnailGenerator
 {
-    private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
-
     public FileSearchType GetAssociatedSearchType()
     {
         return FileSearchType.Images;

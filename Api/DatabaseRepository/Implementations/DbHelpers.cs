@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
+using Blake3;
 using Core.Entities;
 using Core.Entities.Redis;
 using NRedisStack;
@@ -29,7 +30,7 @@ public class DbHelpers : IDbHelpers
         _jsonSerializerOptions.Converters.Insert(0, new ByteVectorJsonConverter());
     }
 
-    public async Task<byte[]?> GetImageInfosAsync(HashKey id)
+    public async Task<byte[]?> GetImageInfosAsync(Hash id)
     {
         var redisResult =
             await _database.ExecuteAsync(JsonCommandBuilder.Get<byte[]>($"{nameof(DifferenceHash)}:{id}",
@@ -54,29 +55,29 @@ public class DbHelpers : IDbHelpers
             _jsonSerializerOptions);
     }
 
-    public async Task<ObservableHashSet<HashKey>> GetSimilarImagesAlreadyDoneInRange(HashKey id)
+    public async Task<ObservableHashSet<Hash>> GetSimilarImagesAlreadyDoneInRange(Hash id)
     {
         var redisResult =
             await _database.ExecuteAsync(JsonCommandBuilder.Get<byte[]>($"{nameof(DifferenceHash)}:{id}",
                 $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}"));
-        
+
         if (redisResult.Type != ResultType.BulkString || redisResult.IsNull)
             return [];
 
         var jsonArray = JsonSerializer.Deserialize<JsonArray>(redisResult.ToString()!, _jsonSerializerOptions);
-        
+
         if (jsonArray is not { Count: > 0 })
             return [];
 
-        var result = new ObservableHashSet<HashKey>(jsonArray.Count);
-        
-        result.AddRange(jsonArray.Select(node => new HashKey(node!.ToString())));
+        var result = new ObservableHashSet<Hash>(jsonArray.Count);
+
+        result.AddRange(jsonArray.Select(node => Hash.FromBytes(Convert.FromHexString(node!.ToString()))));
 
         return result;
     }
 
-    public async Task<List<Similarity>> GetSimilarImages(HashKey id, byte[] imageHash,
-        int degreeOfSimilarity, IReadOnlyCollection<HashKey> groupsAlreadyDone)
+    public async Task<List<Similarity>> GetSimilarImages(Hash id, byte[] imageHash,
+        int degreeOfSimilarity, IReadOnlyCollection<Hash> groupsAlreadyDone)
     {
         var queryBuilder = new StringBuilder();
 
@@ -111,13 +112,13 @@ public class DbHelpers : IDbHelpers
             new Similarity
             {
                 OriginalId = id,
-                DuplicateId = new HashKey(document[nameof(ImagesGroup.Id)]!),
+                DuplicateId = Hash.FromBytes(Convert.FromHexString(document[nameof(ImagesGroup.Id)]!)),
                 Score = int.Parse(document[nameof(Similarity.Score)]!)
             }).ToList();
     }
 
     [SuppressMessage("ReSharper", "LoopCanBeConvertedToQuery")]
-    public async Task<bool> LinkToSimilarImagesAsync(HashKey id, ICollection<Similarity> newSimilarities)
+    public async Task<bool> LinkToSimilarImagesAsync(Hash id, ICollection<Similarity> newSimilarities)
     {
         var totalAdded = 0L;
         foreach (var newSimilarity in newSimilarities)
@@ -125,6 +126,7 @@ public class DbHelpers : IDbHelpers
             totalAdded += (await ArrAppendAsync($"{nameof(DifferenceHash)}:{id}",
                 $"$.{nameof(ImagesGroup.Similarities)}", newSimilarity))[0]!.Value;
         }
+
         return totalAdded > 0;
     }
 

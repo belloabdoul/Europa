@@ -1,16 +1,17 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
+using Blake3;
 
 namespace Core.Entities.Redis;
 
-public class HashKeyJsonConverter: JsonConverter<HashKey>
+public class HashKeyJsonConverter: JsonConverter<Hash>
 {
-    public override HashKey Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Hash Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        return new HashKey(Convert.FromHexString(reader.GetString()!));
+        return Hash.FromBytes(Convert.FromHexString(reader.GetString()!));
     }
 
-    public override void Write(Utf8JsonWriter writer, HashKey value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, Hash value, JsonSerializerOptions options)
     {
         writer.WriteStringValue(value.ToString());
     }

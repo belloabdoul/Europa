@@ -1,5 +1,4 @@
 ﻿using Blake3;
-using Core.Entities;
 using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
 
@@ -9,7 +8,7 @@ public class HashGenerator : IHashGenerator
 {
     private const int BufferSize = 1_048_576;
 
-    public HashKey? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken)
+    public Hash? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
             return null;
@@ -37,6 +36,6 @@ public class HashGenerator : IHashGenerator
             }
         }
 
-        return new HashKey(hasher.Finalize().AsSpan());
+        return hasher.Finalize();
     }
 }

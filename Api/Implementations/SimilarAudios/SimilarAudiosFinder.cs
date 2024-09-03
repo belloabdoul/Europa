@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
+using Blake3;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
@@ -32,7 +33,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
 
     public int DegreeOfSimilarity { get; set; }
 
-    public async Task<IEnumerable<IGrouping<HashKey, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;
