@@ -1,6 +1,7 @@
 ﻿using Blake3;
 using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
+using System.Runtime.CompilerServices;
 
 namespace Api.Implementations.DuplicatesByHash;
 
@@ -8,6 +9,7 @@ public class HashGenerator : IHashGenerator
 {
     private const int BufferSize = 1_048_576;
 
+    [SkipLocalsInit]
     public Hash? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
