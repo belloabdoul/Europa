@@ -1,5 +1,4 @@
-﻿using System.Collections.Concurrent;
-using System.Threading.Channels;
+﻿using System.Threading.Channels;
 using Api.Implementations.Common;
 using Blake3;
 using Core.Entities;
@@ -13,6 +12,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 {
     private readonly IHashGenerator _hashGenerator;
     private readonly IHubContext<NotificationHub> _notificationContext;
+    private static readonly Lock Lock = new();
 
     public DuplicateByHashFinder(IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext)
@@ -41,7 +41,6 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         duplicates.Clear();
 
         // Full hash generation
-
         using var fullHashGenerationTask =
             SetPartialDuplicates(hypotheticalDuplicates, 1, cancellationToken);
 
@@ -58,14 +57,12 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             .ToLookup(group => group.Key, group => group.Value);
     }
 
-    private async Task<ConcurrentDictionary<Hash, ConcurrentQueue<File>>> SetPartialDuplicates(
+    private async Task<Dictionary<Hash, Queue<File>>> SetPartialDuplicates(
         string[] hypotheticalDuplicates, long lengthDivisor, CancellationToken cancellationToken)
     {
         var progress = 0;
 
-        var partialDuplicates =
-            new ConcurrentDictionary<Hash, ConcurrentQueue<File>>(Environment.ProcessorCount,
-                hypotheticalDuplicates.Length);
+        var partialDuplicates = new Dictionary<Hash, Queue<File>>(hypotheticalDuplicates.Length);
 
         var progressChannel = Channel.CreateBounded<int>(new BoundedChannelOptions(1)
             { SingleReader = true, SingleWriter = false, FullMode = BoundedChannelFullMode.DropNewest });
@@ -102,7 +99,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     }
 
     public static async ValueTask<bool> GenerateHashAsync(string hypotheticalDuplicate, long lengthDivisor,
-        ConcurrentDictionary<Hash, ConcurrentQueue<File>> partialDuplicates, IHashGenerator hashGenerator,
+        Dictionary<Hash, Queue<File>> partialDuplicates, IHashGenerator hashGenerator,
         IHubContext<NotificationHub> notificationContext, CancellationToken cancellationToken)
     {
         try
@@ -132,9 +129,13 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 Hash = hash.Value
             };
 
-            partialDuplicates.TryAdd(file.Hash, new ConcurrentQueue<File>());
-
-            partialDuplicates[file.Hash].Enqueue(file);
+            using (Lock.EnterScope())
+            {
+                if(partialDuplicates.TryGetValue(file.Hash, out var files))
+                    files.Enqueue(file);
+                else 
+                    partialDuplicates.Add(file.Hash, new Queue<File>([file]));
+            }
 
             return true;
         }
