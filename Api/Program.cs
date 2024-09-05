@@ -58,6 +58,11 @@ public class Program
         }));
 
         services.AddScoped<IValidator<SearchParameters>, SearchParametersValidator>();
+        var jsonSerializerOptions = new JsonSerializerOptions();
+        jsonSerializerOptions.Converters.Insert(0, new HashKeyJsonConverter());
+        jsonSerializerOptions.Converters.Insert(0, new ByteVectorJsonConverter());
+        jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter<FileSearchType>());
+        services.AddSingleton(new AppJsonSerializerContext(jsonSerializerOptions));
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
@@ -112,7 +117,7 @@ public class Program
         services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddSingleton<IImageHash, PerceptualHash>();
+        services.AddSingleton<IImageHash, DifferenceHash>();
         services.AddSingleton<IDbHelpers, DbHelpers>();
 
         services.AddSingleton<ISearchTypeImplementationFactory, SearchTypeImplementationFactory>();
@@ -199,6 +204,7 @@ public class Program
 [JsonSerializable(typeof(JsonArray))]
 [JsonSerializable(typeof(JsonNode))]
 [JsonSerializable(typeof(Similarity))]
+[JsonSerializable(typeof(byte[]))]
 public partial class AppJsonSerializerContext : JsonSerializerContext
 {
 }

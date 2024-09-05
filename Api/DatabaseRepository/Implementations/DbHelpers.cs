@@ -2,11 +2,11 @@
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
 using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
 using Blake3;
 using Core.Entities;
-using Core.Entities.Redis;
 using NRedisStack;
 using NRedisStack.RedisStackCommands;
 using NRedisStack.Search;
@@ -19,15 +19,12 @@ namespace Api.DatabaseRepository.Implementations;
 public class DbHelpers : IDbHelpers
 {
     private readonly IDatabase _database;
-    private static JsonSerializerOptions? _jsonSerializerOptions;
+    private readonly AppJsonSerializerContext _jsonSerializerContext;
 
-    public DbHelpers(IDatabase database)
+    public DbHelpers(IDatabase database, AppJsonSerializerContext jsonSerializerContext)
     {
         _database = database;
-        _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
-        _jsonSerializerOptions.Converters.Insert(0, new HashKeyJsonConverter());
-        _jsonSerializerOptions.Converters.Insert(0, new ByteVectorJsonConverter());
+        _jsonSerializerContext = jsonSerializerContext;
     }
 
     public async Task<byte[]?> GetImageInfosAsync(Hash id)
@@ -39,11 +36,14 @@ public class DbHelpers : IDbHelpers
         if (redisResult.Type != ResultType.BulkString || redisResult.IsNull)
             return default;
 
-        var jsonArray = JsonSerializer.Deserialize<JsonArray>(redisResult.ToString()!, _jsonSerializerOptions);
+        var jsonArray =
+            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString()!, _jsonSerializerContext.JsonArray);
 
         if (jsonArray is { Count: > 0 })
-            return JsonSerializer.Deserialize<byte[]>(JsonSerializer.Serialize(jsonArray[0]!, _jsonSerializerOptions),
-                _jsonSerializerOptions);
+            return JsonSerializer.Deserialize<byte[]>(
+                JsonSerializer.Serialize(jsonArray[0]!, _jsonSerializerContext.JsonNode),
+                _jsonSerializerContext.ByteArray
+            );
 
         return default;
     }
@@ -51,8 +51,8 @@ public class DbHelpers : IDbHelpers
     public async Task<bool> CacheHashAsync(ImagesGroup group)
     {
         var jsonCommands = _database.JSON();
-        return await jsonCommands.SetAsync($"{nameof(DifferenceHash)}:{group.Id}", "$", group, When.Always,
-            _jsonSerializerOptions);
+        return await jsonCommands.SetAsync($"{nameof(DifferenceHash)}:{group.Id}", "$",
+            JsonSerializer.Serialize(group, typeof(ImagesGroup), _jsonSerializerContext));
     }
 
     public async Task<ObservableHashSet<Hash>> GetSimilarImagesAlreadyDoneInRange(Hash id)
@@ -64,7 +64,8 @@ public class DbHelpers : IDbHelpers
         if (redisResult.Type != ResultType.BulkString || redisResult.IsNull)
             return [];
 
-        var jsonArray = JsonSerializer.Deserialize<JsonArray>(redisResult.ToString()!, _jsonSerializerOptions);
+        var jsonArray =
+            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString()!, _jsonSerializerContext.JsonArray);
 
         if (jsonArray is not { Count: > 0 })
             return [];
@@ -157,13 +158,13 @@ public class DbHelpers : IDbHelpers
     // Copied from the class JsonCommandsAsync of NRedisStack with redundant code cleaned. Nothing has been changed
     public async Task<long?[]> ArrAppendAsync(RedisKey key, string? path = null, params object[] values)
     {
-        return (await _database.ExecuteAsync(ArrAppend(key, path, values))).ToNullableLongArray();
+        return (await _database.ExecuteAsync(ArrAppend(key, _jsonSerializerContext, path, values))).ToNullableLongArray();
     }
 
     // Copied from the class JsonCommandBuilder of NRedisStack with redundant code cleaned
     // Create the command to send to redis. Here we pass our custom json serializer options since without it in AOT
     // runtime an exception is throw for forbidden reflection-based serialization
-    public static SerializedCommand ArrAppend(RedisKey key, string? path = null, params object[] values)
+    public static SerializedCommand ArrAppend(RedisKey key, JsonSerializerContext jsonSerializerContext, string? path = null, params object[] values)
     {
         if (values.Length < 1)
             throw new ArgumentOutOfRangeException(nameof(values));
@@ -174,7 +175,8 @@ public class DbHelpers : IDbHelpers
         if (path != null)
             objectList.Add(path);
         objectList.AddRange(
-            values.Select((Func<object, string>)(x => JsonSerializer.Serialize(x, _jsonSerializerOptions))));
+            values.Select((Func<object, string>)(x =>
+                JsonSerializer.Serialize(x, typeof(Similarity), jsonSerializerContext))));
         return new SerializedCommand("JSON.ARRAPPEND", objectList.ToArray());
     }
 }
