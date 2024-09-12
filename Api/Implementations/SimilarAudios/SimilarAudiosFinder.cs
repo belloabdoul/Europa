@@ -20,10 +20,10 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
     private readonly IModelService _modelService;
     private readonly object readLock;
 
-    public SimilarAudiosFinder(List<IFileTypeIdentifier> audioIdentifiers,
+    public SimilarAudiosFinder(IEnumerable<IFileTypeIdentifier> audioIdentifiers,
         IAudioHashGenerator audioHashGenerator, IHashGenerator hashGenerator)
     {
-        _audioIdentifiers = audioIdentifiers;
+        _audioIdentifiers = audioIdentifiers.ToList();
         _audioHashGenerator = audioHashGenerator;
         _hashGenerator = hashGenerator;
         _modelService = EmyModelService.NewInstance("localhost", 3399);
@@ -31,9 +31,10 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         readLock = new object();
     }
 
+    public PerceptualHashAlgorithm PerceptualHashAlgorithm { get; set; }
     public int DegreeOfSimilarity { get; set; }
 
-    public async Task<IEnumerable<IGrouping<Hash, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
         CancellationToken token)
     {
         Console.InputEncoding = Encoding.UTF8;

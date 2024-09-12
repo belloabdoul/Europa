@@ -6,6 +6,7 @@ using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.Common;
 using Api.Implementations.DuplicatesByHash;
 using Api.Implementations.SimilarAudios;
+using Api.Implementations.SimilarImages;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
 using Api.Implementations.SimilarImages.ImageProcessors;
 using Core.Entities;
@@ -58,10 +59,10 @@ public class Program
         }));
 
         services.AddScoped<IValidator<SearchParameters>, SearchParametersValidator>();
+
+        // Create json serializer context
         var jsonSerializerOptions = new JsonSerializerOptions();
-        jsonSerializerOptions.Converters.Insert(0, new HashKeyJsonConverter());
-        jsonSerializerOptions.Converters.Insert(0, new ByteVectorJsonConverter());
-        jsonSerializerOptions.Converters.Add(new JsonStringEnumConverter<FileSearchType>());
+        jsonSerializerOptions.Converters.Insert(0, new HashJsonConverter());
         services.AddSingleton(new AppJsonSerializerContext(jsonSerializerOptions));
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -87,19 +88,19 @@ public class Program
         DynamicallyLoadedBindings.Initialize();
 
         // Register images identifiers
-        services.AddSingleton<IFileTypeIdentifier, MagicScalerImageProcessor>();
-        services.AddSingleton<IFileTypeIdentifier, LibRawImageProcessor>();
-        services.AddSingleton<IFileTypeIdentifier, LibVipsImageProcessor>();
+        services.AddTransient<IFileTypeIdentifier, MagicScalerImageProcessor>();
+        services.AddTransient<IFileTypeIdentifier, LibRawImageProcessor>();
+        services.AddTransient<IFileTypeIdentifier, LibVipsImageProcessor>();
 
         // Register main thumbnail generators : these are to be used for libRaw only
-        services.AddSingleton<IMainThumbnailGenerator, MagicScalerImageProcessor>();
-        services.AddSingleton<IMainThumbnailGenerator, LibVipsImageProcessor>();
+        services.AddTransient<IMainThumbnailGenerator, MagicScalerImageProcessor>();
+        services.AddTransient<IMainThumbnailGenerator, LibVipsImageProcessor>();
 
         // Register thumbnail generators
-        services.AddSingleton<IThumbnailGenerator, MagicScalerImageProcessor>();
-        services.AddSingleton<IThumbnailGenerator, LibRawImageProcessor>();
-        services.AddSingleton<IThumbnailGenerator, LibVipsImageProcessor>();
-        
+        services.AddTransient<IThumbnailGenerator, MagicScalerImageProcessor>();
+        services.AddTransient<IThumbnailGenerator, LibRawImageProcessor>();
+        services.AddTransient<IThumbnailGenerator, LibVipsImageProcessor>();
+
         // Register dependency resolver for fileType identifier depending on file types
         services.AddSingleton<FileTypeIdentifierResolver>(serviceProvider => searchType =>
         {
@@ -108,19 +109,26 @@ public class Program
         });
 
         // Register directory reader
-        services.AddSingleton<IDirectoryReader, DirectoryReader>();
+        services.AddTransient<IDirectoryReader, DirectoryReader>();
 
         // Dependencies for finding duplicates by cryptographic hash.
-        services.AddSingleton<IHashGenerator, HashGenerator>();
+        services.AddTransient<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
         services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddSingleton<IImageHash, DifferenceHash>();
-        services.AddSingleton<IDbHelpers, DbHelpers>();
+        services.AddTransient<IImageHash, PerceptualHash>();
 
-        services.AddSingleton<ISearchTypeImplementationFactory, SearchTypeImplementationFactory>();
+        // Dependencies for redis database
+        services.AddTransient<IDbHelpers, DbHelpers>();
+        
+        // Register similar file search implementations for hash, audio and video
+        services.AddTransient<ISimilarFilesFinder, DuplicateByHashFinder>();
+        services.AddTransient<ISimilarFilesFinder, SimilarAudiosFinder>();
+        services.AddTransient<ISimilarFilesFinder, SimilarImageFinder>();
+
+        services.AddTransient<ISearchService, SearchService>();
         var app = builder.Build();
 
         // Configure the HTTP request pipeline.
@@ -159,8 +167,7 @@ public class Program
 
         todosApi.MapPost("/findDuplicates", async (SearchParameters searchParameters,
             IValidator<SearchParameters> searchParametersValidator, IDirectoryReader directoryReader,
-            ISearchTypeImplementationFactory searchTypeImplementationFactory,
-            CancellationToken cancellationToken = default) =>
+            ISearchService searchService, CancellationToken cancellationToken = default) =>
         {
             var validationResult = await searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
 
@@ -172,15 +179,14 @@ public class Program
             var hypotheticalDuplicates =
                 await directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
 
-            var searchImplementation =
-                searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
-                    searchParameters.DegreeOfSimilarity ?? 0);
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
 
-            GC.Collect(2, GCCollectionMode.Default, true, true);
+            var duplicatesGroups = await searchService.SearchAsync(hypotheticalDuplicates,
+                searchParameters.FileSearchType!.Value,
+                searchParameters.PerceptualHashAlgorithm ?? PerceptualHashAlgorithm.PerceptualHash,
+                searchParameters.DegreeOfSimilarity ?? 0, cancellationToken);
 
-            var duplicatesGroups =
-                await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
-
+            GC.Collect(2, GCCollectionMode.Aggressive, true, true);
             return Results.Ok(duplicatesGroups.ToResponseDto());
         });
 
@@ -192,19 +198,4 @@ public class Program
 
         app.Run();
     }
-}
-
-[JsonSerializable(typeof(SearchParameters))]
-[JsonSerializable(typeof(BadRequest))]
-[JsonSerializable(typeof(IDictionary<string, string[]>))]
-[JsonSerializable(typeof(Ok))]
-[JsonSerializable(typeof(DuplicatesResponse))]
-[JsonSerializable(typeof(Notification))]
-[JsonSerializable(typeof(ImagesGroup))]
-[JsonSerializable(typeof(JsonArray))]
-[JsonSerializable(typeof(JsonNode))]
-[JsonSerializable(typeof(Similarity))]
-[JsonSerializable(typeof(byte[]))]
-public partial class AppJsonSerializerContext : JsonSerializerContext
-{
 }

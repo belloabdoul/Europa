@@ -1,12 +1,15 @@
-﻿using Blake3;
+﻿using System.Text.Json.Serialization;
+using Core.Entities.Redis;
 
 namespace Core.Entities;
 
 public readonly struct Similarity : IEquatable<Similarity>
 {
-    public Hash OriginalId { get; init; }
+    [JsonConverter(typeof(HashJsonConverter))]
+    public string OriginalId { get; init; }
 
-    public Hash DuplicateId { get; init; }
+    [JsonConverter(typeof(HashJsonConverter))]
+    public string DuplicateId { get; init; }
 
     public int Score { get; init; }
 
