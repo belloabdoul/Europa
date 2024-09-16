@@ -4,7 +4,6 @@ using Api.Implementations.Common;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Core.Interfaces;
-using DotNext.Threading;
 using Microsoft.AspNetCore.SignalR;
 using File = Core.Entities.File;
 
@@ -32,19 +31,21 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             new ConcurrentDictionary<string, ConcurrentStack<File>>(Environment.ProcessorCount,
                 hypotheticalDuplicates.Length);
 
-        var progressChannel = Channel.CreateBounded<int>(new BoundedChannelOptions(1)
-            { SingleWriter = false, SingleReader = true, FullMode = BoundedChannelFullMode.DropNewest});
+        var progressChannel = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
+            { SingleWriter = false, SingleReader = true });
 
-        var progressTask = SendProgress(progressChannel.Reader, 0.1m, cancellationToken);
-
-        using var partialHashGenerationTask =
-            SetPartialDuplicates(hypotheticalDuplicates, partialDuplicates, 0.1m, progressChannel.Writer,
-                cancellationToken);
-
-        if (partialHashGenerationTask.IsCanceled || progressTask.IsCanceled)
+        try
+        {
+            await Task.WhenAll(SendProgress(progressChannel.Reader, 0.1m, cancellationToken),
+                SetPartialDuplicates(hypotheticalDuplicates, partialDuplicates, 0.1m, progressChannel.Writer,
+                    cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            StringPool.Shared.Reset();
+            partialDuplicates.Clear();
             return [];
-
-        await Task.WhenAll(await partialHashGenerationTask, progressTask);
+        }
 
         hypotheticalDuplicates = partialDuplicates.Where(group => group.Value.Count > 1)
             .SelectMany(group => group.Value.Select(file => file.Path)).ToArray();
@@ -52,21 +53,21 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         partialDuplicates.Clear();
 
         // Full hash generation
-        progressChannel = Channel.CreateBounded<int>(new BoundedChannelOptions(1)
-            { SingleWriter = false, SingleReader = true, FullMode = BoundedChannelFullMode.DropNewest });
+        progressChannel = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
+            { SingleWriter = false, SingleReader = true });
 
-        progressTask = SendProgress(progressChannel.Reader, 1, cancellationToken);
-
-        using var fullHashGenerationTask =
-            SetPartialDuplicates(hypotheticalDuplicates, partialDuplicates, 1, progressChannel.Writer,
-                cancellationToken);
-
-        if (fullHashGenerationTask.IsCanceled || progressTask.IsCanceled)
+        try
+        {
+            await Task.WhenAll(SendProgress(progressChannel.Reader, 1, cancellationToken),
+                SetPartialDuplicates(hypotheticalDuplicates, partialDuplicates, 1, progressChannel.Writer,
+                    cancellationToken));
+        }
+        catch (OperationCanceledException)
+        {
+            StringPool.Shared.Reset();
+            partialDuplicates.Clear();
             return [];
-
-        await Task.WhenAll(fullHashGenerationTask, progressTask);
-
-        progressTask.Dispose();
+        }
 
         return partialDuplicates.Where(group => group.Value.Count > 1).SelectMany(group =>
                 group.Value.OrderByDescending(file => file.DateModified)
@@ -74,7 +75,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             .ToLookup(group => group.Key, group => group.Value);
     }
 
-    private async Task<Task> SetPartialDuplicates(string[] hypotheticalDuplicates,
+    private async Task SetPartialDuplicates(string[] hypotheticalDuplicates,
         ConcurrentDictionary<string, ConcurrentStack<File>> partialDuplicates, decimal percentageOfFileToHash,
         ChannelWriter<int> progressWriter, CancellationToken cancellationToken)
     {
@@ -82,7 +83,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
         var progress = 0;
 
-        var hashGenerationTask = Parallel.ForAsync(0, hypotheticalDuplicates.Length,
+        await Parallel.ForAsync(0, hypotheticalDuplicates.Length,
             new ParallelOptions
                 { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
             async (i, hashingToken) =>
@@ -120,25 +121,18 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                         return files;
                     });
 
-                    progressWriter.TryWrite(Atomic.UpdateAndGet(ref progress, val => val + 1));
+                    var current = Interlocked.Increment(ref progress);
+
+                    await progressWriter.WriteAsync(current, hashingToken);
                 }
                 catch (IOException)
                 {
                     await SendError($"File {hypotheticalDuplicates[i]} is already being used by another application",
                         _notificationContext, hashingToken);
                 }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                }
             });
 
-        if (hashGenerationTask.IsCanceled)
-            return Task.FromException(new OperationCanceledException());
-
-        await hashGenerationTask;
         progressWriter.Complete();
-        return Task.CompletedTask;
     }
 
     public static Task SendError(string message, IHubContext<NotificationHub> notificationContext,
@@ -153,11 +147,15 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     {
         await foreach (var hashProcessed in progressReader.ReadAllAsync(cancellationToken))
         {
-            await _notificationContext.Clients.All.SendAsync("notify", new Notification(percentageOfFileToHash switch
-            {
-                0.1m => NotificationType.HashGenerationProgress,
-                _ => NotificationType.TotalProgress
-            }, hashProcessed.ToString()), cancellationToken);
+            if (await progressReader.WaitToReadAsync(cancellationToken))
+                continue;
+
+            await _notificationContext.Clients.All.SendAsync("notify",
+                new Notification(percentageOfFileToHash switch
+                {
+                    0.1m => NotificationType.HashGenerationProgress,
+                    _ => NotificationType.TotalProgress
+                }, hashProcessed.ToString()), cancellationToken);
         }
     }
 }
