@@ -1,19 +1,18 @@
-﻿using Blake3;
-using Core.Entities;
-using ObservableCollections;
+﻿using Core.Entities;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Api.DatabaseRepository.Interfaces;
 
 public interface IDbHelpers
 {
-    Task<byte[]?> GetImageInfosAsync(Hash id);
+    ValueTask<Half[]?> GetImageInfosAsync(string id);
 
     Task<bool> CacheHashAsync(ImagesGroup group);
 
-    Task<ObservableHashSet<Hash>> GetSimilarImagesAlreadyDoneInRange(Hash currentGroupId);
-    
-    Task<List<Similarity>> GetSimilarImages(Hash currentGroupId, byte[] imageHash, int degreeOfSimilarity,
-        IReadOnlyCollection<Hash> groupsAlreadyDone);
-    
-    Task<bool> LinkToSimilarImagesAsync(Hash id, ICollection<Similarity> newSimilarities);
+    Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
+
+    Task<List<Similarity>> GetSimilarImages<T>(string id, T[] imageHash,
+        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone) where T : struct;
+
+    Task<bool> LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities);
 }
