@@ -7,22 +7,26 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     </PropertyGroup>
 
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+      <IsAotCompatible>True</IsAotCompatible>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+      <IsAotCompatible>True</IsAotCompatible>
+    </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Blake3" Version="1.1.0" />
         <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.3.1" />
         <PackageReference Include="FluentValidation" Version="11.10.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0-rc.1.24451.1" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-rc.1.24431.7" />
         <PackageReference Include="NRedisStack" Version="0.13.0" />
-        <PackageReference Include="ObservableCollections" Version="3.0.4" />
         <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6" />
         <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1" />
         <PackageReference Include="Sdcb.LibRaw.runtime.win32" Version="0.21.1" />
         <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1" />
         <PackageReference Include="SoundFingerprinting" Version="10.7.0" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Generators\" />
     </ItemGroup>
 
     <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">

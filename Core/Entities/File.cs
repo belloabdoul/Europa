@@ -3,7 +3,7 @@
 public class File
 {
     // The full path to the file
-    public string? Path { get; init; }
+    public string Path { get; init; }
 
     // Size of the file
     public long Size { get; init; }
@@ -11,5 +11,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
 
-    public string? Hash { get; init; }
+    public string Hash { get; init; }
 }

@@ -6,7 +6,7 @@ using StackExchange.Redis;
 
 namespace Core.Entities.Redis;
 
-public class RedisService : IHostedService
+public class RedisService : BackgroundService
 {
     private readonly IDatabase _database;
 
@@ -15,7 +15,7 @@ public class RedisService : IHostedService
         _database = database;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var ftSearchCommands = _database.FT();
         try
@@ -37,10 +37,5 @@ public class RedisService : IHostedService
                         }
                     ));
         }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
     }
 }

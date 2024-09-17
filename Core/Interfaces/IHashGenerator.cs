@@ -1,5 +1,4 @@
-﻿using Blake3;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 
 namespace Core.Interfaces;
 
