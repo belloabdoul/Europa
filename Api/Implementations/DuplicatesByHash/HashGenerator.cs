@@ -9,12 +9,15 @@ namespace Api.Implementations.DuplicatesByHash;
 public class HashGenerator : IHashGenerator
 {
     private const int BufferSize = 1_048_576;
+    private const int HashSize = 32;
+    
 
     [SkipLocalsInit]
-    public string? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken)
+    public ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
+        CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
-            return null;
+            return ValueTask.FromResult<string?>(null);
 
         Span<byte> buffer = stackalloc byte[BufferSize];
 
@@ -46,9 +49,10 @@ public class HashGenerator : IHashGenerator
             bytesHashed += remainingToHash;
         }
 
-        var hash = hasher.Finalize().AsSpan();
-        Span<char> tempHash = stackalloc char[hash.Length * 2];
-        Convert.TryToHexStringLower(hash, tempHash, out _);
-        return StringPool.Shared.GetOrAdd(tempHash);
+        // Reuse the buffer already allocated on the stack instead of allocating a new one
+        hasher.Finalize(buffer[..HashSize]);
+        Span<char> charBuffer = stackalloc char[HashSize * 2];
+        Convert.TryToHexStringLower(buffer[..HashSize], charBuffer, out _);
+        return ValueTask.FromResult<string?>(StringPool.Shared.GetOrAdd(charBuffer));
     }
 }
