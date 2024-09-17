@@ -1,13 +1,11 @@
 using System.Collections.Concurrent;
 using System.Text.Json.Serialization;
-using Core.Entities.Redis;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Core.Entities;
 
 public class ImagesGroup
 {
-    [JsonConverter(typeof(HashJsonConverter))]
     public string Id { get; set; }
 
     [JsonIgnore]
