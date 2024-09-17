@@ -1,4 +1,5 @@
 ﻿using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using Api.Implementations.Common;
 using CommunityToolkit.HighPerformance.Buffers;
@@ -90,14 +91,15 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             {
                 try
                 {
-                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true);
+                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true,
+                        RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
 
                     var size = RandomAccess.GetLength(fileHandle);
 
                     var bytesToHash = Convert.ToInt64(decimal.Round(decimal.Multiply(size, percentageOfFileToHash),
                         MidpointRounding.ToPositiveInfinity));
 
-                    var hash = _hashGenerator.GenerateHash(fileHandle, bytesToHash, hashingToken);
+                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, bytesToHash, hashingToken);
 
                     if (string.IsNullOrEmpty(hash))
                     {
@@ -147,7 +149,9 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     {
         await foreach (var hashProcessed in progressReader.ReadAllAsync(cancellationToken))
         {
-            if (await progressReader.WaitToReadAsync(cancellationToken))
+            var isNextAvailable = await progressReader.WaitToReadAsync(cancellationToken);
+
+            if (isNextAvailable && hashProcessed % 100 != 0)
                 continue;
 
             await _notificationContext.Clients.All.SendAsync("notify",
