@@ -91,15 +91,14 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             {
                 try
                 {
-                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true,
-                        RuntimeInformation.IsOSPlatform(OSPlatform.Windows));
+                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true);
 
                     var size = RandomAccess.GetLength(fileHandle);
 
                     var bytesToHash = Convert.ToInt64(decimal.Round(decimal.Multiply(size, percentageOfFileToHash),
                         MidpointRounding.ToPositiveInfinity));
 
-                    var hash = await _hashGenerator.GenerateHashAsync(fileHandle, bytesToHash, hashingToken);
+                    var hash = _hashGenerator.GenerateHash(fileHandle, bytesToHash, hashingToken);
 
                     if (string.IsNullOrEmpty(hash))
                     {

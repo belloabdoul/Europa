@@ -13,11 +13,11 @@ public class HashGenerator : IHashGenerator
     
 
     [SkipLocalsInit]
-    public ValueTask<string?> GenerateHashAsync(SafeFileHandle fileHandle, long bytesToHash,
+    public string? GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
-            return ValueTask.FromResult<string?>(null);
+            return null;
 
         Span<byte> buffer = stackalloc byte[BufferSize];
         using var hasher = Hasher.New();
@@ -46,6 +46,6 @@ public class HashGenerator : IHashGenerator
         hasher.Finalize(buffer[..HashSize]);
         Span<char> charBuffer = stackalloc char[HashSize * 2];
         Convert.TryToHexStringLower(buffer[..HashSize], charBuffer, out _);
-        return ValueTask.FromResult<string?>(StringPool.Shared.GetOrAdd(charBuffer));
+        return StringPool.Shared.GetOrAdd(charBuffer);
     }
 }
