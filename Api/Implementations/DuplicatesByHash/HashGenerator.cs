@@ -20,7 +20,6 @@ public class HashGenerator : IHashGenerator
             return ValueTask.FromResult<string?>(null);
 
         Span<byte> buffer = stackalloc byte[BufferSize];
-
         using var hasher = Hasher.New();
 
         var bytesHashed = 0L;
@@ -28,25 +27,19 @@ public class HashGenerator : IHashGenerator
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = bytesToHash - bytesHashed;
-            if (remainingToHash > BufferSize)
-                remainingToHash = BufferSize;
-
-            RandomAccess.Read(fileHandle, buffer[..(int)remainingToHash], bytesHashed);
-
-            switch (remainingToHash)
+            if (remainingToHash > buffer.Length)
             {
-                case >= BufferSize:
-                    hasher.UpdateWithJoin(buffer);
-                    break;
-                case >= 131072:
-                    hasher.UpdateWithJoin(buffer[..(int)remainingToHash]);
-                    break;
-                default:
-                    hasher.Update(buffer[..(int)remainingToHash]);
-                    break;
+                bytesHashed += RandomAccess.Read(fileHandle, buffer, bytesHashed);
+                hasher.UpdateWithJoin(buffer);
             }
-
-            bytesHashed += remainingToHash;
+            else
+            {
+                bytesHashed += RandomAccess.Read(fileHandle, buffer[..(int)remainingToHash], bytesHashed);
+                if (remainingToHash > 131072)
+                    hasher.UpdateWithJoin(buffer[..(int)remainingToHash]);
+                else
+                    hasher.Update(buffer[..(int)remainingToHash]);
+            }
         }
 
         // Reuse the buffer already allocated on the stack instead of allocating a new one
