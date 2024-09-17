@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using Api.DatabaseRepository.Implementations;
 using Api.DatabaseRepository.Interfaces;
@@ -16,7 +15,6 @@ using Core.Interfaces.Common;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Connections;
-using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.SignalR;
 using NetVips;
 using PhotoSauce.MagicScaler;
@@ -59,12 +57,7 @@ public class Program
         }));
 
         services.AddScoped<IValidator<SearchParameters>, SearchParametersValidator>();
-
-        // Create json serializer context
-        var jsonSerializerOptions = new JsonSerializerOptions();
-        jsonSerializerOptions.Converters.Insert(0, new HashJsonConverter());
-        services.AddSingleton(new AppJsonSerializerContext(jsonSerializerOptions));
-
+        
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
         services.AddEndpointsApiExplorer();
         services.AddSwaggerGen();
@@ -170,23 +163,24 @@ public class Program
             ISearchService searchService, CancellationToken cancellationToken = default) =>
         {
             var validationResult = await searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
-
+            
             if (!validationResult.IsValid)
             {
                 return Results.BadRequest(validationResult.ToDictionary());
             }
-
+            
             var hypotheticalDuplicates =
                 await directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
-
+            
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
-
+            
             var duplicatesGroups = await searchService.SearchAsync(hypotheticalDuplicates,
                 searchParameters.FileSearchType!.Value,
                 searchParameters.PerceptualHashAlgorithm ?? PerceptualHashAlgorithm.PerceptualHash,
                 searchParameters.DegreeOfSimilarity ?? 0, cancellationToken);
-
+            
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            
             return Results.Ok(duplicatesGroups.ToResponseDto());
         });
 
