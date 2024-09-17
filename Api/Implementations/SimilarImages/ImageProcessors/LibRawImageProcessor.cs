@@ -34,7 +34,7 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         }
     }
 
-    public byte[] GenerateThumbnail(string imagePath, int width, int height)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         using var context = RawContext.OpenFile(imagePath);
         try
@@ -42,12 +42,12 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
             using var image = context.ExportThumbnail();
 
             return image.ImageType == ProcessedImageType.Jpeg
-                ? _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height)
-                : _libVipsThumbnailGenerator.GenerateThumbnail(image, width, height);
+                ? _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height, pixels)
+                : _libVipsThumbnailGenerator.GenerateThumbnail(image, width, height, pixels);
         }
         catch (Exception)
         {
-            return [];
+            return false;
         }
     }
 }

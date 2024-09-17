@@ -41,7 +41,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
-    public byte[] GenerateThumbnail(ProcessedImage image, int width, int height)
+    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
 
@@ -55,14 +55,12 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 
         pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
 
-        var pixels = new byte[width * height];
-
         pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
 
-        return pixels;
+        return true;
     }
 
-    public byte[] GenerateThumbnail(string imagePath, int width, int height)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         try
         {
@@ -76,15 +74,12 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 
             pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
 
-            var pixels = new byte[width * height];
-
             pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
-            
-            return pixels;
+            return true;
         }
         catch (Exception)
         {
-            return [];
+            return false;
         }
     }
 }

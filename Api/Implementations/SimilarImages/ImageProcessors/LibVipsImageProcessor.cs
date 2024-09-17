@@ -6,8 +6,7 @@ using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
-public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator,
-    IMainThumbnailGenerator
+public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
     public FileSearchType GetAssociatedSearchType()
     {
@@ -36,17 +35,18 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator,
         }
     }
 
-    public byte[] GenerateThumbnail(ProcessedImage image, int width, int height)
+    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize),
             image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
         using var resizedImage = imageFromBuffer.ThumbnailImage(width, height, Enums.Size.Force);
         using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
         using var imageWithoutAlpha = grayscaleImage.Flatten();
-        return imageWithoutAlpha.WriteToMemory();
+        imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
+        return true;
     }
 
-    public byte[] GenerateThumbnail(string imagePath, int width, int height)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         try
         {
@@ -54,11 +54,12 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator,
                 Image.Thumbnail(imagePath, width, height, Enums.Size.Force);
             using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
             using var imageWithoutAlpha = grayscaleImage.Flatten();
-            return imageWithoutAlpha.WriteToMemory();
+            imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
+            return true;
         }
         catch (Exception)
         {
-            return [];
+            return false;
         }
     }
 }

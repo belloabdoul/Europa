@@ -4,5 +4,5 @@ namespace Core.Interfaces;
 
 public interface IMainThumbnailGenerator
 {
-    byte[] GenerateThumbnail(ProcessedImage image, int width, int height);
+    bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels);
 }
