@@ -2,7 +2,5 @@
 
 public interface IImageHash
 {
-    int GetRequiredWidth();
-    int GetRequiredHeight();
-    byte[] GenerateHash(byte[] pixels);
+    Half[] GenerateHash(ReadOnlySpan<byte> pixels);
 }

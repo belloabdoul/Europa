@@ -2,5 +2,5 @@
 
 public interface IThumbnailGenerator
 {
-    byte[] GenerateThumbnail(string imagePath, int width, int height);
+    bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels);
 }

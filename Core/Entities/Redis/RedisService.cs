@@ -1,30 +1,41 @@
 ﻿using Microsoft.Extensions.Hosting;
-using Redis.OM;
+using NRedisStack.RedisStackCommands;
+using NRedisStack.Search;
+using NRedisStack.Search.Literals.Enums;
+using StackExchange.Redis;
 
 namespace Core.Entities.Redis;
 
-public class RedisService : IHostedService
+public class RedisService : BackgroundService
 {
-    private readonly RedisConnectionProvider _provider;
+    private readonly IDatabase _database;
 
-    public RedisService(RedisConnectionProvider provider)
+    public RedisService(IDatabase database)
     {
-        _provider = provider;
+        _database = database;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var info = await _provider.Connection.GetIndexInfoAsync(nameof(ImagesGroup));
-        if (info == null)
-            await _provider.Connection.ExecuteAsync("FT.CREATE", "ImagesGroup", "ON", "Json", "PREFIX", "1",
-                "ImagesGroup", "SCHEMA", "$.Id", "AS", "Id", "TAG", "SEPARATOR", "|", "$.ImageHash", "AS", "ImageHash",
-                "VECTOR", "FLAT", "6", "TYPE", "FLOAT32", "DIM", "64", "DISTANCE_METRIC", "L2");
-
-        ;
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
+        var ftSearchCommands = _database.FT();
+        try
+        {
+            await ftSearchCommands.InfoAsync(nameof(ImagesGroup));
+        }
+        catch (Exception)
+        {
+            ftSearchCommands.Create(nameof(ImagesGroup),
+                FTCreateParams.CreateParams().AddPrefix("DifferenceHash:").On(IndexDataType.JSON),
+                new Schema()
+                    .AddTagField(new FieldName($"$.{nameof(ImagesGroup.Id)}", nameof(ImagesGroup.Id)))
+                    .AddVectorField(new FieldName($"$.{nameof(ImagesGroup.ImageHash)}", nameof(ImagesGroup.ImageHash)),
+                        Schema.VectorField.VectorAlgo.FLAT, new Dictionary<string, object>
+                        {
+                            { "TYPE", "FLOAT16" },
+                            { "DIM", "64" },
+                            { "DISTANCE_METRIC", "L2" },
+                        }
+                    ));
+        }
     }
 }

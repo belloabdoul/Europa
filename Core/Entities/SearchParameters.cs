@@ -10,6 +10,9 @@ public class SearchParameters
 
     // The degree of similarity between images (only for images)
     public int? DegreeOfSimilarity { get; set; }
+    
+    // The perceptual hash algorithm to use (only for images)
+    public PerceptualHashAlgorithm? PerceptualHashAlgorithm { get; set; }
 
     // Should we include subfolders or not
     public bool IncludeSubFolders { get; set; }

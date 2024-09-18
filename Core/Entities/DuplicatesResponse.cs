@@ -1,6 +1,4 @@
-﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
-
-namespace Core.Entities;
+﻿namespace Core.Entities;
 
 public class DuplicatesResponse
 {
