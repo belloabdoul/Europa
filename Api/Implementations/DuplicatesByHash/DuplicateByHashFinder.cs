@@ -150,7 +150,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         {
             var isNextAvailable = await progressReader.WaitToReadAsync(cancellationToken);
 
-            if (isNextAvailable && hashProcessed % 100 != 0)
+            if (hashProcessed % 100 != 0 && isNextAvailable)
                 continue;
 
             await _notificationContext.Clients.All.SendAsync("notify",
