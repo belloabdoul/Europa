@@ -93,7 +93,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
             return [];
         }
 
-        Console.WriteLine(duplicateImagesGroups.Count);
         // Return images grouped by hashes
         var groups = finalImages.GroupBy(file => file.Hash)
             .Where(i => i.Count() != 1).ToList();
