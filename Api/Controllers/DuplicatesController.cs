@@ -12,15 +12,15 @@ public class DuplicatesController : Controller
 {
     private readonly IDirectoryReader _directoryReader;
     private readonly IValidator<SearchParameters> _searchParametersValidator;
-    private readonly ISearchTypeImplementationFactory _searchTypeImplementationFactory;
+    private readonly ISearchService _searchService;
 
 
     public DuplicatesController(IValidator<SearchParameters> searchParametersValidator,
-        IDirectoryReader directoryReader, ISearchTypeImplementationFactory searchTypeImplementationFactory)
+        IDirectoryReader directoryReader, ISearchService searchService)
     {
         _searchParametersValidator = searchParametersValidator;
         _directoryReader = directoryReader;
-        _searchTypeImplementationFactory = searchTypeImplementationFactory;
+        _searchService = searchService;
     }
 
     // GET api/Duplicates/findDuplicates
@@ -29,25 +29,24 @@ public class DuplicatesController : Controller
         CancellationToken cancellationToken = default)
     {
         var validationResult = await _searchParametersValidator.ValidateAsync(searchParameters, cancellationToken);
-        
+
         if (!validationResult.IsValid)
         {
-            validationResult.AddToModelState(ModelState);
-            return BadRequest(ModelState);
+            return BadRequest(validationResult.ToDictionary());
         }
 
         var hypotheticalDuplicates =
             await _directoryReader.GetAllFilesFromFolderAsync(searchParameters, cancellationToken);
 
-        var searchImplementation =
-            _searchTypeImplementationFactory.GetSearchImplementation(searchParameters.FileSearchType!.Value,
-                searchParameters.DegreeOfSimilarity ?? 0);
+        GC.Collect(2, GCCollectionMode.Aggressive, true, true);
 
-        GC.Collect(2, GCCollectionMode.Default, true, true);
+        var duplicatesGroups = await _searchService.SearchAsync(hypotheticalDuplicates,
+            searchParameters.FileSearchType!.Value,
+            searchParameters.PerceptualHashAlgorithm ?? PerceptualHashAlgorithm.PerceptualHash,
+            searchParameters.DegreeOfSimilarity ?? 0, cancellationToken);
 
-        var duplicatesGroups =
-            await searchImplementation.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
-
+        GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            
         return Ok(duplicatesGroups.ToResponseDto());
     }
 }
