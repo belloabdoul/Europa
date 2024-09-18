@@ -1,7 +1,7 @@
 ﻿using System.Diagnostics;
-using System.Numerics;
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;
+using CommunityToolkit.HighPerformance;
 using Core.Interfaces;
 using SimdLinq;
 
@@ -20,7 +20,8 @@ public class PerceptualHash : IImageHash
         Span<float> rows = stackalloc float[Size * Size];
 
         Span<float> sequence = stackalloc float[Size];
-        // Calculate the DCT for each row.
+
+        // First convert row of bytes into row of float (this use SIMD) then generate the DCT for each row.
         for (var y = 0; y < Size; y++)
         {
             TensorPrimitives.ConvertChecked(pixels.Slice(y * Size, Size), sequence);
@@ -28,61 +29,35 @@ public class PerceptualHash : IImageHash
         }
 
         Span<float> matrix = stackalloc float[Size * Size];
+        var rows2D = rows.AsSpan2D(Size, Size);
+
         // Calculate the DCT for each column.
         for (var x = 0; x < 8; x++)
         {
-            for (var y = 0; y < Size; y++)
-            {
-                sequence[y] = rows[y * Size + x];
-            }
+            rows2D.GetColumn(x).CopyTo(sequence);
 
             Dct1D_SIMD(sequence, matrix, x, limit: 8);
         }
 
         // Only use the top 8x8 values.
         Span<float> top8X8 = stackalloc float[Size];
-        Span<float> top8X8Median = stackalloc float[Size];
-        for (var y = 0; y < 8; y++)
-        {
-            for (var x = 0; x < 8; x++)
-            {
-                top8X8[y * 8 + x] = matrix[y * Size + x];
-                top8X8Median[y * 8 + x] = top8X8[y * 8 + x];
-            }
-        }
+        matrix.AsSpan2D(0, 8, 8, 56).CopyTo(top8X8);
 
-        // Get Median.
-        var median = CalculateMedian64Values(top8X8Median);
+        // Get average by skipping outlier first pixel
+        var average = CalculateAverageWithoutOutlierFirstPixel(top8X8);
 
-        // Calculate hash.
-        // Calculate hash.
-        var vectorOfMedian = Vector.Create(median);
-        // The number of loop is how many times we will need to loop through the top 8x8 to compare each value to median
-        // with Simd. Since vector has a value by default of 256 bit Vector<double> would fit 4 double per vector. So we
-        // would have 16 comparisons
-        var numberOfValuesPerVector = Vector<float>.Count;
-        var numberOfLoops = Size / numberOfValuesPerVector;
-        for (var y = 0; y < numberOfLoops; y++)
-        {
-            var valuesToCompareToMedian =
-                Vector.Create<float>(top8X8.Slice(y * numberOfValuesPerVector, numberOfValuesPerVector));
-            var condition = Vector.GreaterThan(valuesToCompareToMedian, vectorOfMedian);
-            Vector.ConditionalSelect(condition, Vector<float>.One, Vector<float>.Zero)
-                .CopyTo(top8X8.Slice(y * numberOfValuesPerVector, numberOfValuesPerVector));
-        }
-
-        // The final hash is an array of double. Convert to byte
+        // Compute the hash by comparing value to average
         var hash = new Half[Size];
-        TensorPrimitives.ConvertToHalf(top8X8, hash);
+        for (var i = 0; i < Size; i++)
+            hash[i] = top8X8[i] > average ? Half.One : Half.Zero;
 
         return hash;
     }
 
-    private static float CalculateMedian64Values(Span<float> values)
+    private static float CalculateAverageWithoutOutlierFirstPixel(Span<float> values)
     {
         Debug.Assert(values.Length == 64, "This DCT method works with 64 doubles.");
-        values.Sort();
-        return values.Slice(32, 2).Sum() / 2;
+        return values[1..].Average();
     }
 
     [SkipLocalsInit]

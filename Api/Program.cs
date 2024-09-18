@@ -111,7 +111,7 @@ public class Program
         services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddTransient<IImageHash, PerceptualHash>();
+        services.AddSingleton<IImageHash, PerceptualHash>();
 
         // Dependencies for redis database
         services.AddTransient<IDbHelpers, DbHelpers>();
