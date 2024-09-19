@@ -25,10 +25,10 @@ public class DbHelpers : IDbHelpers
         _database = database;
     }
 
-    public async ValueTask<Half[]?> GetImageInfosAsync(string id)
+    public async ValueTask<Half[]?> GetImageInfosAsync(string id, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var redisResult = await _database.JSON().GetAsync(key: $"{nameof(DifferenceHash)}:{id}", indent: null,
-            newLine: null, space: null, $"$.{nameof(ImagesGroup.ImageHash)}");
+        var redisResult = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
+            indent: null, newLine: null, space: null, $"$.{nameof(ImagesGroup.ImageHash)}");
 
         if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
             return default;
@@ -44,17 +44,18 @@ public class DbHelpers : IDbHelpers
         return default;
     }
 
-    public Task<bool> CacheHashAsync(ImagesGroup group)
+    public Task<bool> CacheHashAsync(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         var jsonCommands = _database.JSON();
-        return jsonCommands.SetAsync($"{nameof(DifferenceHash)}:{group.Id}", "$", group, When.Always,
+        return jsonCommands.SetAsync($"{Enum.GetName(perceptualHashAlgorithm)}:{group.Id}", "$", group, When.Always,
             AppJsonSerializerContext.Default.Options);
     }
 
-    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
+    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var redisResult = await _database.JSON().GetAsync(key: $"{nameof(DifferenceHash)}:{id}", indent: null,
-            newLine: null, space: null,
+        var redisResult = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
+            indent: null, newLine: null, space: null,
             path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}");
 
         if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
@@ -73,7 +74,8 @@ public class DbHelpers : IDbHelpers
     }
 
     public async Task<List<Similarity>> GetSimilarImages<T>(string id, T[] imageHash,
-        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone) where T : struct
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
+        IReadOnlyCollection<string> groupsAlreadyDone) where T : struct
     {
         var queryBuilder = new StringBuilder();
 
@@ -104,13 +106,14 @@ public class DbHelpers : IDbHelpers
         query.SortBy = nameof(Similarity.Score);
         var ftSearchCommands = _database.FT();
 
-        return (await ftSearchCommands.SearchAsync(nameof(ImagesGroup), query)).Documents.Select(document =>
-            new Similarity
-            {
-                OriginalId = id,
-                DuplicateId = document[nameof(ImagesGroup.Id)]!,
-                Score = int.Parse(document[nameof(Similarity.Score)]!)
-            }).ToList();
+        return (await ftSearchCommands.SearchAsync(Enum.GetName(perceptualHashAlgorithm)!, query)).Documents.Select(
+            document =>
+                new Similarity
+                {
+                    OriginalId = id,
+                    DuplicateId = document[nameof(ImagesGroup.Id)]!,
+                    Score = int.Parse(document[nameof(Similarity.Score)]!)
+                }).ToList();
     }
 
     private static byte[] Vectorize<T>(T[] imageHash) where T : struct
@@ -119,12 +122,13 @@ public class DbHelpers : IDbHelpers
     }
 
     [SuppressMessage("ReSharper", "LoopCanBeConvertedToQuery")]
-    public async Task<bool> LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities)
+    public async Task<bool> LinkToSimilarImagesAsync(string id, PerceptualHashAlgorithm perceptualHashAlgorithm,
+        ICollection<Similarity> newSimilarities)
     {
         var totalAdded = 0L;
         foreach (var newSimilarity in newSimilarities)
         {
-            totalAdded += (await ArrAppendAsync($"{nameof(DifferenceHash)}:{id}",
+            totalAdded += (await ArrAppendAsync($"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
                 $"$.{nameof(ImagesGroup.Similarities)}", newSimilarity))[0]!.Value;
         }
 

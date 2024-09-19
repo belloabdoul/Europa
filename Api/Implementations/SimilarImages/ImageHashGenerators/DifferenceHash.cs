@@ -1,4 +1,5 @@
 ﻿using System.Runtime.CompilerServices;
+using Core.Entities;
 using Core.Interfaces;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
@@ -11,6 +12,8 @@ public class DifferenceHash : IImageHash
     public static int GetRequiredWidth() => Width;
 
     public static int GetRequiredHeight() => Height;
+    
+    public PerceptualHashAlgorithm GetPerceptualHashAlgorithm() => PerceptualHashAlgorithm.DifferenceHash;
 
     [SkipLocalsInit]
     public Half[] GenerateHash(ReadOnlySpan<byte> pixels)

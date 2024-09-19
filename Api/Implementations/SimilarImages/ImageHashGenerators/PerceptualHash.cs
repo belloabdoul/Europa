@@ -2,6 +2,7 @@
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance;
+using Core.Entities;
 using Core.Interfaces;
 using SimdLinq;
 
@@ -12,6 +13,8 @@ public class PerceptualHash : IImageHash
     private const int Size = 64;
     public static int GetRequiredWidth() => Size;
     public static int GetRequiredHeight() => Size;
+    public PerceptualHashAlgorithm GetPerceptualHashAlgorithm() => PerceptualHashAlgorithm.PerceptualHash;
+
     private static readonly float[][] DctCoeffsSimd = GenerateDctCoeffsSimd();
 
     [SkipLocalsInit]

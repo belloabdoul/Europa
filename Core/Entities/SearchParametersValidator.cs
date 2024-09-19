@@ -13,10 +13,18 @@ public class SearchParametersValidator : AbstractValidator<SearchParameters>
             .WithMessage("The search type is required")
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.FileSearchType)));
 
-        RuleFor(searchParameters => searchParameters.DegreeOfSimilarity).NotEmpty()
-            .WithMessage("The degree of similarity is required").When(searchParameters =>
+        RuleFor(searchParameters => searchParameters.DegreeOfSimilarity)
+            .NotEmpty().WithMessage("The degree of similarity is required").When(searchParameters =>
                 searchParameters.FileSearchType == FileSearchType.Images)
+            .LessThanOrEqualTo(64).WithMessage("The degree of similarity must be less than 64").When(
+                searchParameters => searchParameters.PerceptualHashAlgorithm is PerceptualHashAlgorithm.DifferenceHash
+                    or PerceptualHashAlgorithm.PerceptualHash)
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.DegreeOfSimilarity)));
+
+        RuleFor(searchParameters => searchParameters.PerceptualHashAlgorithm).NotEmpty()
+            .WithMessage("The perceptual hash algorithm is required").When(searchParameters =>
+                searchParameters.FileSearchType == FileSearchType.Images)
+            .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.PerceptualHashAlgorithm)));
 
         RuleFor(searchParameters => searchParameters.MinSize)
             .LessThanOrEqualTo(searchParameters => searchParameters.MaxSize)

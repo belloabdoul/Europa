@@ -40,6 +40,7 @@ public class Program
         {
             options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<FileSearchType>());
+            options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<PerceptualHashAlgorithm>());
             options.SerializerOptions.Converters.Add(new JsonStringEnumConverter<FileType>());
             options.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
@@ -111,7 +112,9 @@ public class Program
         services.AddSingleton<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
+        services.AddSingleton<IImageHash, DifferenceHash>();
         services.AddSingleton<IImageHash, PerceptualHash>();
+        services.AddSingleton<IImageHash, BlockMeanHash>();
 
         // Dependencies for redis database
         services.AddTransient<IDbHelpers, DbHelpers>();
@@ -176,7 +179,7 @@ public class Program
             
             var duplicatesGroups = await searchService.SearchAsync(hypotheticalDuplicates,
                 searchParameters.FileSearchType!.Value,
-                searchParameters.PerceptualHashAlgorithm ?? PerceptualHashAlgorithm.PerceptualHash,
+                searchParameters.PerceptualHashAlgorithm!.Value,
                 searchParameters.DegreeOfSimilarity ?? 0, cancellationToken);
             
             GC.Collect(2, GCCollectionMode.Aggressive, true, true);

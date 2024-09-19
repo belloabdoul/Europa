@@ -28,9 +28,8 @@ public class SearchService : ISearchService
     }
 
     public async Task<IEnumerable<IGrouping<string, File>>> SearchAsync(string[] hypotheticalDuplicates,
-        FileSearchType searchType,
-        PerceptualHashAlgorithm perceptualHashAlgorithm = PerceptualHashAlgorithm.DifferenceHash,
-        int degreeOfSimilarity = 0, CancellationToken cancellationToken = default)
+        FileSearchType searchType, PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity = 0,
+        CancellationToken cancellationToken = default)
     {
         switch (searchType)
         {

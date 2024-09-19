@@ -20,7 +20,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 {
     private readonly IDbHelpers _dbHelpers;
     private readonly IHashGenerator _hashGenerator;
-    private readonly IImageHash _imageHashGenerator;
+    private readonly Dictionary<PerceptualHashAlgorithm, IImageHash> _imageHashGenerators;
     private readonly List<IFileTypeIdentifier> _imagesIdentifiers;
     private readonly IHubContext<NotificationHub> _notificationContext;
     private readonly List<IThumbnailGenerator> _thumbnailGenerators;
@@ -30,13 +30,16 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
     public SimilarImageFinder(IHubContext<NotificationHub> notificationContext,
         IEnumerable<IFileTypeIdentifier> imagesIdentifiers, IHashGenerator hashGenerator,
-        IEnumerable<IThumbnailGenerator> thumbnailGenerators, IImageHash imageHashGenerator, IDbHelpers dbHelpers)
+        IEnumerable<IThumbnailGenerator> thumbnailGenerators, IEnumerable<IImageHash> imageHashGenerators,
+        IDbHelpers dbHelpers)
     {
         _notificationContext = notificationContext;
         _imagesIdentifiers = imagesIdentifiers.ToList();
         _hashGenerator = hashGenerator;
         _thumbnailGenerators = thumbnailGenerators.ToList();
-        _imageHashGenerator = imageHashGenerator;
+        _imageHashGenerators = imageHashGenerators.ToDictionary(
+            imageHashGenerator => imageHashGenerator.GetPerceptualHashAlgorithm(),
+            imageHashGenerator => imageHashGenerator);
         _dbHelpers = dbHelpers;
     }
 
@@ -141,7 +144,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     if (createdImagesGroup == null)
                         return;
 
-                    var imageHash = await _dbHelpers.GetImageInfosAsync(createdImagesGroup.Id);
+                    var imageHash = await _dbHelpers.GetImageInfosAsync(createdImagesGroup.Id, PerceptualHashAlgorithm);
 
                     if (imageHash != null)
                     {
@@ -157,7 +160,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                             Console.WriteLine(createdImagesGroup.Duplicates.First());
                         else
                         {
-                            await _dbHelpers.CacheHashAsync(createdImagesGroup);
+                            await _dbHelpers.CacheHashAsync(createdImagesGroup, PerceptualHashAlgorithm);
                         }
                     }
 
@@ -253,7 +256,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
             if (!thumbnailGenerator.GenerateThumbnail(duplicate!, width, height, pixels))
                 return false;
 
-            imagesGroup.ImageHash = _imageHashGenerator.GenerateHash(pixels);
+            imagesGroup.ImageHash = _imageHashGenerators[PerceptualHashAlgorithm].GenerateHash(pixels);
 
             return true;
         }
@@ -303,19 +306,20 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 var imagesGroup = duplicateImagesGroups[key];
 
                 // Get cached similar images
-                imagesGroup.SimilarImages = await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id);
+                imagesGroup.SimilarImages =
+                    await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id, PerceptualHashAlgorithm);
 
                 // Check for new similar images excluding the ones cached in a previous search and add to cached ones
                 imagesGroup.Similarities = await _dbHelpers.GetSimilarImages(imagesGroup.Id, imagesGroup.ImageHash!,
-                    degreeOfSimilarity,
-                    imagesGroup.SimilarImages);
+                    PerceptualHashAlgorithm, degreeOfSimilarity, imagesGroup.SimilarImages);
 
                 foreach (var similarity in imagesGroup.Similarities)
                     imagesGroup.SimilarImages.Add(similarity.DuplicateId);
 
                 // If there were new similar images, associate them to the imagesGroup
                 if (imagesGroup.Similarities.Count > 0)
-                    await _dbHelpers.LinkToSimilarImagesAsync(imagesGroup.Id, imagesGroup.Similarities);
+                    await _dbHelpers.LinkToSimilarImagesAsync(imagesGroup.Id, PerceptualHashAlgorithm,
+                        imagesGroup.Similarities);
 
                 // Send progress
                 var current = Interlocked.Increment(ref progress);

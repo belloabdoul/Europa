@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using System.Numerics.Tensors;
 using CommunityToolkit.HighPerformance;
+using Core.Entities;
 using Core.Interfaces;
 using SimdLinq;
 
@@ -30,6 +31,8 @@ public class BlockMeanHash : IImageHash
     public static int GetRequiredWidth() => ImageSize;
 
     public static int GetRequiredHeight() => ImageSize;
+    
+    public PerceptualHashAlgorithm GetPerceptualHashAlgorithm() => PerceptualHashAlgorithm.BlockMeanHash;
     
     public Half[] GenerateHash(ReadOnlySpan<byte> pixels)
     {
