@@ -8,10 +8,9 @@ namespace Api.Implementations.SimilarImages.ImageProcessors;
 
 public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
-    public FileSearchType GetAssociatedSearchType()
-    {
-        return FileSearchType.Images;
-    }
+    public FileSearchType AssociatedSearchType => FileSearchType.Images;
+
+    public FileType AssociatedImageType => FileType.LibVipsImage;
 
     public FileType GetFileType(string path)
     {
@@ -35,7 +34,7 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         }
     }
 
-    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize),
             image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
@@ -43,10 +42,10 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
         using var imageWithoutAlpha = grayscaleImage.Flatten();
         imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
-        return true;
+        return ValueTask.FromResult(true);
     }
 
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         try
         {
@@ -55,11 +54,11 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
             using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
             using var imageWithoutAlpha = grayscaleImage.Flatten();
             imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
-            return true;
+            return ValueTask.FromResult(true);
         }
         catch (Exception)
         {
-            return false;
+            return ValueTask.FromResult(false);
         }
     }
 }

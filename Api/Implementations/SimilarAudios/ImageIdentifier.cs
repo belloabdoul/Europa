@@ -15,8 +15,5 @@ public class FileTypeIdentifier : IFileTypeIdentifier
         return mediaInfoLib.Count_Get(StreamKind.Audio) > 0 ? FileType.Audio : FileType.File;
     }
 
-    public FileSearchType GetAssociatedSearchType()
-    {
-        return FileSearchType.Audios;
-    }
+    public FileSearchType AssociatedSearchType => FileSearchType.Audios;
 }

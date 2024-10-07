@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Runtime.CompilerServices;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
@@ -13,10 +14,20 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 {
     private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
 
-    public FileSearchType GetAssociatedSearchType()
+    public FileSearchType AssociatedSearchType => FileSearchType.Images;
+
+    public FileType AssociatedImageType => FileType.MagicScalerImage;
+
+    private static readonly IPixelTransform GreyPixelTransform = new FormatConversionTransform(PixelFormats.Grey8bpp);
+
+    private static readonly ProcessImageSettings ProcessImageSettings = new()
     {
-        return FileSearchType.Images;
-    }
+        ColorProfileMode = ColorProfileMode.ConvertToSrgb,
+        ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
+        HybridMode = HybridScaleMode.FavorSpeed,
+    };
+
+    private static Rectangle _area = new(0, 0, 0, 0);
 
     public FileType GetFileType(string path)
     {
@@ -41,45 +52,53 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
-    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
 
-        using var pipeline = MagicImageProcessor.BuildPipeline(stream,
-            new ProcessImageSettings
-            {
-                Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
-                ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
-                HybridMode = HybridScaleMode.FavorSpeed
-            });
+        if (_area.Width != width || _area.Height != height)
+        {
+            _area.Width = width;
+            _area.Height = height;
 
-        pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
+            ProcessImageSettings.Width = _area.Width;
+            ProcessImageSettings.Height = _area.Height;
+        }
 
-        pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
+        using var pipeline = MagicImageProcessor.BuildPipeline(stream, ProcessImageSettings);
 
-        return true;
+        pipeline.AddTransform(GreyPixelTransform);
+
+        pipeline.PixelSource.CopyPixels(_area, _area.Width, pixels);
+
+        return ValueTask.FromResult(true);
     }
 
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         try
         {
-            using var pipeline = MagicImageProcessor.BuildPipeline(imagePath,
-                new ProcessImageSettings
-                {
-                    Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
-                    ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
-                    HybridMode = HybridScaleMode.FavorSpeed
-                });
+            if (_area.Width != width || _area.Height != height)
+            {
+                _area.Width = width;
+                _area.Height = height;
 
-            pipeline.AddTransform(new FormatConversionTransform(PixelFormats.Grey8bpp));
+                ProcessImageSettings.Width = _area.Width;
+                ProcessImageSettings.Height = _area.Height;
+            }
 
-            pipeline.PixelSource.CopyPixels(new Rectangle(0, 0, width, height), width, pixels);
-            return true;
+            using var pipeline = MagicImageProcessor.BuildPipeline(imagePath, ProcessImageSettings);
+
+            pipeline.AddTransform(GreyPixelTransform);
+
+            pipeline.PixelSource.CopyPixels(_area, _area.Width, pixels);
+            return ValueTask.FromResult(true);
         }
         catch (Exception)
         {
-            return false;
+            return ValueTask.FromResult(false);
         }
     }
 }
