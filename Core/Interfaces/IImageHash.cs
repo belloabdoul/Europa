@@ -4,6 +4,8 @@ namespace Core.Interfaces;
 
 public interface IImageHash
 {
-    Half[] GenerateHash(ReadOnlySpan<byte> pixels);
-    PerceptualHashAlgorithm GetPerceptualHashAlgorithm();
+    ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels);
+    PerceptualHashAlgorithm PerceptualHashAlgorithm { get; }
+    int RequiredWidth { get; }
+    int RequiredHeight { get; }
 }
