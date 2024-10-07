@@ -1,4 +1,6 @@
-﻿namespace Core.Entities;
+﻿using U8;
+
+namespace Core.Entities;
 
 public class File
 {
@@ -11,5 +13,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
 
-    public string Hash { get; init; }
+    public U8String Hash { get; init; }
 }

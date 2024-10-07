@@ -1,81 +1,71 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
 using Api.DatabaseRepository.Interfaces;
-using Api.Implementations.SimilarImages.ImageHashGenerators;
-using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
+using Core.Entities.Redis;
+using MessagePack;
+using MessagePack.Resolvers;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using NRedisStack;
 using NRedisStack.RedisStackCommands;
 using NRedisStack.Search;
 using StackExchange.Redis;
+using U8;
+using U8.InteropServices;
 
 namespace Api.DatabaseRepository.Implementations;
 
 public class DbHelpers : IDbHelpers
 {
     private readonly IDatabase _database;
+    private readonly MessagePackSerializerOptions _options;
 
     public DbHelpers(IDatabase database)
     {
         _database = database;
+        _options = MessagePackSerializerOptions.Standard.WithResolver(
+            CompositeResolver.Create(new ObservableHashSetJsonConverter()));
     }
 
-    public async ValueTask<Half[]?> GetImageInfosAsync(string id, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    [SkipLocalsInit]
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public async ValueTask<Half[]?> GetImageInfos(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var redisResult = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
-            indent: null, newLine: null, space: null, $"$.{nameof(ImagesGroup.ImageHash)}");
+        Span<char> chars = stackalloc char[id.Length];
+        Encoding.UTF8.GetChars(U8Marshal.AsSpan(id), chars);
+        var result = await _database.JSON().GetAsync(
+            key: string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
+            path: $"$.{nameof(ImagesGroup.ImageHash)}");
 
-        if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
-            return default;
-
-        var jsonArray =
-            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString(), AppJsonSerializerContext.Default.JsonArray);
-
-        if (jsonArray is { Count: > 0 })
-            return JsonSerializer.Deserialize<Half[]>(
-                JsonSerializer.Serialize<JsonNode>(jsonArray[0]!, AppJsonSerializerContext.Default.JsonNode),
-                AppJsonSerializerContext.Default.HalfArray);
-
-        return default;
+        return result is { IsNull: false, Resp2Type: ResultType.BulkString }
+            ? MessagePackSerializer.Deserialize<Half[][]>(MessagePackSerializer.ConvertFromJson(result.ToString()))[0]
+            : null;
     }
 
-    public Task<bool> CacheHashAsync(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    [SkipLocalsInit]
+    public Task<bool> CacheHash(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var jsonCommands = _database.JSON();
-        return jsonCommands.SetAsync($"{Enum.GetName(perceptualHashAlgorithm)}:{group.Id}", "$", group, When.Always,
-            AppJsonSerializerContext.Default.Options);
+        Span<char> chars = stackalloc char[group.Id.Length];
+        Encoding.UTF8.GetChars(U8Marshal.AsSpan(group.Id), chars);
+        return _database.JSON().SetAsync(string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
+            "$", MessagePackSerializer.SerializeToJson(group));
     }
 
-    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id,
+    public async Task<ObservableHashSet<U8String>> GetSimilarImagesAlreadyDoneInRange(U8String id,
         PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var redisResult = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
+        var result = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
             indent: null, newLine: null, space: null,
             path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}");
 
-        if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
-            return [];
-
-        var jsonArray =
-            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString(), AppJsonSerializerContext.Default.JsonArray);
-
-        if (jsonArray is not { Count: > 0 })
-            return [];
-
-        var result =
-            new ObservableHashSet<string>(jsonArray.Select(node => StringPool.Shared.GetOrAdd(node!.ToString())));
-
-        return result;
+        return MessagePackSerializer.Deserialize<ObservableHashSet<U8String>>(
+            MessagePackSerializer.ConvertFromJson(result.ToString()), _options);
     }
 
-    public async Task<List<Similarity>> GetSimilarImages<T>(string id, T[] imageHash,
+    public async Task<List<Similarity>> GetSimilarImages<T>(U8String id, T[] imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
-        IReadOnlyCollection<string> groupsAlreadyDone) where T : struct
+        IReadOnlyCollection<U8String> groupsAlreadyDone) where T : struct
     {
         var queryBuilder = new StringBuilder();
 
@@ -111,7 +101,7 @@ public class DbHelpers : IDbHelpers
                 new Similarity
                 {
                     OriginalId = id,
-                    DuplicateId = document[nameof(ImagesGroup.Id)]!,
+                    DuplicateId = U8String.Create((string)document[nameof(ImagesGroup.Id)]!),
                     Score = int.Parse(document[nameof(Similarity.Score)]!)
                 }).ToList();
     }
@@ -122,59 +112,16 @@ public class DbHelpers : IDbHelpers
     }
 
     [SuppressMessage("ReSharper", "LoopCanBeConvertedToQuery")]
-    public async Task<bool> LinkToSimilarImagesAsync(string id, PerceptualHashAlgorithm perceptualHashAlgorithm,
+    public async Task<bool> LinkToSimilarImagesAsync(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm,
         ICollection<Similarity> newSimilarities)
     {
         var totalAdded = 0L;
         foreach (var newSimilarity in newSimilarities)
         {
-            totalAdded += (await ArrAppendAsync($"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
+            totalAdded += (await _database.JSON().ArrAppendAsync($"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
                 $"$.{nameof(ImagesGroup.Similarities)}", newSimilarity))[0]!.Value;
         }
 
         return totalAdded > 0;
-    }
-
-    // Copied from the class JsonCommandsAsync of NRedisStack with redundant code cleaned. Nothing has been changed
-    public async Task<long?[]> ArrAppendAsync(RedisKey key, string? path = null, params object[] values)
-    {
-        return (await _database.ExecuteAsync(ArrAppend(key, AppJsonSerializerContext.Default, path, values)))
-            .ToNullableLongArray();
-    }
-
-    // Copied from the class JsonCommandBuilder of NRedisStack with redundant code cleaned
-    // Create the command to send to redis. Here we pass our custom json serializer options since without it in AOT
-    // runtime an exception is throw for forbidden reflection-based serialization
-    public static SerializedCommand ArrAppend(RedisKey key, JsonSerializerContext jsonSerializerContext,
-        string? path = null, params object[] values)
-    {
-        if (values.Length < 1)
-            throw new ArgumentOutOfRangeException(nameof(values));
-        var objectList = new List<object>
-        {
-            key
-        };
-        if (path != null)
-            objectList.Add(path);
-        objectList.AddRange(
-            values.Select((Func<object, string>)(x =>
-                JsonSerializer.Serialize(x, typeof(Similarity), jsonSerializerContext))));
-        return new SerializedCommand("JSON.ARRAPPEND", objectList.ToArray());
-    }
-}
-
-public static class RedisResponseParser
-{
-    // Copied from the class JsonCommandBuilder of NRedisStack with code cleaned. Nothing has been changed
-    // Return the number of value updated per path. Since in our use case only one path is returned, the list will contain
-    // only one value
-    public static long?[] ToNullableLongArray(this RedisResult result)
-    {
-        if (result.IsNull)
-            return [];
-        return result.Resp2Type != ResultType.Integer
-            ? ((IEnumerable<RedisResult>)(RedisResult[])result)
-            .Select((Func<RedisResult, long?>)(x => (long?)x)).ToArray()
-            : [(long?)result];
     }
 }

@@ -1,13 +1,11 @@
 ﻿using Core.Entities;
+using U8;
 using File = Core.Entities.File;
 
 namespace Core.Interfaces;
 
 public interface ISimilarFilesFinder
 {
-    PerceptualHashAlgorithm PerceptualHashAlgorithm { set; }
-    int DegreeOfSimilarity { set; }
-
-    Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
-        CancellationToken token = default);
+    Task<IEnumerable<IGrouping<U8String, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+        int? degreeOfSimilarity = null, CancellationToken cancellationToken = default);
 }

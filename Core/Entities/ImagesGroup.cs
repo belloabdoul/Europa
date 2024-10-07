@@ -1,32 +1,36 @@
 using System.Collections.Concurrent;
-using System.Text.Json.Serialization;
+using Core.Entities.Redis;
+using MessagePack;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using U8;
 
 namespace Core.Entities;
 
+[MessagePackObject(keyAsPropertyName: true)]
 public class ImagesGroup
 {
-    public string Id { get; set; }
+    [MessagePackFormatter(typeof(U8StringJsonConverter))]
+    public U8String Id { get; set; }
 
-    [JsonIgnore]
+    [IgnoreMember]
     public FileType FileType { get; set; }
 
-    [JsonIgnore]
+    [IgnoreMember]
     public bool IsCorruptedOrUnsupported { get; set; }
 
-    [JsonIgnore]
+    [IgnoreMember]
     public long Size { get; set; }
 
-    [JsonIgnore]
+    [IgnoreMember]
     public DateTime DateModified { get; set; }
     
     public Half[]? ImageHash { get; set; }
 
-    [JsonIgnore]
+    [IgnoreMember]
     public ConcurrentStack<string> Duplicates { get; } = [];
     
-    [JsonIgnore]
-    public ObservableHashSet<string> SimilarImages { get; set; } = [];
+    [IgnoreMember]
+    public ObservableHashSet<U8String> SimilarImages { get; set; } = [];
 
     public List<Similarity> Similarities { get; set; } = [];
 }

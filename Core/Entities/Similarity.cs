@@ -1,12 +1,19 @@
-﻿namespace Core.Entities;
+﻿using Core.Entities.Redis;
+using MessagePack;
+using U8;
 
-public readonly struct Similarity : IEquatable<Similarity>
+namespace Core.Entities;
+
+[MessagePackObject(keyAsPropertyName: true)]
+public struct Similarity : IEquatable<Similarity>
 {
-    public string OriginalId { get; init; }
+    [MessagePackFormatter(typeof(U8StringJsonConverter))]
+    public U8String OriginalId { get; set; }
 
-    public string DuplicateId { get; init; }
+    [MessagePackFormatter(typeof(U8StringJsonConverter))]
+    public U8String DuplicateId { get; set; }
 
-    public int Score { get; init; }
+    public int Score { get; set; }
 
     public override int GetHashCode()
     {
@@ -17,10 +24,11 @@ public readonly struct Similarity : IEquatable<Similarity>
     {
         return obj is Similarity other && Equals(other);
     }
-    
+
     public bool Equals(Similarity other)
     {
-        return OriginalId.Equals(other.OriginalId) && DuplicateId.Equals(other.DuplicateId) && Score == other.Score;
+        return OriginalId == other.OriginalId && DuplicateId == other.DuplicateId &&
+               Score == other.Score;
     }
 
     public static bool operator ==(Similarity left, Similarity right)

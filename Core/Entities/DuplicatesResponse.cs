@@ -1,4 +1,6 @@
-﻿namespace Core.Entities;
+﻿using U8;
+
+namespace Core.Entities;
 
 public class DuplicatesResponse
 {
@@ -7,7 +9,7 @@ public class DuplicatesResponse
 
 public static class DuplicatesResponseMapping
 {
-    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<string, File>> duplicatesGroups)
+    public static DuplicatesResponse ToResponseDto(this IEnumerable<IGrouping<U8String, File>> duplicatesGroups)
     {
         var response = new DuplicatesResponse
         {

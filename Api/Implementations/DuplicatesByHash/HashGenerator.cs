@@ -2,50 +2,39 @@
 using Microsoft.Win32.SafeHandles;
 using System.Runtime.CompilerServices;
 using Blake3;
-using CommunityToolkit.HighPerformance.Buffers;
+using DotNext.Buffers.Text;
+using U8;
+using U8.InteropServices;
 
 namespace Api.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
     private const int BufferSize = 1_048_576;
-    private const int HashSize = 32;
-    
 
     [SkipLocalsInit]
-    public string? GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+    public ValueTask<U8String?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
-            return null;
+            return ValueTask.FromResult<U8String?>(null);
 
         Span<byte> buffer = stackalloc byte[BufferSize];
+        
         using var hasher = Hasher.New();
 
         var bytesHashed = 0L;
 
         while (bytesHashed < bytesToHash)
         {
-            var remainingToHash = bytesToHash - bytesHashed;
-            if (remainingToHash > buffer.Length)
-            {
-                bytesHashed += RandomAccess.Read(fileHandle, buffer, bytesHashed);
-                hasher.UpdateWithJoin(buffer);
-            }
-            else
-            {
-                bytesHashed += RandomAccess.Read(fileHandle, buffer[..(int)remainingToHash], bytesHashed);
-                if (remainingToHash > 131072)
-                    hasher.UpdateWithJoin(buffer[..(int)remainingToHash]);
-                else
-                    hasher.Update(buffer[..(int)remainingToHash]);
-            }
+            var remainingToHash = (int)(bytesToHash - bytesHashed);
+            var bytesRead = RandomAccess.Read(fileHandle,
+                remainingToHash > BufferSize ? buffer : buffer[..remainingToHash], bytesHashed);
+            hasher.UpdateWithJoin(buffer[..bytesRead]);
+            bytesHashed += bytesRead;
         }
-
-        // Reuse the buffer already allocated on the stack instead of allocating a new one
-        hasher.Finalize(buffer[..HashSize]);
-        Span<char> charBuffer = stackalloc char[HashSize * 2];
-        Convert.TryToHexStringLower(buffer[..HashSize], charBuffer, out _);
-        return StringPool.Shared.GetOrAdd(charBuffer);
+        
+        return ValueTask.FromResult<U8String?>(
+            U8Marshal.CreateUnsafe(Hex.EncodeToUtf8(hasher.Finalize().AsSpan(), true)));
     }
 }
