@@ -3,7 +3,6 @@ using System.Numerics.Tensors;
 using CommunityToolkit.HighPerformance;
 using Core.Entities;
 using Core.Interfaces;
-using SimdLinq;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
@@ -28,13 +27,13 @@ public class BlockMeanHash : IImageHash
         _mode1 = mode1;
     }
 
-    public static int GetRequiredWidth() => ImageSize;
+    public int RequiredWidth => ImageSize;
 
-    public static int GetRequiredHeight() => ImageSize;
-    
-    public PerceptualHashAlgorithm GetPerceptualHashAlgorithm() => PerceptualHashAlgorithm.BlockMeanHash;
-    
-    public Half[] GenerateHash(ReadOnlySpan<byte> pixels)
+    public int RequiredHeight => ImageSize;
+
+    public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.BlockMeanHash;
+
+    public ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels)
     {
         var pixColStep = BlockSize;
         var pixRowStep = BlockSize;
@@ -50,36 +49,25 @@ public class BlockMeanHash : IImageHash
 
         var mean = new double[numOfBlocks];
         FindMean(pixels, mean, pixRowStep, pixColStep);
-        var hash = new Half[numOfBlocks];
-        CreateHash(pixels, mean);
-        TensorPrimitives.ConvertChecked<double, Half>(mean, hash);
-        return hash;
+        return ValueTask.FromResult(CreateHash(pixels, mean));
     }
 
-    private static void CreateHash(ReadOnlySpan<byte> pixels, Span<double> means)
+    private Half[] CreateHash(ReadOnlySpan<byte> pixels, Span<double> means)
     {
         Span<double> meansCopy = stackalloc double[means.Length];
         means.CopyTo(meansCopy);
         // TensorPrimitives.ConvertChecked<byte, double>(means, meanssCopy);
-        
+
         var median = Median(meansCopy, means.Length / 2);
-        var vectorOfMedian = Vector.Create(median);
-        var numberOfValuesPerVector = Vector<double>.Count;
-        var numberOfLoops = means.Length / numberOfValuesPerVector;
-
-        for (var y = 0; y < numberOfLoops; y++)
+        
+        var hash = new Half[means.Length];
+        for (var i = 0; i < means.Length; i++)
         {
-            var valuesToCompareToMedian =
-                Vector.Create<double>(means.Slice(y * numberOfValuesPerVector, numberOfValuesPerVector));
-            var condition = Vector.GreaterThan(valuesToCompareToMedian, vectorOfMedian);
-            Vector.ConditionalSelect(condition, VectorOfOnes, VectorOfZeroes)
-                .CopyTo(means.Slice(y * numberOfValuesPerVector, numberOfValuesPerVector));
+            if (means[i] > median)
+                hash[i] = (Half)1;
         }
 
-        if (means.Length % 8 == 1)
-        {
-            means[^1] = means[^1] > median ? 1 : 0;
-        }
+        return hash;
     }
 
     private static void FindMean(ReadOnlySpan<byte> pixels, double[] mean, int pixRowStep, int pixColStep)
@@ -101,12 +89,12 @@ public class BlockMeanHash : IImageHash
 
     private static double Mean(Span<double> pixels)
     {
-        return pixels.Average();
+        return TensorPrimitives.Sum<double>(pixels) / pixels.Length;
     }
-    
+
     private static double Median(Span<double> values, int halfway)
     {
         values.Sort();
-        return values.Slice(halfway, 2).Sum() / 2;
+        return TensorPrimitives.Sum<double>(values.Slice(halfway, 2)) / 2;
     }
 }
