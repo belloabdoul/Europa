@@ -23,21 +23,50 @@ public class RedisService : BackgroundService
         var indexNames = Enum.GetNames(typeof(PerceptualHashAlgorithm));
         if (indexCount != indexNames.Length)
         {
-            foreach (var indexName in indexNames)
-            {
-                ftSearchCommands.Create(indexName,
-                    FTCreateParams.CreateParams().AddPrefix($"{indexName}:").On(IndexDataType.JSON),
-                    new Schema()
-                        .AddTagField(new FieldName($"$.{nameof(ImagesGroup.Id)}", nameof(ImagesGroup.Id)))
-                        .AddVectorField(new FieldName($"$.{nameof(ImagesGroup.ImageHash)}", nameof(ImagesGroup.ImageHash)),
-                            Schema.VectorField.VectorAlgo.FLAT, new Dictionary<string, object>
-                            {
-                                { "TYPE", "FLOAT16" },
-                                { "DIM", "64" },
-                                { "DISTANCE_METRIC", "L2" },
-                            }
-                        ));
-            }
+            // Difference hash index
+            ftSearchCommands.Create(nameof(PerceptualHashAlgorithm.DifferenceHash),
+                FTCreateParams.CreateParams().AddPrefix($"{nameof(PerceptualHashAlgorithm.DifferenceHash)}:")
+                    .On(IndexDataType.JSON),
+                new Schema()
+                    .AddTagField(new FieldName($"$.{nameof(ImagesGroup.Id)}", nameof(ImagesGroup.Id)))
+                    .AddVectorField(new FieldName($"$.{nameof(ImagesGroup.ImageHash)}", nameof(ImagesGroup.ImageHash)),
+                        Schema.VectorField.VectorAlgo.FLAT, new Dictionary<string, object>
+                        {
+                            { "TYPE", "FLOAT16" },
+                            { "DIM", "64" },
+                            { "DISTANCE_METRIC", "L2" },
+                        }
+                    ));
+            
+            // PHash index
+            ftSearchCommands.Create(nameof(PerceptualHashAlgorithm.PerceptualHash),
+                FTCreateParams.CreateParams().AddPrefix($"{nameof(PerceptualHashAlgorithm.PerceptualHash)}:")
+                    .On(IndexDataType.JSON),
+                new Schema()
+                    .AddTagField(new FieldName($"$.{nameof(ImagesGroup.Id)}", nameof(ImagesGroup.Id)))
+                    .AddVectorField(new FieldName($"$.{nameof(ImagesGroup.ImageHash)}", nameof(ImagesGroup.ImageHash)),
+                        Schema.VectorField.VectorAlgo.FLAT, new Dictionary<string, object>
+                        {
+                            { "TYPE", "FLOAT16" },
+                            { "DIM", "64" },
+                            { "DISTANCE_METRIC", "L2" },
+                        }
+                    ));
+            
+            // Block mean hash index
+            ftSearchCommands.Create(nameof(PerceptualHashAlgorithm.BlockMeanHash),
+                FTCreateParams.CreateParams().AddPrefix($"{nameof(PerceptualHashAlgorithm.BlockMeanHash)}:")
+                    .On(IndexDataType.JSON),
+                new Schema()
+                    .AddTagField(new FieldName($"$.{nameof(ImagesGroup.Id)}", nameof(ImagesGroup.Id)))
+                    .AddVectorField(new FieldName($"$.{nameof(ImagesGroup.ImageHash)}", nameof(ImagesGroup.ImageHash)),
+                        Schema.VectorField.VectorAlgo.FLAT, new Dictionary<string, object>
+                        {
+                            { "TYPE", "FLOAT16" },
+                            { "DIM", "256" },
+                            { "DISTANCE_METRIC", "L2" },
+                        }
+                    ));
         }
     }
 }

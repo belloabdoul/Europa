@@ -1,21 +1,21 @@
-﻿using System.Numerics;
-using System.Numerics.Tensors;
+﻿using System.Numerics.Tensors;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using Core.Entities;
 using Core.Interfaces;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
-// Block mean hash mode 1
+// Block mean hash
 public class BlockMeanHash : IImageHash
 {
     private const int ImageSize = 256;
-    private const int BlockSize = 32;
+    private const int BlockSize = 16;
     private const int BlockPerRowOrCol = ImageSize / BlockSize;
     private const int LastRowOrColSize = ImageSize - BlockSize;
+    private const int NbValuesPerBlock = BlockSize * BlockSize;
     private readonly bool _mode1;
-    private static readonly Vector<double> VectorOfZeroes = Vector.Create<double>(0);
-    private static readonly Vector<double> VectorOfOnes = Vector.Create<double>(1);
 
     public BlockMeanHash()
     {
@@ -33,68 +33,57 @@ public class BlockMeanHash : IImageHash
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.BlockMeanHash;
 
+    [SkipLocalsInit]
     public ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels)
     {
-        var pixColStep = BlockSize;
-        var pixRowStep = BlockSize;
+        Span<int> pixelsAsInts = stackalloc int[RequiredHeight * RequiredWidth];
+        TensorPrimitives.ConvertChecked(pixels, pixelsAsInts);
+        var pixRowOrColStep = BlockSize;
         int numOfBlocks;
         if (_mode1)
         {
-            pixColStep /= 2;
-            pixRowStep /= 2;
+            pixRowOrColStep /= 2;
             numOfBlocks = (BlockPerRowOrCol * 2 - 1) * (BlockPerRowOrCol * 2 - 1);
         }
         else
             numOfBlocks = BlockPerRowOrCol * BlockPerRowOrCol;
 
         var mean = new double[numOfBlocks];
-        FindMean(pixels, mean, pixRowStep, pixColStep);
-        return ValueTask.FromResult(CreateHash(pixels, mean));
+        FindMean(pixelsAsInts, mean, pixRowOrColStep);
+        return ValueTask.FromResult(CreateHash(pixelsAsInts, mean));
     }
 
-    private Half[] CreateHash(ReadOnlySpan<byte> pixels, Span<double> means)
+    [SkipLocalsInit]
+    private Half[] CreateHash(ReadOnlySpan<int> pixels, Span<double> means)
     {
-        Span<double> meansCopy = stackalloc double[means.Length];
-        means.CopyTo(meansCopy);
-        // TensorPrimitives.ConvertChecked<byte, double>(means, meanssCopy);
+        var median = TensorPrimitives.Sum(pixels) / (double)(RequiredHeight * RequiredWidth);
 
-        var median = Median(meansCopy, means.Length / 2);
-        
         var hash = new Half[means.Length];
-        for (var i = 0; i < means.Length; i++)
+        ref var hashReference = ref MemoryMarshal.GetReference(hash.AsSpan());
+        ref var meansReference = ref MemoryMarshal.GetReference(means);
+        for (nint i = 0; i < means.Length; i++)
         {
-            if (means[i] > median)
-                hash[i] = (Half)1;
+            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref meansReference, i) < median ? Half.Zero : Half.One;
         }
 
         return hash;
     }
 
-    private static void FindMean(ReadOnlySpan<byte> pixels, double[] mean, int pixRowStep, int pixColStep)
+    [SkipLocalsInit]
+    private void FindMean(ReadOnlySpan<int> pixels, double[] means, int pixRowOrColStep)
     {
-        var blockIdx = 0;
-        Span<byte> blockBytes = stackalloc byte[pixRowStep * pixColStep];
-        Span<double> blockDoubles = stackalloc double[pixRowStep * pixColStep];
-        var pixels2D = pixels.AsSpan2D(ImageSize, ImageSize);
-        for (var row = 0; row <= LastRowOrColSize; row += pixRowStep)
+        nint blockIdx = 0;
+        Span<int> block = stackalloc int[NbValuesPerBlock];
+        var pixels2D = pixels.AsSpan2D(RequiredHeight, RequiredWidth);
+        ref var meansReference = ref MemoryMarshal.GetReference(means.AsSpan());
+        
+        for (var row = 0; row <= LastRowOrColSize; row += pixRowOrColStep)
         {
-            for (var col = 0; col <= LastRowOrColSize; col += pixColStep)
+            for (var col = 0; col <= LastRowOrColSize; col += pixRowOrColStep)
             {
-                pixels2D.Slice(col, row, BlockSize, BlockSize).CopyTo(blockBytes);
-                TensorPrimitives.ConvertChecked<byte, double>(blockBytes, blockDoubles);
-                mean[blockIdx++] = Median(blockDoubles, BlockSize * BlockSize / 2);
+                pixels2D.Slice(col, row, BlockSize, BlockSize).CopyTo(block);
+                Unsafe.Add(ref meansReference, blockIdx++) = TensorPrimitives.Sum<int>(block) / (double)NbValuesPerBlock;
             }
         }
-    }
-
-    private static double Mean(Span<double> pixels)
-    {
-        return TensorPrimitives.Sum<double>(pixels) / pixels.Length;
-    }
-
-    private static double Median(Span<double> values, int halfway)
-    {
-        values.Sort();
-        return TensorPrimitives.Sum<double>(values.Slice(halfway, 2)) / 2;
     }
 }
