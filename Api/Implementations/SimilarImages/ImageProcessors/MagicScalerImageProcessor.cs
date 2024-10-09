@@ -24,7 +24,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
     {
         ColorProfileMode = ColorProfileMode.ConvertToSrgb,
         ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
-        HybridMode = HybridScaleMode.FavorSpeed,
+        HybridMode = HybridScaleMode.FavorQuality,
     };
 
     private static Rectangle _area = new(0, 0, 0, 0);
