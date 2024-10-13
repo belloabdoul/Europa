@@ -3,8 +3,8 @@ import {
   HttpTransportType,
   HubConnection,
   HubConnectionBuilder,
+  JsonHubProtocol,
 } from '@microsoft/signalr';
-import {MessagePackHubProtocol} from "@microsoft/signalr-protocol-msgpack";
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
 import { SearchParameters } from '../../models/search-parameters';
@@ -43,7 +43,7 @@ export class SearchService {
       .withUrl(url, {
         transport: HttpTransportType.WebSockets,
       })
-      .withHubProtocol(new MessagePackHubProtocol())
+      .withHubProtocol(new JsonHubProtocol())
       .withStatefulReconnect()
       .build();
 

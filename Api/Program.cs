@@ -22,13 +22,15 @@ using PhotoSauce.NativeCodecs.Libjpeg;
 using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
+using Qdrant.Client;
+using Qdrant.Client.Grpc;
 using StackExchange.Redis;
 
 namespace Api;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -50,7 +52,7 @@ public class Program
                 .AllowAnyHeader()
                 .AllowCredentials();
         }));
-        
+
         services.AddScoped<IValidator<SearchParameters>, SearchParametersValidator>();
 
         // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -59,12 +61,22 @@ public class Program
         services.AddSwaggerGen();
 
         // Add signalR
-        services.AddSignalR(options => { options.EnableDetailedErrors = true; }).AddMessagePackProtocol();
+        services.AddSignalR(options => { options.EnableDetailedErrors = true; });
 
         // Create index on database if not done
         var redis = ConnectionMultiplexer.Connect("localhost");
         services.AddSingleton(redis.GetDatabase());
         services.AddHostedService<RedisService>();
+
+        // Qdrant
+        // var client = new QdrantClient("localhost");
+        // var collectionExists = await client.CollectionExistsAsync("europa_images");
+        // if (!collectionExists)
+        // {
+        //     await client.CreateCollectionAsync(nameof(DifferenceHash), new VectorParams { Size = DifferenceHash.HashSize, Datatype = Datatype.Uint8, Distance = Distance.Dot});
+        // }
+        //
+        // services.AddSingleton(client);
 
         // Initialize FFmpeg
         var current = AppDomain.CurrentDomain.BaseDirectory;

@@ -1,12 +1,12 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
 using Api.DatabaseRepository.Interfaces;
 using Core.Entities;
 using Core.Entities.Redis;
-using MessagePack;
-using MessagePack.Resolvers;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using NRedisStack.RedisStackCommands;
 using NRedisStack.Search;
@@ -19,53 +19,52 @@ namespace Api.DatabaseRepository.Implementations;
 public class DbHelpers : IDbHelpers
 {
     private readonly IDatabase _database;
-    private readonly MessagePackSerializerOptions _options;
+    private readonly JsonSerializerOptions _jsonSerializerOptions;
 
     public DbHelpers(IDatabase database)
     {
         _database = database;
-        _options = MessagePackSerializerOptions.Standard.WithResolver(
-            CompositeResolver.Create(new ObservableHashSetJsonConverter()));
+        _jsonSerializerOptions = new JsonSerializerOptions();
+        _jsonSerializerOptions.Converters.Add(new ImageHashJsonConverter());
+        _jsonSerializerOptions.Converters.Add(new ObservableHashSetJsonConverter());
+        // _options = MessagePackSerializerOptions.Standard.WithResolver(
+        //     CompositeResolver.Create(
+        //         new List<IMessagePackFormatter> { new ObservableHashSetJsonConverter(), new ImageHashJsonConverter() },
+        //         new List<IFormatterResolver>() { StandardResolver.Instance }));
     }
 
     [SkipLocalsInit]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public async ValueTask<Half[]?> GetImageInfos(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public ValueTask<byte[]?> GetImageInfos(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         Span<char> chars = stackalloc char[id.Length];
         Encoding.UTF8.GetChars(U8Marshal.AsSpan(id), chars);
-        var result = await _database.JSON().GetAsync(
+        return new ValueTask<byte[]?>(_database.JSON().GetAsync<byte[]>(
             key: string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
-            path: $"$.{nameof(ImagesGroup.ImageHash)}");
-
-        return result is { IsNull: false, Resp2Type: ResultType.BulkString }
-            ? MessagePackSerializer.Deserialize<Half[][]>(MessagePackSerializer.ConvertFromJson(result.ToString()))[0]
-            : null;
+            path: $"$.{nameof(ImagesGroup.ImageHash)}", _jsonSerializerOptions));
     }
 
     [SkipLocalsInit]
-    public Task<bool> CacheHash(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public ValueTask<bool> CacheHash(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         Span<char> chars = stackalloc char[group.Id.Length];
         Encoding.UTF8.GetChars(U8Marshal.AsSpan(group.Id), chars);
-        return _database.JSON().SetAsync(string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
-            "$", MessagePackSerializer.SerializeToJson(group));
+        return new ValueTask<bool>(_database.JSON().SetAsync(
+            string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
+            "$", group));
     }
 
-    public async Task<ObservableHashSet<U8String>> GetSimilarImagesAlreadyDoneInRange(U8String id,
+    public ValueTask<ObservableHashSet<U8String>> GetSimilarImagesAlreadyDoneInRange(U8String id,
         PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var result = await _database.JSON().GetAsync(key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
-            indent: null, newLine: null, space: null,
-            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}");
-
-        return MessagePackSerializer.Deserialize<ObservableHashSet<U8String>>(
-            MessagePackSerializer.ConvertFromJson(result.ToString()), _options);
+        return new ValueTask<ObservableHashSet<U8String>>(_database.JSON().GetAsync<ObservableHashSet<U8String>>(
+            key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
+            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}", _jsonSerializerOptions)!);
     }
 
     public async Task<List<Similarity>> GetSimilarImages<T>(U8String id, T[] imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
-        IReadOnlyCollection<U8String> groupsAlreadyDone) where T : struct
+        IReadOnlyCollection<U8String> groupsAlreadyDone) where T : struct, INumberBase<T>
     {
         var queryBuilder = new StringBuilder();
 
@@ -89,7 +88,7 @@ public class DbHelpers : IDbHelpers
 
         var query = new Query(queryBuilder.ToString())
             .AddParam("distance", degreeOfSimilarity)
-            .AddParam("vector", Vectorize(imageHash))
+            .AddParam("vector", Vectorize<T>(imageHash))
             .ReturnFields(nameof(ImagesGroup.Id), nameof(Similarity.Score))
             .Dialect(2);
 
@@ -106,9 +105,16 @@ public class DbHelpers : IDbHelpers
                 }).ToList();
     }
 
-    private static byte[] Vectorize<T>(T[] imageHash) where T : struct
+    [SkipLocalsInit]
+    private static byte[] Vectorize<T>(ReadOnlySpan<T> imageHash) where T : struct, INumberBase<T>
     {
-        return MemoryMarshal.AsBytes(imageHash.AsSpan()).ToArray();
+        Span<Half> tempHash = stackalloc Half[imageHash.Length];
+        for (var i = 0; i < imageHash.Length; i++)
+        {
+            tempHash[i] = Half.CreateChecked(imageHash[i]);
+        }
+
+        return MemoryMarshal.AsBytes(tempHash).ToArray();
     }
 
     [SuppressMessage("ReSharper", "LoopCanBeConvertedToQuery")]

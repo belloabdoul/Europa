@@ -1,21 +1,19 @@
-﻿using MessagePack;
-using MessagePack.Formatters;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 using U8;
 using U8.InteropServices;
 
 namespace Core.Entities.Redis;
 
-public class U8StringJsonConverter : IMessagePackFormatter<U8String>
+public class U8StringJsonConverter : JsonConverter<U8String>
 {
-    public void Serialize(ref MessagePackWriter writer, U8String value, MessagePackSerializerOptions options)
+    public override U8String Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        writer.WriteStringHeader(value.Length);
-        writer.WriteRaw(U8Marshal.AsSpan(value));
+        return U8Marshal.CreateUnsafe(reader.ValueSpan.ToArray());
     }
 
-    public U8String Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, U8String value, JsonSerializerOptions options)
     {
-        reader.TryReadStringSpan(out var bytes);
-        return U8Marshal.CreateUnsafe(bytes.ToArray());
+        writer.WriteStringValue(U8Marshal.AsSpan(value));
     }
 }

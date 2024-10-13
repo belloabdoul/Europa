@@ -1,7 +1,10 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Runtime.Intrinsics;
 using Core.Entities;
 using Core.Interfaces;
+using DotNext.Buffers;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
@@ -9,40 +12,36 @@ public class DifferenceHash : IImageHash
 {
     private const int Width = 9;
     private const int Height = 8;
-
-    public int RequiredWidth => Width;
-
-    public int RequiredHeight => Height;
+    private const int ImageSize = Width * Height;
+    public static int HashSize => (Width - 1) * Height;
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.DifferenceHash;
 
     [SkipLocalsInit]
-    public ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels)
+    public async ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
-        var hash = new Half[(Width - 1) * Height];
-        ref var pixel = ref MemoryMarshal.GetReference(pixels);
-        ref var hashRef = ref MemoryMarshal.GetReference(hash.AsSpan());
+        using var pixels = new MemoryOwner<byte>(ArrayPool<byte>.Shared, ImageSize);
+        await thumbnailGenerator.GenerateThumbnail(imagePath, Width, Height, pixels.Span);
 
-        for (nint y = 0; y < Height; y++)
+        var hash = new byte[(Width - 1) * Height];
+        CompareLessThanOrEqual(pixels.Span, hash);
+        return hash;
+    }
+
+    private static void CompareLessThanOrEqual(ReadOnlySpan<byte> source, Span<byte> destination)
+    {
+        ref var sourceRef = ref MemoryMarshal.GetReference(source);
+        ref var destinationRef = ref MemoryMarshal.GetReference(destination);
+
+        for (nuint y = 0; y < Height; ++y)
         {
-            Unsafe.Add(ref hashRef, y * Height) =
-                Unsafe.Add(ref pixel, y * Width) < Unsafe.Add(ref pixel, y * Width + 1) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 1) =
-                Unsafe.Add(ref pixel, y * Width + 1) < Unsafe.Add(ref pixel, y * Width + 2) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 2) =
-                Unsafe.Add(ref pixel, y * Width + 2) < Unsafe.Add(ref pixel, y * Width + 3) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 3) =
-                Unsafe.Add(ref pixel, y * Width + 3) < Unsafe.Add(ref pixel, y * Width + 4) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 4) =
-                Unsafe.Add(ref pixel, y * Width + 4) < Unsafe.Add(ref pixel, y * Width + 5) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 5) =
-                Unsafe.Add(ref pixel, y * Width + 5) < Unsafe.Add(ref pixel, y * Width + 6) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 6) =
-                Unsafe.Add(ref pixel, y * Width + 6) < Unsafe.Add(ref pixel, y * Width + 7) ? Half.Zero : Half.One;
-            Unsafe.Add(ref hashRef, y * Height + 7) =
-                Unsafe.Add(ref pixel, y * Width + 7) < Unsafe.Add(ref pixel, y * Width + 8) ? Half.Zero : Half.One;
+            var rowStart = y * (Width - 1);
+            Vector64.ConditionalSelect(Vector64.LessThan(
+                        Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart)),
+                        Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart + 1))),
+                    Vector64<byte>.One,
+                    Vector64<byte>.Zero)
+                .CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref destinationRef, rowStart), 8));
         }
-
-        return ValueTask.FromResult(hash);
     }
 }

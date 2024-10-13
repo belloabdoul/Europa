@@ -1,11 +1,10 @@
-﻿using Core.Entities;
+﻿using System.Numerics;
+using Core.Entities;
 
 namespace Core.Interfaces;
 
 public interface IImageHash
 {
-    ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels);
+    ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator);
     PerceptualHashAlgorithm PerceptualHashAlgorithm { get; }
-    int RequiredWidth { get; }
-    int RequiredHeight { get; }
 }

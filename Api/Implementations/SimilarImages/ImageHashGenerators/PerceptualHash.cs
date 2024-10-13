@@ -1,16 +1,21 @@
-﻿using System.Diagnostics;
+﻿using System.Buffers;
+using System.Diagnostics;
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using Core.Entities;
 using Core.Interfaces;
+using DotNext.Buffers;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
 public class PerceptualHash : IImageHash
 {
-   private const int Size = 32;
+    private const int Size = 32;
+    private const byte Zero = 0;
+    private const byte One = 1;
+    
     public int RequiredWidth => Size;
     public int RequiredHeight => Size;
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.PerceptualHash;
@@ -57,21 +62,22 @@ public class PerceptualHash : IImageHash
     }
 
     [SkipLocalsInit]
-    public ValueTask<Half[]> GenerateHash(ReadOnlySpan<byte> pixels)
+    public async ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
-        Span<float> pixelsAsFloats = stackalloc float[Size * Size];
+        using var pixels = new MemoryOwner<float>(ArrayPool<float>.Shared, Size * Size);
+        await thumbnailGenerator.GenerateThumbnail(imagePath, Size, Size, pixels.Span);
+        
         Span<float> dctRowsResults = stackalloc float[8 * Size];
         Span<float> top8X8 = stackalloc float[Size + Size];
         Span<float> column = stackalloc float[Size];
-        TensorPrimitives.ConvertChecked(pixels, pixelsAsFloats);
-
+        
         // The 2D DCT is given by R = C . X . t(C) where . is the matrix product and C the DCT matrix
 
         // DCT for rows : since the columns of t(C) are the rows of C, the dot product of the rows of X by the columns
         // of t(C) is the same as the dot product of the rows of X by the rows of C
         // We only do the 8 first columns of the DCT matrix since we only need the top left 8 x 8. The resulting matrix
         // is 32 rows x 8 columns
-        ref var pixelsReference = ref MemoryMarshal.GetReference(pixelsAsFloats);
+        ref var pixelsReference = ref MemoryMarshal.GetReference(pixels.Span);
         for (nint y = 0; y < Size; y++)
         {
             Dct1D_SIMD(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.Add(ref pixelsReference, y * Size), Size),
@@ -97,14 +103,14 @@ public class PerceptualHash : IImageHash
         var average = TensorPrimitives.Sum(top8X8) / (Size + Size);
         
         // Set hash to 1 or 0 depending on if the current pixel in the DCT is greater than the average
-        var hash = new Half[Size + Size];
-        ref var hashReference = ref MemoryMarshal.GetReference<Half>(hash);
+        var hash = new byte[Size + Size];
+        ref var hashReference = ref MemoryMarshal.GetArrayDataReference(hash);
         for (nint i = 0; i < Size + Size; i++)
         {
-            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) > average ? Half.One : Half.Zero;
+            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) > average ? One : Zero;
         }
         
-        return ValueTask.FromResult(hash);
+        return hash;
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]

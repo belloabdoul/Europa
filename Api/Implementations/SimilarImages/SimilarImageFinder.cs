@@ -74,12 +74,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
         // Part 2 : Group similar images together
         progress = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
             { SingleReader = true, SingleWriter = false });
-
+        
         var groupingChannel = Channel.CreateUnbounded<U8String>(new UnboundedChannelOptions
             { SingleReader = true, SingleWriter = false });
-
+        
         var finalImages = new ConcurrentStack<File>();
-
+        
         // Await the end of all tasks or the cancellation by the user
         try
         {
@@ -97,11 +97,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
             duplicateImagesGroups.Clear();
             return [];
         }
-
+        
         // Return images grouped by hashes
         var groups = finalImages.GroupBy(file => file.Hash)
             .Where(i => i.Count() != 1).ToList();
         return groups;
+        // return [];
     }
 
     private async Task GeneratePerceptualHashes(string[] hypotheticalDuplicates,
@@ -114,9 +115,10 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
             async (i, hashingToken) =>
             {
+                var filePath = hypotheticalDuplicates[i];
                 try
                 {
-                    var fileType = GetFileType(hypotheticalDuplicates[i], hashingToken);
+                    var fileType = GetFileType(filePath, hashingToken);
 
                     if (fileType is FileType.Animation)
                         return;
@@ -124,12 +126,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     if (fileType is not (FileType.MagicScalerImage or FileType.LibRawImage or FileType.LibVipsImage))
                     {
                         await SendError(
-                            $"File {hypotheticalDuplicates[i]} is either of type unknown, corrupted or unsupported",
+                            $"File {filePath} is either of type unknown, corrupted or unsupported",
                             _notificationContext, cancellationToken);
                         return;
                     }
 
-                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true, true);
+                    using var fileHandle = FileReader.GetFileHandle(filePath, true, true);
 
                     var length = RandomAccess.GetLength(fileHandle);
 
@@ -138,12 +140,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     if (!hash.HasValue)
                     {
                         _ = SendError(
-                            $"File {hypotheticalDuplicates[i]} is either of type unknown, corrupted or unsupported",
+                            $"File {filePath} is either of type unknown, corrupted or unsupported",
                             _notificationContext, cancellationToken);
                         return;
                     }
 
-                    var createdImagesGroup = CreateGroup(hash.Value, hypotheticalDuplicates[i], length, fileType,
+                    var createdImagesGroup = CreateGroup(hash.Value, filePath, length, fileType,
                         fileHandle, duplicateImagesGroups, cancellationToken);
 
                     if (createdImagesGroup == null)
@@ -162,9 +164,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
                         return;
                     }
 
-                    createdImagesGroup.IsCorruptedOrUnsupported =
-                        !await GeneratePerceptualHash(createdImagesGroup, imageHashGenerator, hashingToken);
-
+                    createdImagesGroup.ImageHash = await imageHashGenerator.GenerateHash(filePath,
+                        _thumbnailGenerators[createdImagesGroup.FileType]);
+                    
+                    if(createdImagesGroup.ImageHash == null)
+                        createdImagesGroup.IsCorruptedOrUnsupported = true;
+                    
                     if (createdImagesGroup.IsCorruptedOrUnsupported)
                     {
                         Console.WriteLine(createdImagesGroup.Duplicates.First());
@@ -177,7 +182,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 }
                 catch (IOException)
                 {
-                    await SendError($"File {hypotheticalDuplicates[i]} is being used by another application",
+                    await SendError($"File {filePath} is being used by another application",
                         _notificationContext, hashingToken);
                 }
             });
@@ -224,35 +229,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
         return imagesGroup;
     }
 
-    [SkipLocalsInit]
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private async ValueTask<bool> GeneratePerceptualHash(ImagesGroup imagesGroup, IImageHash imageHashGenerator,
-        CancellationToken cancellationToken = default)
-    {
-        // Check if the image was already cached before and only continue if it false
-        try
-        {
-            imagesGroup.Duplicates.TryPeek(out var duplicate);
-            // Get the proper image dimensions for resizing the image depending on the algorithm
-            var width = imageHashGenerator.RequiredWidth;
-            var height = imageHashGenerator.RequiredHeight;
-
-            // Span<byte> pixels = stackalloc byte[width * height];
-            var pixels = GC.AllocateUninitializedArray<byte>(width * height);
-
-            // If the image is properly resized there is no reason for the rest to fail
-            if (!await _thumbnailGenerators[imagesGroup.FileType].GenerateThumbnail(duplicate!, width, height, pixels))
-                return false;
-
-            imagesGroup.ImageHash = await imageHashGenerator.GenerateHash(pixels);
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
-    }
-
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task SendError(string message, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
@@ -291,36 +267,47 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
         var keys = duplicateImagesGroups.Keys.ToArray();
 
+
         await Parallel.ForAsync<nuint>(0, keys.GetLength(),
             new ParallelOptions { CancellationToken = cancellationToken },
             async (i, similarityToken) =>
             {
-                var key = keys[i];
-                var imagesGroup = duplicateImagesGroups[key];
+                try
+                {
+                    var key = keys[i];
+                    var imagesGroup = duplicateImagesGroups[key];
 
-                // Get cached similar images
-                imagesGroup.SimilarImages =
-                    await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id, perceptualHashAlgorithm);
+                    // Get cached similar images
+                    imagesGroup.SimilarImages =
+                        await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id, perceptualHashAlgorithm) ??
+                        [];
 
-                // Check for new similar images excluding the ones cached in a previous search and add to cached ones
-                imagesGroup.Similarities = await _dbHelpers.GetSimilarImages(imagesGroup.Id, imagesGroup.ImageHash!,
-                    perceptualHashAlgorithm, degreeOfSimilarity, imagesGroup.SimilarImages);
-                
-                foreach (var similarity in imagesGroup.Similarities)
-                    imagesGroup.SimilarImages.Add(similarity.DuplicateId);
+                    // Check for new similar images excluding the ones cached in a previous search and add to cached ones
+                    imagesGroup.Similarities = await _dbHelpers.GetSimilarImages(imagesGroup.Id, imagesGroup.ImageHash!,
+                        perceptualHashAlgorithm, degreeOfSimilarity, imagesGroup.SimilarImages);
 
-                // If there were new similar images, associate them to the imagesGroup
-                if (imagesGroup.Similarities.Count > 0)
-                    await _dbHelpers.LinkToSimilarImagesAsync(imagesGroup.Id, perceptualHashAlgorithm,
-                        imagesGroup.Similarities);
+                    foreach (var similarity in imagesGroup.Similarities)
+                        imagesGroup.SimilarImages.Add(similarity.DuplicateId);
 
-                // Send progress
-                var current = Interlocked.Increment(ref progress);
-                await progressWriter.WriteAsync(current, similarityToken);
+                    // If there were new similar images, associate them to the imagesGroup
+                    if (imagesGroup.Similarities.Count > 0)
+                        await _dbHelpers.LinkToSimilarImagesAsync(imagesGroup.Id, perceptualHashAlgorithm,
+                            imagesGroup.Similarities);
 
-                // Queue to the next step
-                await groupingChannelWriter.WriteAsync(key, similarityToken);
+                    // Send progress
+                    var current = Interlocked.Increment(ref progress);
+                    await progressWriter.WriteAsync(current, similarityToken);
+
+                    // Queue to the next step
+                    await groupingChannelWriter.WriteAsync(key, similarityToken);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                    throw;
+                }
             });
+
 
         progressWriter.Complete();
         groupingChannelWriter.Complete();
@@ -397,8 +384,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
             if (!duplicateImagesGroups.Remove(imagesGroup.Id, out _))
                 Console.WriteLine($"Removal failed for {imagesGroup.Id}");
-            
-            if(duplicateImagesGroups.Count % 1000 == 0)
+
+            if (duplicateImagesGroups.Count % 1000 == 0)
                 GC.Collect();
         };
     }

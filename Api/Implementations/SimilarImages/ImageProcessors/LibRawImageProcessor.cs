@@ -1,4 +1,5 @@
-﻿using Core.Entities;
+﻿using System.Numerics;
+using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using Sdcb.LibRaw;
@@ -33,7 +34,8 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         }
     }
 
-    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail<T>(string imagePath, int width, int height, Span<T> pixels)
+        where T : INumberBase<T>
     {
         using var context = RawContext.OpenFile(imagePath);
         try

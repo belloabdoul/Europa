@@ -1,16 +1,15 @@
-﻿using Core.Entities.Redis;
-using MessagePack;
+﻿using System.Text.Json.Serialization;
 using U8;
+using U8.Serialization;
 
 namespace Core.Entities;
 
-[MessagePackObject(keyAsPropertyName: true)]
 public struct Similarity : IEquatable<Similarity>
 {
-    [MessagePackFormatter(typeof(U8StringJsonConverter))]
+    [JsonConverter(typeof(U8StringJsonConverter))]
     public U8String OriginalId { get; set; }
 
-    [MessagePackFormatter(typeof(U8StringJsonConverter))]
+    [JsonConverter(typeof(U8StringJsonConverter))]
     public U8String DuplicateId { get; set; }
 
     public int Score { get; set; }

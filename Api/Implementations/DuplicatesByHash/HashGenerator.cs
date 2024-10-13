@@ -1,6 +1,6 @@
-﻿using Core.Interfaces;
+﻿using System.Buffers;
+using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
-using System.Runtime.CompilerServices;
 using Blake3;
 using DotNext.Buffers.Text;
 using U8;
@@ -12,15 +12,14 @@ public class HashGenerator : IHashGenerator
 {
     private const int BufferSize = 1_048_576;
 
-    [SkipLocalsInit]
-    public ValueTask<U8String?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+    public async ValueTask<U8String?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
-            return ValueTask.FromResult<U8String?>(null);
+            return null;
 
-        Span<byte> buffer = stackalloc byte[BufferSize];
-        
+        using var buffer = new DotNext.Buffers.MemoryOwner<byte>(ArrayPool<byte>.Shared, 1_048_576);
+
         using var hasher = Hasher.New();
 
         var bytesHashed = 0L;
@@ -28,13 +27,13 @@ public class HashGenerator : IHashGenerator
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = (int)(bytesToHash - bytesHashed);
-            var bytesRead = RandomAccess.Read(fileHandle,
-                remainingToHash > BufferSize ? buffer : buffer[..remainingToHash], bytesHashed);
-            hasher.UpdateWithJoin(buffer[..bytesRead]);
+            var bytesRead = await RandomAccess.ReadAsync(fileHandle,
+                remainingToHash > BufferSize ? buffer.Memory : buffer.Memory[..remainingToHash], bytesHashed,
+                cancellationToken);
+            hasher.UpdateWithJoin(buffer.Span[..bytesRead]);
             bytesHashed += bytesRead;
         }
-        
-        return ValueTask.FromResult<U8String?>(
-            U8Marshal.CreateUnsafe(Hex.EncodeToUtf8(hasher.Finalize().AsSpan(), true)));
+
+        return U8Marshal.CreateUnsafe(Hex.EncodeToUtf8(hasher.Finalize().AsSpan(), true));
     }
 }
