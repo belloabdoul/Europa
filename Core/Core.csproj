@@ -20,8 +20,6 @@
         <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.3.2" />
         <PackageReference Include="DotNext.Unsafe" Version="5.13.0" />
         <PackageReference Include="FluentValidation" Version="11.10.0" />
-        <PackageReference Include="MessagePack" Version="3.0.134-beta" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="9.0.0-rc.2.24474.3" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0-rc.2.24474.1" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-rc.2.24473.5" />
         <PackageReference Include="NRedisStack" Version="0.13.0" />
