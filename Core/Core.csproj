@@ -23,6 +23,7 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.0-rc.2.24474.1" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-rc.2.24473.5" />
         <PackageReference Include="NRedisStack" Version="0.13.0" />
+        <PackageReference Include="Qdrant.Client" Version="1.12.0" />
         <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6" />
         <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1" />
         <PackageReference Include="Sdcb.LibRaw.runtime.win32" Version="0.21.1" />
