@@ -24,7 +24,7 @@ public class ImagesGroup
     public DateTime DateModified { get; set; }
     
     [JsonConverter(typeof(ImageHashJsonConverter))]
-    public byte[]? ImageHash { get; set; }
+    public float[]? ImageHash { get; set; }
 
     [JsonIgnore]
     public ConcurrentStack<string> Duplicates { get; } = [];

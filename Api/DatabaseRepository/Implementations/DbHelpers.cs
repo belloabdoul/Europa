@@ -27,31 +27,35 @@ public class DbHelpers : IDbHelpers
         _jsonSerializerOptions = new JsonSerializerOptions();
         _jsonSerializerOptions.Converters.Add(new ImageHashJsonConverter());
         _jsonSerializerOptions.Converters.Add(new ObservableHashSetJsonConverter());
-        // _options = MessagePackSerializerOptions.Standard.WithResolver(
-        //     CompositeResolver.Create(
-        //         new List<IMessagePackFormatter> { new ObservableHashSetJsonConverter(), new ImageHashJsonConverter() },
-        //         new List<IFormatterResolver>() { StandardResolver.Instance }));
     }
 
     [SkipLocalsInit]
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public ValueTask<byte[]?> GetImageInfos(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public ValueTask<float[]?> GetImageInfos(U8String id, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         Span<char> chars = stackalloc char[id.Length];
         Encoding.UTF8.GetChars(U8Marshal.AsSpan(id), chars);
-        return new ValueTask<byte[]?>(_database.JSON().GetAsync<byte[]>(
+        return new ValueTask<float[]?>(_database.JSON().GetAsync<float[]>(
             key: string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
-            path: $"$.{nameof(ImagesGroup.ImageHash)}", _jsonSerializerOptions));
+            path: $"$.{nameof(ImagesGroup.ImageHash)}"));
     }
 
     [SkipLocalsInit]
     public ValueTask<bool> CacheHash(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        Span<char> chars = stackalloc char[group.Id.Length];
-        Encoding.UTF8.GetChars(U8Marshal.AsSpan(group.Id), chars);
-        return new ValueTask<bool>(_database.JSON().SetAsync(
-            string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
-            "$", group));
+        try
+        {
+            Span<char> chars = stackalloc char[group.Id.Length];
+            Encoding.UTF8.GetChars(U8Marshal.AsSpan(group.Id), chars);
+            return new ValueTask<bool>(_database.JSON().SetAsync(
+                string.Concat(Enum.GetName(perceptualHashAlgorithm), ":", chars),
+                "$", group));
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            throw;
+        }
     }
 
     public ValueTask<ObservableHashSet<U8String>> GetSimilarImagesAlreadyDoneInRange(U8String id,
@@ -59,12 +63,13 @@ public class DbHelpers : IDbHelpers
     {
         return new ValueTask<ObservableHashSet<U8String>>(_database.JSON().GetAsync<ObservableHashSet<U8String>>(
             key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
-            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}", _jsonSerializerOptions)!);
+            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}",
+            _jsonSerializerOptions)!);
     }
 
-    public async Task<List<Similarity>> GetSimilarImages<T>(U8String id, T[] imageHash,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
-        IReadOnlyCollection<U8String> groupsAlreadyDone) where T : struct, INumberBase<T>
+    public async ValueTask<List<Similarity>> GetSimilarImages(U8String id, float[] imageHash,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
+        IReadOnlyCollection<U8String> groupsAlreadyDone)
     {
         var queryBuilder = new StringBuilder();
 
@@ -87,8 +92,8 @@ public class DbHelpers : IDbHelpers
         queryBuilder.Append("@ImageHash:[VECTOR_RANGE $distance $vector]=>{$YIELD_DISTANCE_AS: Score}");
 
         var query = new Query(queryBuilder.ToString())
-            .AddParam("distance", degreeOfSimilarity)
-            .AddParam("vector", Vectorize<T>(imageHash))
+            .AddParam("distance", (hashSize - degreeOfSimilarity) / (double)hashSize)
+            .AddParam("vector", Vectorize<float>(imageHash))
             .ReturnFields(nameof(ImagesGroup.Id), nameof(Similarity.Score))
             .Dialect(2);
 
@@ -101,7 +106,7 @@ public class DbHelpers : IDbHelpers
                 {
                     OriginalId = id,
                     DuplicateId = U8String.Create((string)document[nameof(ImagesGroup.Id)]!),
-                    Score = int.Parse(document[nameof(Similarity.Score)]!)
+                    Score = double.Parse(document[nameof(Similarity.Score)]!)
                 }).ToList();
     }
 

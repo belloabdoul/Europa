@@ -30,7 +30,7 @@ namespace Api;
 
 public class Program
 {
-    public static async Task Main(string[] args)
+    public static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
 
@@ -69,15 +69,11 @@ public class Program
         services.AddHostedService<RedisService>();
 
         // Qdrant
-        // var client = new QdrantClient("localhost");
-        // var collectionExists = await client.CollectionExistsAsync("europa_images");
-        // if (!collectionExists)
-        // {
-        //     await client.CreateCollectionAsync(nameof(DifferenceHash), new VectorParams { Size = DifferenceHash.HashSize, Datatype = Datatype.Uint8, Distance = Distance.Dot});
-        // }
-        //
-        // services.AddSingleton(client);
-
+        ThreadPool.GetMaxThreads(out int workersThreads, out int completionPortThreads);
+        Console.WriteLine($"{workersThreads} {completionPortThreads}");
+        services.AddSingleton(new QdrantClient("localhost"));
+        services.AddHostedService<QdrantService>();
+        
         // Initialize FFmpeg
         var current = AppDomain.CurrentDomain.BaseDirectory;
         var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
@@ -114,7 +110,7 @@ public class Program
         services.AddScoped<IImageHash, BlockMeanHash>();
 
         // Dependencies for redis database
-        services.AddScoped<IDbHelpers, DbHelpers>();
+        services.AddScoped<IDbHelpers, DbHelpersQdrant>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddScoped<ISimilarFilesFinder, DuplicateByHashFinder>();

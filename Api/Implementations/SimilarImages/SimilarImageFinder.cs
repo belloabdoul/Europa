@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Threading.Channels;
 using Api.DatabaseRepository.Interfaces;
 using Api.Implementations.Common;
@@ -88,6 +89,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     cancellationToken),
                 SendProgress(progress.Reader, NotificationType.SimilaritySearchProgress, cancellationToken),
                 LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups, perceptualHashAlgorithm!.Value,
+                    _imageHashGenerators[perceptualHashAlgorithm!.Value].HashSize,
                     degreeOfSimilarity!.Value,
                     groupingChannel.Writer, progress.Writer, cancellationToken)
             );
@@ -166,10 +168,10 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                     createdImagesGroup.ImageHash = await imageHashGenerator.GenerateHash(filePath,
                         _thumbnailGenerators[createdImagesGroup.FileType]);
-                    
-                    if(createdImagesGroup.ImageHash == null)
+
+                    if (createdImagesGroup.ImageHash == null)
                         createdImagesGroup.IsCorruptedOrUnsupported = true;
-                    
+
                     if (createdImagesGroup.IsCorruptedOrUnsupported)
                     {
                         Console.WriteLine(createdImagesGroup.Duplicates.First());
@@ -180,10 +182,11 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     current = Interlocked.Increment(ref progress);
                     progressWriter.TryWrite(current);
                 }
-                catch (IOException)
+                catch (IOException e)
                 {
-                    await SendError($"File {filePath} is being used by another application",
-                        _notificationContext, hashingToken);
+                    // await SendError($"File {filePath} is being used by another application",
+                    //     _notificationContext, hashingToken);
+                    Console.WriteLine(e);
                 }
             });
 
@@ -259,7 +262,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
     private async Task LinkSimilarImagesGroupsToOneAnother(
         ConcurrentDictionary<U8String, ImagesGroup> duplicateImagesGroups,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
         ChannelWriter<U8String> groupingChannelWriter, ChannelWriter<int> progressWriter,
         CancellationToken cancellationToken)
     {
@@ -279,13 +282,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                     // Get cached similar images
                     imagesGroup.SimilarImages =
-                        await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id, perceptualHashAlgorithm) ??
-                        [];
-
+                        await _dbHelpers.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id, perceptualHashAlgorithm);
+                    
                     // Check for new similar images excluding the ones cached in a previous search and add to cached ones
                     imagesGroup.Similarities = await _dbHelpers.GetSimilarImages(imagesGroup.Id, imagesGroup.ImageHash!,
-                        perceptualHashAlgorithm, degreeOfSimilarity, imagesGroup.SimilarImages);
-
+                        perceptualHashAlgorithm, hashSize, degreeOfSimilarity, imagesGroup.SimilarImages);
+                    
                     foreach (var similarity in imagesGroup.Similarities)
                         imagesGroup.SimilarImages.Add(similarity.DuplicateId);
 
@@ -331,7 +333,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
             // Removes the groups already done in the current imagesGroup's similar images groups. If the similar images are
             // empty we stop here, else we add back the current imagesGroup's id in case it was among those deleted
-            imagesGroup.SimilarImages.RemoveWhere(image => groupsDone.Contains(image));
+            imagesGroup.SimilarImages!.RemoveWhere(image => groupsDone.Contains(image));
 
             if (imagesGroup.SimilarImages.Count == 0)
             {

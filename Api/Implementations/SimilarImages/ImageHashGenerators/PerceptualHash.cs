@@ -13,8 +13,9 @@ namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 public class PerceptualHash : IImageHash
 {
     private const int Size = 32;
-    private const byte Zero = 0;
-    private const byte One = 1;
+    private const float Zero = -1;
+    private const float One = 1;
+    public int HashSize => 64;
     
     public int RequiredWidth => Size;
     public int RequiredHeight => Size;
@@ -62,7 +63,7 @@ public class PerceptualHash : IImageHash
     }
 
     [SkipLocalsInit]
-    public async ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public async ValueTask<float[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
         using var pixels = new MemoryOwner<float>(ArrayPool<float>.Shared, Size * Size);
         await thumbnailGenerator.GenerateThumbnail(imagePath, Size, Size, pixels.Span);
@@ -103,11 +104,11 @@ public class PerceptualHash : IImageHash
         var average = TensorPrimitives.Sum(top8X8) / (Size + Size);
         
         // Set hash to 1 or 0 depending on if the current pixel in the DCT is greater than the average
-        var hash = new byte[Size + Size];
+        var hash = new float[Size + Size];
         ref var hashReference = ref MemoryMarshal.GetArrayDataReference(hash);
         for (nint i = 0; i < Size + Size; i++)
         {
-            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) > average ? One : Zero;
+            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) < average ? Zero : One;
         }
         
         return hash;

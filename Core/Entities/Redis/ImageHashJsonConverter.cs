@@ -5,21 +5,21 @@ using System.Text.Json.Serialization;
 
 namespace Core.Entities.Redis;
 
-public class ImageHashJsonConverter : JsonConverter<byte[]>
+public class ImageHashJsonConverter : JsonConverter<float[]>
 {
-    public override byte[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override float[]? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
-        var hash = ImmutableArray.CreateBuilder<byte>();
+        var hash = ImmutableArray.CreateBuilder<float>();
         while (reader.Read())
         {
             if (reader.TokenType != JsonTokenType.EndArray)
-                hash.Add(Convert.ToByte(reader.GetInt16()));
+                hash.Add(reader.GetInt16());
         }
 
         return ImmutableCollectionsMarshal.AsArray(hash.ToImmutableArray());
     }
 
-    public override void Write(Utf8JsonWriter writer, byte[] value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, float[] value, JsonSerializerOptions options)
     {
         writer.WriteStartArray();
         foreach (var item in value)

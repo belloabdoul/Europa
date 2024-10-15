@@ -34,7 +34,7 @@ public class RedisService : BackgroundService
                         {
                             { "TYPE", "FLOAT16" },
                             { "DIM", "64" },
-                            { "DISTANCE_METRIC", "L2" },
+                            { "DISTANCE_METRIC", "COSINE" },
                         }
                     ));
             
@@ -49,7 +49,7 @@ public class RedisService : BackgroundService
                         {
                             { "TYPE", "FLOAT16" },
                             { "DIM", "64" },
-                            { "DISTANCE_METRIC", "L2" },
+                            { "DISTANCE_METRIC", "COSINE" },
                         }
                     ));
             
@@ -64,7 +64,7 @@ public class RedisService : BackgroundService
                         {
                             { "TYPE", "FLOAT16" },
                             { "DIM", "256" },
-                            { "DISTANCE_METRIC", "L2" },
+                            { "DISTANCE_METRIC", "COSINE" },
                         }
                     ));
         }

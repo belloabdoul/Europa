@@ -17,9 +17,10 @@ public class BlockMeanHash : IImageHash
     private const int BlockPerRowOrCol = ImageSize / BlockSize;
     private const int LastRowOrColSize = ImageSize - BlockSize;
     private const int NbValuesPerBlock = BlockSize * BlockSize;
-    private const byte Zero = 0;
-    private const byte One = 1;
+    private const short Zero = -1;
+    private const short One = 1;
     private readonly bool _mode1;
+    public int HashSize => _mode1 ? 968 : 256;
 
     public BlockMeanHash()
     {
@@ -34,7 +35,7 @@ public class BlockMeanHash : IImageHash
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.BlockMeanHash;
 
     [SkipLocalsInit]
-    public async ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public async ValueTask<float[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
         using var pixels = new MemoryOwner<int>(ArrayPool<int>.Shared, ImageSize * ImageSize);
         await thumbnailGenerator.GenerateThumbnail(imagePath, ImageSize, ImageSize, pixels.Span);
@@ -55,11 +56,11 @@ public class BlockMeanHash : IImageHash
     }
 
     [SkipLocalsInit]
-    private byte[] CreateHash(ReadOnlySpan<int> pixels, Span<double> means)
+    private float[] CreateHash(ReadOnlySpan<int> pixels, Span<double> means)
     {
         var median = TensorPrimitives.Sum(pixels) / (double)(ImageSize * ImageSize);
 
-        var hash = new byte[means.Length];
+        var hash = new float[means.Length];
         ref var hashReference = ref MemoryMarshal.GetReference(hash.AsSpan());
         ref var meansReference = ref MemoryMarshal.GetReference(means);
         for (nint i = 0; i < means.Length; i++)

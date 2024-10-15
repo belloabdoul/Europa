@@ -12,7 +12,7 @@ public struct Similarity : IEquatable<Similarity>
     [JsonConverter(typeof(U8StringJsonConverter))]
     public U8String DuplicateId { get; set; }
 
-    public int Score { get; set; }
+    public double Score { get; set; }
 
     public override int GetHashCode()
     {
