@@ -1,5 +1,4 @@
 ﻿using System.Diagnostics.CodeAnalysis;
-using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -25,7 +24,6 @@ public class DbHelpers : IDbHelpers
     {
         _database = database;
         _jsonSerializerOptions = new JsonSerializerOptions();
-        _jsonSerializerOptions.Converters.Add(new ImageHashJsonConverter());
         _jsonSerializerOptions.Converters.Add(new ObservableHashSetJsonConverter());
         // _options = MessagePackSerializerOptions.Standard.WithResolver(
         //     CompositeResolver.Create(
@@ -54,17 +52,18 @@ public class DbHelpers : IDbHelpers
             "$", group));
     }
 
-    public ValueTask<ObservableHashSet<U8String>> GetSimilarImagesAlreadyDoneInRange(U8String id,
+    public ValueTask<ObservableHashSet<U8String>?> GetSimilarImagesAlreadyDoneInRange(U8String id,
         PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        return new ValueTask<ObservableHashSet<U8String>>(_database.JSON().GetAsync<ObservableHashSet<U8String>>(
+        return new ValueTask<ObservableHashSet<U8String>?>(_database.JSON().GetAsync<ObservableHashSet<U8String>>(
             key: $"{Enum.GetName(perceptualHashAlgorithm)}:{id}",
-            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}", _jsonSerializerOptions)!);
+            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}",
+            _jsonSerializerOptions));
     }
 
-    public async Task<List<Similarity>> GetSimilarImages<T>(U8String id, T[] imageHash,
+    public async Task<List<Similarity>> GetSimilarImages(U8String id, byte[] imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity,
-        IReadOnlyCollection<U8String> groupsAlreadyDone) where T : struct, INumberBase<T>
+        IReadOnlyCollection<U8String> groupsAlreadyDone)
     {
         var queryBuilder = new StringBuilder();
 
@@ -84,29 +83,30 @@ public class DbHelpers : IDbHelpers
             queryBuilder.Append("} ");
         }
 
-        queryBuilder.Append("@ImageHash:[VECTOR_RANGE $distance $vector]=>{$YIELD_DISTANCE_AS: Score}");
-
+        queryBuilder.Append(
+            $"@ImageHash:[VECTOR_RANGE $distance $vector]=>{{$YIELD_DISTANCE_AS: {nameof(Similarity.Score)}}}");
+        
         var query = new Query(queryBuilder.ToString())
-            .AddParam("distance", degreeOfSimilarity)
-            .AddParam("vector", Vectorize<T>(imageHash))
+            .AddParam("distance", MathF.Sqrt(degreeOfSimilarity))
+            .AddParam("vector", Vectorize(imageHash))
             .ReturnFields(nameof(ImagesGroup.Id), nameof(Similarity.Score))
             .Dialect(2);
 
         query.SortBy = nameof(Similarity.Score);
         var ftSearchCommands = _database.FT();
-
-        return (await ftSearchCommands.SearchAsync(Enum.GetName(perceptualHashAlgorithm)!, query)).Documents.Select(
+        return (await ftSearchCommands.SearchAsync(Enum.GetName(perceptualHashAlgorithm)!, query)).Documents
+            .Select(
             document =>
                 new Similarity
                 {
                     OriginalId = id,
                     DuplicateId = U8String.Create((string)document[nameof(ImagesGroup.Id)]!),
-                    Score = int.Parse(document[nameof(Similarity.Score)]!)
+                    Score = decimal.Parse(document[nameof(Similarity.Score)]!)
                 }).ToList();
     }
 
     [SkipLocalsInit]
-    private static byte[] Vectorize<T>(ReadOnlySpan<T> imageHash) where T : struct, INumberBase<T>
+    private static byte[] Vectorize(ReadOnlySpan<byte> imageHash)
     {
         Span<Half> tempHash = stackalloc Half[imageHash.Length];
         for (var i = 0; i < imageHash.Length; i++)

@@ -15,9 +15,6 @@ public class PerceptualHash : IImageHash
     private const int Size = 32;
     private const byte Zero = 0;
     private const byte One = 1;
-    
-    public int RequiredWidth => Size;
-    public int RequiredHeight => Size;
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.PerceptualHash;
 
     private static readonly float[][] DctCoefficients;
@@ -34,7 +31,7 @@ public class PerceptualHash : IImageHash
         {
             Unsafe.Add(ref rowVectorReference, i) = i;
         }
-
+        
         for (nint coefficient = 0; coefficient < Size; coefficient++)
         {
             // Resulting vector
@@ -107,7 +104,7 @@ public class PerceptualHash : IImageHash
         ref var hashReference = ref MemoryMarshal.GetArrayDataReference(hash);
         for (nint i = 0; i < Size + Size; i++)
         {
-            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) > average ? One : Zero;
+            Unsafe.Add(ref hashReference, i) = Unsafe.Add(ref top8X8Reference, i) < average ? Zero : One;
         }
         
         return hash;

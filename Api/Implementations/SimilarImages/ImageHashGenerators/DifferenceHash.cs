@@ -13,7 +13,6 @@ public class DifferenceHash : IImageHash
     private const int Width = 9;
     private const int Height = 8;
     private const int ImageSize = Width * Height;
-    public static int HashSize => (Width - 1) * Height;
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.DifferenceHash;
 

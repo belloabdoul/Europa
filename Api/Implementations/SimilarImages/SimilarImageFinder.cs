@@ -74,12 +74,12 @@ public class SimilarImageFinder : ISimilarFilesFinder
         // Part 2 : Group similar images together
         progress = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
             { SingleReader = true, SingleWriter = false });
-        
+
         var groupingChannel = Channel.CreateUnbounded<U8String>(new UnboundedChannelOptions
             { SingleReader = true, SingleWriter = false });
-        
+
         var finalImages = new ConcurrentStack<File>();
-        
+
         // Await the end of all tasks or the cancellation by the user
         try
         {
@@ -87,7 +87,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 ProcessGroupsForFinalList(groupingChannel.Reader, duplicateImagesGroups, finalImages,
                     cancellationToken),
                 SendProgress(progress.Reader, NotificationType.SimilaritySearchProgress, cancellationToken),
-                LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups, perceptualHashAlgorithm!.Value,
+                LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups, perceptualHashAlgorithm.Value,
                     degreeOfSimilarity!.Value,
                     groupingChannel.Writer, progress.Writer, cancellationToken)
             );
@@ -97,12 +97,11 @@ public class SimilarImageFinder : ISimilarFilesFinder
             duplicateImagesGroups.Clear();
             return [];
         }
-        
+
         // Return images grouped by hashes
         var groups = finalImages.GroupBy(file => file.Hash)
             .Where(i => i.Count() != 1).ToList();
         return groups;
-        // return [];
     }
 
     private async Task GeneratePerceptualHashes(string[] hypotheticalDuplicates,
@@ -166,10 +165,10 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
                     createdImagesGroup.ImageHash = await imageHashGenerator.GenerateHash(filePath,
                         _thumbnailGenerators[createdImagesGroup.FileType]);
-                    
-                    if(createdImagesGroup.ImageHash == null)
+
+                    if (createdImagesGroup.ImageHash == null)
                         createdImagesGroup.IsCorruptedOrUnsupported = true;
-                    
+
                     if (createdImagesGroup.IsCorruptedOrUnsupported)
                     {
                         Console.WriteLine(createdImagesGroup.Duplicates.First());
@@ -331,7 +330,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
             // Removes the groups already done in the current imagesGroup's similar images groups. If the similar images are
             // empty we stop here, else we add back the current imagesGroup's id in case it was among those deleted
-            imagesGroup.SimilarImages.RemoveWhere(image => groupsDone.Contains(image));
+            imagesGroup.SimilarImages!.RemoveWhere(image => groupsDone.Contains(image));
 
             if (imagesGroup.SimilarImages.Count == 0)
             {
@@ -377,7 +376,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
     private void SetCollectionChangedActionToDeleteGroupIfSimilarImagesEmpty(
         ConcurrentDictionary<U8String, ImagesGroup> duplicateImagesGroups, ImagesGroup imagesGroup)
     {
-        imagesGroup.SimilarImages.PropertyChanged += (sender, args) =>
+        imagesGroup.SimilarImages!.PropertyChanged += (sender, args) =>
         {
             if (args.PropertyName != nameof(ObservableHashSet<U8String>.Count) || imagesGroup.SimilarImages.Count != 0)
                 return;
@@ -398,7 +397,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
         // In the case of the current imagesGroup, it will not be used after so we dequeue
         // each file's path. For the similar images they will not be dequeued here.
         var parentGroup = duplicateImagesGroups[parentGroupId];
-        Parallel.ForEach(parentGroup.SimilarImages,
+        Parallel.ForEach(parentGroup.SimilarImages!,
             new ParallelOptions
                 { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
             imageGroupId =>

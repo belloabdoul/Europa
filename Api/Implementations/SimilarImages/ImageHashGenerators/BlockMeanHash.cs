@@ -19,16 +19,25 @@ public class BlockMeanHash : IImageHash
     private const int NbValuesPerBlock = BlockSize * BlockSize;
     private const byte Zero = 0;
     private const byte One = 1;
-    private readonly bool _mode1;
+    private readonly int _pixelRowOrColStep;
+    private readonly int _hashSize;
 
     public BlockMeanHash()
     {
-        _mode1 = false;
+        _hashSize = BlockPerRowOrCol * BlockPerRowOrCol;
+        _pixelRowOrColStep = BlockSize;
     }
 
     public BlockMeanHash(bool mode1)
     {
-        _mode1 = mode1;
+        _pixelRowOrColStep = BlockSize;
+        if (mode1)
+        {
+            _hashSize = (BlockPerRowOrCol * 2 - 1) * (BlockPerRowOrCol * 2 - 1);
+            _pixelRowOrColStep /= 2;
+        }
+        else
+            _hashSize = BlockPerRowOrCol * BlockPerRowOrCol;
     }
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.BlockMeanHash;
@@ -38,19 +47,9 @@ public class BlockMeanHash : IImageHash
     {
         using var pixels = new MemoryOwner<int>(ArrayPool<int>.Shared, ImageSize * ImageSize);
         await thumbnailGenerator.GenerateThumbnail(imagePath, ImageSize, ImageSize, pixels.Span);
-
-        var pixRowOrColStep = BlockSize;
-        int numOfBlocks;
-        if (_mode1)
-        {
-            pixRowOrColStep /= 2;
-            numOfBlocks = (BlockPerRowOrCol * 2 - 1) * (BlockPerRowOrCol * 2 - 1);
-        }
-        else
-            numOfBlocks = BlockPerRowOrCol * BlockPerRowOrCol;
-
-        Span<double> mean = stackalloc double[numOfBlocks];
-        FindMean(pixels.Span, mean, pixRowOrColStep);
+        
+        Span<double> mean = stackalloc double[_hashSize];
+        FindMean(pixels.Span, mean);
         return CreateHash(pixels.Span, mean);
     }
 
@@ -71,16 +70,16 @@ public class BlockMeanHash : IImageHash
     }
 
     [SkipLocalsInit]
-    private void FindMean(ReadOnlySpan<int> pixels, Span<double> means, int pixRowOrColStep)
+    private void FindMean(ReadOnlySpan<int> pixels, Span<double> means)
     {
         nint blockIdx = 0;
         Span<int> block = stackalloc int[NbValuesPerBlock];
         var pixels2D = pixels.AsSpan2D(ImageSize, ImageSize);
         ref var meansReference = ref MemoryMarshal.GetReference(means);
 
-        for (var row = 0; row <= LastRowOrColSize; row += pixRowOrColStep)
+        for (var row = 0; row <= LastRowOrColSize; row += _pixelRowOrColStep)
         {
-            for (var col = 0; col <= LastRowOrColSize; col += pixRowOrColStep)
+            for (var col = 0; col <= LastRowOrColSize; col += _pixelRowOrColStep)
             {
                 pixels2D.Slice(col, row, BlockSize, BlockSize).CopyTo(block);
                 Unsafe.Add(ref meansReference, blockIdx++) =
