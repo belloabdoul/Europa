@@ -99,9 +99,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
         }
 
         // Return images grouped by hashes
-        var groups = finalImages.GroupBy(file => file.Hash)
-            .Where(i => i.Count() != 1).ToList();
-        return groups;
+        return finalImages.GroupBy(file => file.Hash)
+            .Where(i => i.Skip(1).Any()).ToList();
     }
 
     private async Task GeneratePerceptualHashes(string[] hypotheticalDuplicates,
@@ -209,7 +208,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
         return fileType;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static ImagesGroup? CreateGroup(U8String id, string path, long length, FileType fileType,
         SafeFileHandle fileHandle, ConcurrentDictionary<U8String, ImagesGroup> duplicateImagesGroups,
         CancellationToken cancellationToken = default)
@@ -228,7 +226,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
         return imagesGroup;
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static Task SendError(string message, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
     {

@@ -25,10 +25,7 @@ public class DbHelpers : IDbHelpers
         _database = database;
         _jsonSerializerOptions = new JsonSerializerOptions();
         _jsonSerializerOptions.Converters.Add(new ObservableHashSetJsonConverter());
-        // _options = MessagePackSerializerOptions.Standard.WithResolver(
-        //     CompositeResolver.Create(
-        //         new List<IMessagePackFormatter> { new ObservableHashSetJsonConverter(), new ImageHashJsonConverter() },
-        //         new List<IFormatterResolver>() { StandardResolver.Instance }));
+        _jsonSerializerOptions.Converters.Add(new ImageHashJsonConverter());
     }
 
     [SkipLocalsInit]
