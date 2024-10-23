@@ -6,7 +6,6 @@ using Core.Interfaces.Common;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
-using U8;
 using File = Core.Entities.File;
 
 namespace Api.Implementations.SimilarAudios;
@@ -31,7 +30,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         readLock = new object();
     }
 
-    public async Task<IEnumerable<IGrouping<U8String, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         int? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         Console.InputEncoding = Encoding.UTF8;

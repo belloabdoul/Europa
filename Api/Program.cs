@@ -8,7 +8,6 @@ using Api.Implementations.SimilarImages;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
 using Api.Implementations.SimilarImages.ImageProcessors;
 using Core.Entities;
-using Core.Entities.Redis;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
@@ -23,8 +22,6 @@ using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
 using Qdrant.Client;
-using Qdrant.Client.Grpc;
-using StackExchange.Redis;
 
 namespace Api;
 
@@ -63,14 +60,7 @@ public class Program
         // Add signalR
         services.AddSignalR(options => { options.EnableDetailedErrors = true; });
 
-        // Create index on database if not done
-        var redis = ConnectionMultiplexer.Connect("localhost");
-        services.AddSingleton(redis.GetDatabase());
-        services.AddHostedService<RedisService>();
-
         // Qdrant
-        ThreadPool.GetMaxThreads(out int workersThreads, out int completionPortThreads);
-        Console.WriteLine($"{workersThreads} {completionPortThreads}");
         services.AddSingleton(new QdrantClient("localhost"));
         services.AddHostedService<QdrantService>();
         
@@ -107,10 +97,10 @@ public class Program
         // Dependencies for finding similar image files.
         services.AddScoped<IImageHash, DifferenceHash>();
         services.AddScoped<IImageHash, PerceptualHash>();
-        services.AddScoped<IImageHash, BlockMeanHash>();
+        services.AddScoped<IImageHash>(_ => new BlockMeanHash(true));
 
         // Dependencies for redis database
-        services.AddScoped<IDbHelpers, DbHelpersQdrant>();
+        services.AddScoped<IDbHelpers, DbHelpers>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddScoped<ISimilarFilesFinder, DuplicateByHashFinder>();

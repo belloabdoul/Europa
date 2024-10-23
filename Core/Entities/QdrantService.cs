@@ -2,7 +2,7 @@
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 
-namespace Core.Entities.Redis;
+namespace Core.Entities;
 
 public class QdrantService : BackgroundService
 {
@@ -27,24 +27,20 @@ public class QdrantService : BackgroundService
                     {
                         [nameof(PerceptualHashAlgorithm.DifferenceHash)] = new VectorParams
                         {
-                            Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot,
-                            QuantizationConfig =
-                                new QuantizationConfig { Binary = new BinaryQuantization { AlwaysRam = true } }, OnDisk = true
+                            Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot
                         },
                         [nameof(PerceptualHashAlgorithm.PerceptualHash)] = new VectorParams
                         {
-                            Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot,
-                            QuantizationConfig =
-                                new QuantizationConfig { Binary = new BinaryQuantization { AlwaysRam = true } }, OnDisk = true
+                            Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot
                         },
                         [nameof(PerceptualHashAlgorithm.BlockMeanHash)] = new VectorParams
                         {
-                            Size = 256, Datatype = Datatype.Float16, Distance = Distance.Dot,
-                            QuantizationConfig =
-                                new QuantizationConfig { Binary = new BinaryQuantization { AlwaysRam = true } }, OnDisk = true
+                            Size = 961, Datatype = Datatype.Float16, Distance = Distance.Dot
                         }
                     }
-                }, cancellationToken: stoppingToken);
+                }, cancellationToken: stoppingToken, onDiskPayload: true,
+                quantizationConfig: new QuantizationConfig { Binary = new BinaryQuantization { AlwaysRam = true } }
+            );
 
             await _database.CreatePayloadIndexAsync(collectionName: "Europa",
                 fieldName: nameof(ImagesGroup.Id), cancellationToken: stoppingToken);
