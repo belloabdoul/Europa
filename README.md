@@ -2,20 +2,20 @@
 
 Europa is a desktop application built with the frameworks angular and electron and the components libraries material UI
 and the Ionic on the frontend; and .NET on the backend to find duplicates file with a cryptographic hash (Blake3) and
-similar images with perceptual hashes (DCT based hash and difference hash).
+similar images with perceptual hashes (DCT based hash, difference hash and block mean hash).
 
 ## Built with
 
 - C# / .NET on the backend
 - Angular, TypeScript, Electron frameworks on the frontend
 - Material UI / Ionic as components libraries
-- Redis as a vector database
+- Qdrant as a vector database
 - The Blake3 cryptographic algorithm for duplicate files
 - MagicScaler, NetVips and libRaw for reading images
 
 ## Requirements
 
-- Docker with docker compose installed
+- Qdrant database which you can download [here](https://github.com/qdrant/qdrant/releases)
 - .NET 9 SDK (including .NET runtime)
 - npm
 
@@ -27,11 +27,7 @@ similar images with perceptual hashes (DCT based hash and difference hash).
 https://github.com/belloabdoul/Europa.git
 ```
 
-- Spin up the redis database with docker compose in the root folder of the solution:
-
-```sh
-docker compose up
-```
+- Launch the qdrant local instance
 
 - Restore the solution dependencies and run the .NET API project. From the root of the solution, do:
 
@@ -53,7 +49,7 @@ npm start
 
 ## To do
 
-- Add the choice of perceptual hash in the UI.
+- ~~Add the choice of perceptual hash in the UI.~~
 - Package the UI with electron-forge or electron-builder and the API.
 - Add unit test.
 
