@@ -1,22 +1,18 @@
-﻿using System.Text.Json.Serialization;
-using U8;
-using U8.Serialization;
+﻿using System.IO.Hashing;
 
 namespace Core.Entities;
 
 public struct Similarity : IEquatable<Similarity>
 {
-    [JsonConverter(typeof(U8StringJsonConverter))]
-    public U8String OriginalId { get; set; }
+    public byte[] OriginalId { get; set; }
 
-    [JsonConverter(typeof(U8StringJsonConverter))]
-    public U8String DuplicateId { get; set; }
+    public byte[] DuplicateId { get; set; }
 
     public decimal Score { get; set; }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine(OriginalId, DuplicateId, Score);
+        return HashCode.Combine((int)XxHash3.HashToUInt64(OriginalId), (int)XxHash3.HashToUInt64(DuplicateId), Score);
     }
 
     public override bool Equals(object? obj)
@@ -26,7 +22,10 @@ public struct Similarity : IEquatable<Similarity>
 
     public bool Equals(Similarity other)
     {
-        return OriginalId == other.OriginalId && DuplicateId == other.DuplicateId &&
+        return (ReferenceEquals(OriginalId, other.OriginalId) ||
+                OriginalId.AsSpan().SequenceEqual(other.OriginalId)) &&
+               (ReferenceEquals(DuplicateId, other.DuplicateId) ||
+                OriginalId.AsSpan().SequenceEqual(DuplicateId)) &&
                Score == other.Score;
     }
 

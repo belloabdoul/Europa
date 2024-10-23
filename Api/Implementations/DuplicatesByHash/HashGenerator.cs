@@ -1,24 +1,25 @@
-﻿using System.Buffers;
+﻿using System.Runtime.CompilerServices;
 using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
 using Blake3;
-using DotNext.Buffers.Text;
-using U8;
-using U8.InteropServices;
+using CommunityToolkit.HighPerformance.Buffers;
 
 namespace Api.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
-    private const int BufferSize = 1_048_576;
+    private const int MinSizeForMultiThreading = 131072;
 
-    public async ValueTask<U8String?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public async ValueTask<byte[]?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
             return null;
 
-        using var buffer = new DotNext.Buffers.MemoryOwner<byte>(ArrayPool<byte>.Shared, 1_048_576);
+        var buffer = MemoryOwner<byte>.Allocate(bytesToHash >= MinSizeForMultiThreading
+            ? MinSizeForMultiThreading
+            : (int)bytesToHash);
 
         using var hasher = Hasher.New();
 
@@ -26,14 +27,21 @@ public class HashGenerator : IHashGenerator
 
         while (bytesHashed < bytesToHash)
         {
-            var remainingToHash = (int)(bytesToHash - bytesHashed);
-            var bytesRead = await RandomAccess.ReadAsync(fileHandle,
-                remainingToHash > BufferSize ? buffer.Memory : buffer.Memory[..remainingToHash], bytesHashed,
-                cancellationToken);
-            hasher.UpdateWithJoin(buffer.Span[..bytesRead]);
+            var remainingToHash = bytesToHash - bytesHashed;
+            if (remainingToHash < buffer.Length)
+                buffer = buffer[..(int)remainingToHash];
+            
+            var bytesRead = await RandomAccess.ReadAsync(fileHandle, buffer.Memory, bytesHashed,cancellationToken);
+            
+            if (bytesRead == MinSizeForMultiThreading)
+                hasher.UpdateWithJoin(buffer.Span);
+            else
+                hasher.Update(buffer.Span);
+            
             bytesHashed += bytesRead;
         }
 
-        return U8Marshal.CreateUnsafe(Hex.EncodeToUtf8(hasher.Finalize().AsSpan(), true));
+        buffer.Dispose();
+        return hasher.Finalize().AsSpan().ToArray();
     }
 }

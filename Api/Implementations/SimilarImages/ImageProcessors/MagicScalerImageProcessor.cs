@@ -1,8 +1,4 @@
 ﻿using System.Drawing;
-using System.Numerics;
-using System.Numerics.Tensors;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
@@ -21,7 +17,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 
     public FileType AssociatedImageType => FileType.MagicScalerImage;
 
-    private static readonly IPixelTransform BgrPixelTransform = new FormatConversionTransform(PixelFormats.Bgr24bpp);
+    private static readonly IPixelTransform GreyPixelTransform = new FormatConversionTransform(PixelFormats.Grey8bpp);
 
     private static readonly ProcessImageSettings ProcessImageSettings = new()
     {
@@ -29,9 +25,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
         HybridMode = HybridScaleMode.FavorQuality,
     };
-
-    private static readonly Vector3 GrayscaleCoefficients = new(0.0722f, 0.7152f, 0.2126f);
-
+    
     private static Rectangle _area = new(0, 0, 0, 0);
 
     public FileType GetFileType(string path)
@@ -57,8 +51,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
-    public ValueTask<bool> GenerateThumbnail<T>(string imagePath, int width, int height, Span<T> pixels)
-        where T : INumberBase<T>
+    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         if (_area.Width != width || _area.Height != height)
         {
@@ -74,8 +67,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return ValueTask.FromResult(GenerateThumbnail(pipeline, pixels));
     }
 
-    public ValueTask<bool> GenerateThumbnail<T>(ProcessedImage image, int width, int height, Span<T> pixels)
-        where T : INumberBase<T>
+    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
 
@@ -93,47 +85,15 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return ValueTask.FromResult(GenerateThumbnail(pipeline, pixels));
     }
 
-    [SkipLocalsInit]
-    private static bool GenerateThumbnail<T>(ProcessingPipeline imageProcessingPipeline, Span<T> pixels)
-        where T : INumberBase<T>
+    private static bool GenerateThumbnail(ProcessingPipeline imageProcessingPipeline, Span<byte> pixels)
+    
     {
         try
         {
-            imageProcessingPipeline.AddTransform(BgrPixelTransform);
-
-            var stride = imageProcessingPipeline.PixelSource.Format == PixelFormats.Bgr24bpp
-                ? _area.Width * 3
-                : _area.Width;
-
-            Span<byte> tempPixels = stackalloc byte[stride * _area.Height];
-
-            imageProcessingPipeline.PixelSource.CopyPixels(_area, stride, tempPixels);
-
-            if (_area.Width == stride)
-            {
-                TensorPrimitives.ConvertChecked<byte, T>(tempPixels, pixels);
-                return true;
-            }
+            imageProcessingPipeline.AddTransform(GreyPixelTransform);
             
-            Span<float> tempPixelsFloat = stackalloc float[stride * _area.Height];
-            TensorPrimitives.ConvertChecked<byte, float>(tempPixels, tempPixelsFloat);
-
-            var imageSize = _area.Width * _area.Height;
+            imageProcessingPipeline.PixelSource.CopyPixels(_area, _area.Width, pixels);
             
-            var pixelsAsVector3 = MemoryMarshal.CreateReadOnlySpan(
-                ref Unsafe.As<float, Vector3>(ref MemoryMarshal.GetReference(tempPixelsFloat)),
-                imageSize);
-            
-            ref var pixelsRef = ref MemoryMarshal.GetReference(pixels);
-            ref var pixelsAsVector3Ref = ref MemoryMarshal.GetReference(pixelsAsVector3);
-            
-            for (nuint i = 0; i < Convert.ToUInt64(imageSize); i++)
-            {
-                Unsafe.Add(ref pixelsRef, i) =
-                    T.CreateChecked(MathF.Round(Vector3.Dot(Unsafe.Add(ref pixelsAsVector3Ref, i),
-                        GrayscaleCoefficients)));
-            }
-
             return true;
         }
         catch (Exception)

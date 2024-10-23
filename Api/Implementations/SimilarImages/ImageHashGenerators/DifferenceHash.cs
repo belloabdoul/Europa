@@ -1,10 +1,10 @@
-﻿using System.Buffers;
+using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Core.Interfaces;
-using DotNext.Buffers;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
@@ -13,18 +13,18 @@ public class DifferenceHash : IImageHash
     private const int Width = 9;
     private const int Height = 8;
     private const int ImageSize = Width * Height;
+    public int HashSize => Height * (Width - 1);
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.DifferenceHash;
 
-    [SkipLocalsInit]
-    public async ValueTask<byte[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
-        using var pixels = new MemoryOwner<byte>(ArrayPool<byte>.Shared, ImageSize);
+        using var pixels = MemoryOwner<byte>.Allocate(ImageSize);
         await thumbnailGenerator.GenerateThumbnail(imagePath, Width, Height, pixels.Span);
 
-        var hash = new byte[(Width - 1) * Height];
-        CompareLessThanOrEqual(pixels.Span, hash);
-        return hash;
+        using var hash = MemoryOwner<byte>.Allocate(HashSize);
+        CompareLessThanOrEqual(pixels.Span, hash.Span);
+        return new BitArray(Unsafe.BitCast<Span<byte>, Span<bool>>(hash.Span).ToArray());
     }
 
     private static void CompareLessThanOrEqual(ReadOnlySpan<byte> source, Span<byte> destination)

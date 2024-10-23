@@ -6,7 +6,6 @@ using Core.Entities;
 using Core.Interfaces;
 using DotNext.Runtime;
 using Microsoft.AspNetCore.SignalR;
-using U8;
 using File = Core.Entities.File;
 
 namespace Api.Implementations.DuplicatesByHash;
@@ -22,13 +21,13 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         _notificationContext = notificationContext;
     }
 
-    public async Task<IEnumerable<IGrouping<U8String, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         int? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         // Partial hash generation
         var partialDuplicates =
-            new ConcurrentDictionary<U8String, ConcurrentStack<File>>(Environment.ProcessorCount,
-                hypotheticalDuplicates.Length);
+            new ConcurrentDictionary<byte[], ConcurrentStack<File>>(Environment.ProcessorCount,
+                hypotheticalDuplicates.Length, new HashComparer());
 
         var progressChannel = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
             { SingleWriter = false, SingleReader = true });
@@ -73,7 +72,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     }
 
     private async Task SetPartialDuplicates(string[] hypotheticalDuplicates,
-        ConcurrentDictionary<U8String, ConcurrentStack<File>> partialDuplicates, decimal percentageOfFileToHash,
+        ConcurrentDictionary<byte[], ConcurrentStack<File>> partialDuplicates, decimal percentageOfFileToHash,
         ChannelWriter<int> progressWriter, CancellationToken cancellationToken)
     {
         var progress = 0;
@@ -94,7 +93,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
                     var hash = await _hashGenerator.GenerateHash(fileHandle, bytesToHash, hashingToken);
 
-                    if (!hash.HasValue)
+                    if (hash == null)
                     {
                         _ = SendError($"File {hypotheticalDuplicates[i]} is corrupted", _notificationContext,
                             hashingToken);
@@ -107,14 +106,11 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                         Path = hypotheticalDuplicates[i],
                         DateModified = System.IO.File.GetLastWriteTime(fileHandle),
                         Size = size,
-                        Hash = hash.Value
+                        Hash = hash
                     };
 
-                    partialDuplicates.AddOrUpdate(file.Hash, [], (_, files) =>
-                    {
-                        files.Push(file);
-                        return files;
-                    });
+                    var group = partialDuplicates.GetOrAdd(file.Hash, []);
+                    group.Push(file);
 
                     var current = Interlocked.Increment(ref progress);
 
@@ -125,7 +121,10 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                     _ = SendError($"File {hypotheticalDuplicates[i]} is already being used by another application",
                         _notificationContext, hashingToken);
                 }
-
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
             });
 
         progressWriter.Complete();

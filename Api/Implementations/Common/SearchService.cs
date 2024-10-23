@@ -3,7 +3,6 @@ using Api.Implementations.SimilarAudios;
 using Api.Implementations.SimilarImages;
 using Core.Entities;
 using Core.Interfaces;
-using U8;
 using File = Core.Entities.File;
 
 namespace Api.Implementations.Common;
@@ -28,7 +27,7 @@ public class SearchService : ISearchService
             searchImplementations.First(implementation => implementation.GetType() == typeof(SimilarImageFinder));
     }
 
-    public async Task<IEnumerable<IGrouping<U8String, File>>> SearchAsync(string[] hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates,
         FileSearchType searchType, PerceptualHashAlgorithm? perceptualHashAlgorithm, int degreeOfSimilarity = 0,
         CancellationToken cancellationToken = default)
     {
