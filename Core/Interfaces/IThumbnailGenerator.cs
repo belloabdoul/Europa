@@ -1,12 +1,10 @@
-﻿using System.Numerics;
-using Core.Entities;
+﻿using Core.Entities;
 
 namespace Core.Interfaces;
 
 public interface IThumbnailGenerator
 {
-    ValueTask<bool> GenerateThumbnail<T>(string imagePath, int width, int height, Span<T> pixels)
-        where T : INumberBase<T>;
+    ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels);
 
     FileType AssociatedImageType { get; }
 }

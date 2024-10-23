@@ -1,10 +1,10 @@
-﻿using System.Buffers;
+﻿using System.Collections;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Core.Interfaces;
-using DotNext.Buffers;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
@@ -13,34 +13,34 @@ public class DifferenceHash : IImageHash
     private const int Width = 9;
     private const int Height = 8;
     private const int ImageSize = Width * Height;
-    public int HashSize => 64;
+    public int HashSize => Height * (Width - 1);
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.DifferenceHash;
 
-    [SkipLocalsInit]
-    public async ValueTask<float[]> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
     {
-        using var pixels = new MemoryOwner<float>(ArrayPool<float>.Shared, ImageSize);
+        using var pixels = MemoryOwner<byte>.Allocate(ImageSize);
         await thumbnailGenerator.GenerateThumbnail(imagePath, Width, Height, pixels.Span);
 
-        var hash = new float[(Width - 1) * Height];
-        CompareLessThanOrEqual(pixels.Span, hash);
-        return hash;
+        using var hash = MemoryOwner<byte>.Allocate(HashSize);
+        CompareLessThanOrEqual(pixels.Span, hash.Span);
+        return new BitArray(Unsafe.BitCast<Span<byte>, Span<bool>>(hash.Span).ToArray());
     }
 
-    private static void CompareLessThanOrEqual(ReadOnlySpan<float> source, Span<float> destination)
+    private static void CompareLessThanOrEqual(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ref var sourceRef = ref MemoryMarshal.GetReference(source);
         ref var destinationRef = ref MemoryMarshal.GetReference(destination);
 
         for (nuint y = 0; y < Height; ++y)
         {
-            Vector256.ConditionalSelect(Vector256.LessThan(
-                        Unsafe.As<float, Vector256<float>>(ref Unsafe.Add(ref sourceRef, y * Width)),
-                        Unsafe.As<float, Vector256<float>>(ref Unsafe.Add(ref sourceRef, y * Width + 1))),
-                    Vector256<float>.One,
-                    -Vector256<float>.One)
-                .CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref destinationRef, y * (Width - 1)), 8));
+            var rowStart = y * (Width - 1);
+            Vector64.ConditionalSelect(Vector64.LessThan(
+                        Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart)),
+                        Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart + 1))),
+                    Vector64<byte>.One,
+                    Vector64<byte>.Zero)
+                .CopyTo(MemoryMarshal.CreateSpan(ref Unsafe.Add(ref destinationRef, rowStart), 8));
         }
     }
 }
