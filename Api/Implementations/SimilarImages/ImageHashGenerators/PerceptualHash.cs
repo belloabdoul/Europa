@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Diagnostics;
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;

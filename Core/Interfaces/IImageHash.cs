@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using Core.Entities;
 
 namespace Core.Interfaces;
