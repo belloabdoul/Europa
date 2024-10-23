@@ -1,102 +1,162 @@
-﻿using System.Diagnostics;
+using System.Collections;
+using System.Diagnostics;
 using System.Numerics.Tensors;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
+using CommunityToolkit.HighPerformance.Buffers;
+using Core.Entities;
 using Core.Interfaces;
-using SimdLinq;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
 public class PerceptualHash : IImageHash
 {
-    private const int Size = 64;
-    public static int GetRequiredWidth() => Size;
-    public static int GetRequiredHeight() => Size;
-    private static readonly float[][] DctCoeffsSimd = GenerateDctCoeffsSimd();
+    private const int Size = 32;
+    public int HashSize => Size + Size;
+    public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.PerceptualHash;
+
+    private static readonly float[][] DctCoefficients;
 
     [SkipLocalsInit]
-    public Half[] GenerateHash(ReadOnlySpan<byte> pixels)
+    static PerceptualHash()
     {
-        Span<float> rows = stackalloc float[Size * Size];
+        DctCoefficients = new float[Size][];
 
-        Span<float> sequence = stackalloc float[Size];
-
-        // First convert row of bytes into row of float (this use SIMD) then generate the DCT for each row.
-        for (var y = 0; y < Size; y++)
+        // Vector from 1 to Size
+        Span<float> rowVector = stackalloc float[Size];
+        ref var rowVectorReference = ref MemoryMarshal.GetReference(rowVector);
+        for (nint i = 0; i < Size; i++)
         {
-            TensorPrimitives.ConvertChecked(pixels.Slice(y * Size, Size), sequence);
-            Dct1D_SIMD(sequence, rows, y);
+            Unsafe.Add(ref rowVectorReference, i) = i;
         }
 
-        Span<float> matrix = stackalloc float[Size * Size];
-        var rows2D = rows.AsSpan2D(Size, Size);
-
-        // Calculate the DCT for each column.
-        for (var x = 0; x < 8; x++)
+        for (nint coefficient = 0; coefficient < Size; coefficient++)
         {
-            rows2D.GetColumn(x).CopyTo(sequence);
+            // Resulting vector
+            var dctCoefficients = new float[Size];
 
-            Dct1D_SIMD(sequence, matrix, x, limit: 8);
+            // Compute A (2.0 * i + 1.0) into result
+            TensorPrimitives.Multiply(rowVector, 2, dctCoefficients);
+            TensorPrimitives.Add(dctCoefficients, 1, dctCoefficients);
+
+            // Compute A * coeff * Math.PI / (2.0 * Size) into result
+            TensorPrimitives.Multiply(dctCoefficients, coefficient, dctCoefficients);
+            TensorPrimitives.Multiply(dctCoefficients, Single.Pi, dctCoefficients);
+            TensorPrimitives.Divide(dctCoefficients, 2, dctCoefficients);
+            TensorPrimitives.Divide(dctCoefficients, Size, dctCoefficients);
+
+            // Now apply cos to obtain Math.Cos((2.0 * i + 1.0) * coeff * Math.PI / (2.0 * Size))
+            TensorPrimitives.Cos<float>(dctCoefficients, dctCoefficients);
+
+            // Multiply by sqrt(alpha / Size), with alpha = 1 if coefficient = 0, and alpha = 2 if coefficient > 0
+            TensorPrimitives.Multiply(dctCoefficients, coefficient > 0 ? float.Sqrt(2) / 8f : 1f / 8f,
+                dctCoefficients);
+
+            DctCoefficients[coefficient] = dctCoefficients;
+        }
+    }
+
+    [SkipLocalsInit]
+    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    {
+        using var pixels = MemoryOwner<byte>.Allocate(Size * Size);
+        using var pixelsAsFloats = MemoryOwner<float>.Allocate(Size * Size);
+
+        await thumbnailGenerator.GenerateThumbnail(imagePath, Size, Size, pixels.Span);
+        TensorPrimitives.ConvertChecked<byte, float>(pixels.Span, pixelsAsFloats.Span);
+
+        using var dctRowsResults = MemoryOwner<float>.Allocate(8 * Size);
+        // The 2D DCT is given by R = C . X . t(C) where . is the matrix product and C the DCT matrix
+
+        // DCT for rows : since the columns of t(C) are the rows of C, the dot product of the rows of X by the columns
+        // of t(C) is the same as the dot product of the rows of X by the rows of C
+        // We only do the 8 first columns of the DCT matrix since we only need the top left 8 x 8. The resulting matrix
+        // is 32 rows x 8 columns
+        ref var pixelsReference = ref pixelsAsFloats.DangerousGetReference();
+        for (nint y = 0; y < Size; y++)
+        {
+            Dct1D_SIMD(MemoryMarshal.CreateReadOnlySpan(ref Unsafe.Add(ref pixelsReference, y * Size), Size),
+                dctRowsResults.Span, y);
         }
 
-        // Only use the top 8x8 values.
-        Span<float> top8X8 = stackalloc float[Size];
-        matrix.AsSpan2D(0, 8, 8, 56).CopyTo(top8X8);
+        // Reuse the previously used array rented with pixelsAsFloats for the column
+        Span<float> column = stackalloc float[Size];
+        using var top8X8 = pixelsAsFloats[..HashSize];
+        
+        // DCT for columns : we multiply each row of our DCT matrix by a column of our previous result to avoid multiple
+        // copies. In this case, the result of this multiplication is aligned on the column since we lock according to 
+        // the second member of the matrix product. With this, we automatically get the 8 x 8 top left frequencies
+        // need for pHash
+        var dctRowsResults2D = dctRowsResults.Span.AsSpan2D(Size, 8);
+        for (nint x = 0; x < 8; x++)
+        {
+            dctRowsResults2D.GetColumn((int)x).CopyTo(column);
+            Dct1D_SIMD(column, top8X8.Span, x, true);
+        }
 
-        // Get average by skipping outlier first pixel
-        var average = CalculateAverageWithoutOutlierFirstPixel(top8X8);
+        // Ignore the top left pixel
+        ref var top8X8Reference = ref top8X8.DangerousGetReference();
+        top8X8Reference = 0;
 
-        // Compute the hash by comparing value to average
-        var hash = new Half[Size];
-        for (var i = 0; i < Size; i++)
-            hash[i] = top8X8[i] > average ? Half.One : Half.Zero;
+        // Compute the average
+        var mean = TensorPrimitives.Sum(top8X8.Span) / (HashSize);
+
+        // Set hash to 1 or 0 depending on if the current pixel in the DCT is greater than the average
+        var hash = new BitArray(HashSize);
+        for (nint i = 0; i < HashSize; i++)
+        {
+            if (Unsafe.Add(ref top8X8Reference, i) <= mean)
+                continue;
+            hash[(int)i] = true;
+        }
 
         return hash;
     }
 
-    private static float CalculateAverageWithoutOutlierFirstPixel(Span<float> values)
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static void Dct1D_SIMD(ReadOnlySpan<float> values, Span<float> dctResults, nint index,
+        bool isColumn = false)
     {
-        Debug.Assert(values.Length == 64, "This DCT method works with 64 doubles.");
-        return values[1..].Average();
-    }
-
-    [SkipLocalsInit]
-    private static float[][] GenerateDctCoeffsSimd()
-    {
-        var results = new float[Size][];
-
-        // Vector from 1 to Size
-        var rowVector = Enumerable.Range(0, Size).Select(Convert.ToSingle).ToArray();
-
-        for (var coeff = 0; coeff < Size; coeff++)
+        Debug.Assert(values.Length == 32, "This DCT method works with 32 values.");
+        ref var dctResultsReference = ref MemoryMarshal.GetReference(dctResults);
+        if (!isColumn)
         {
-            // Resulting vector
-            var vectorResult = new float[Size];
-
-            // Compute A (2.0 * i + 1.0) into result
-            TensorPrimitives.Multiply(rowVector, 2, vectorResult.AsSpan());
-            TensorPrimitives.Add(vectorResult, 1, vectorResult.AsSpan());
-
-            // Compute A * coeff * Math.PI / (2.0 * Size) into result
-            TensorPrimitives.Multiply(vectorResult, coeff, vectorResult.AsSpan());
-            TensorPrimitives.Multiply(vectorResult, Convert.ToSingle(Math.PI), vectorResult.AsSpan());
-            TensorPrimitives.Divide(vectorResult, 2, vectorResult.AsSpan());
-            TensorPrimitives.Divide(vectorResult, Size, vectorResult.AsSpan());
-
-            // Now apply cos to obtain Math.Cos((2.0 * i + 1.0) * coeff * Math.PI / (2.0 * Size))
-            TensorPrimitives.Cos(vectorResult, vectorResult.AsSpan());
-
-            results[coeff] = vectorResult;
+            Unsafe.Add(ref dctResultsReference, index * 8) =
+                TensorPrimitives.Dot(values, DctCoefficients[0]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 1) =
+                TensorPrimitives.Dot(values, DctCoefficients[1]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 2) =
+                TensorPrimitives.Dot(values, DctCoefficients[2]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 3) =
+                TensorPrimitives.Dot(values, DctCoefficients[3]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 4) =
+                TensorPrimitives.Dot(values, DctCoefficients[4]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 5) =
+                TensorPrimitives.Dot(values, DctCoefficients[5]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 6) =
+                TensorPrimitives.Dot(values, DctCoefficients[6]);
+            Unsafe.Add(ref dctResultsReference, index * 8 + 7) =
+                TensorPrimitives.Dot(values, DctCoefficients[7]);
         }
-
-        return results;
-    }
-
-    private static void Dct1D_SIMD(ReadOnlySpan<float> valuesRaw, Span<float> coefficients, int ci, int limit = Size)
-    {
-        Debug.Assert(valuesRaw.Length == 64, "This DCT method works with 64 doubles.");
-
-        for (var coeff = 0; coeff < limit; coeff++)
-            coefficients[ci * Size + coeff] = TensorPrimitives.Dot(valuesRaw, DctCoeffsSimd[coeff]);
+        else
+        {
+            Unsafe.Add(ref dctResultsReference, index) =
+                TensorPrimitives.Dot(values, DctCoefficients[0]);
+            Unsafe.Add(ref dctResultsReference, 8 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[1]);
+            Unsafe.Add(ref dctResultsReference, 16 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[2]);
+            Unsafe.Add(ref dctResultsReference, 24 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[3]);
+            Unsafe.Add(ref dctResultsReference, 32 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[4]);
+            Unsafe.Add(ref dctResultsReference, 40 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[5]);
+            Unsafe.Add(ref dctResultsReference, 48 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[6]);
+            Unsafe.Add(ref dctResultsReference, 56 + index) =
+                TensorPrimitives.Dot(values, DctCoefficients[7]);
+        }
     }
 }

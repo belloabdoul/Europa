@@ -57,11 +57,11 @@ try {
     // Added 400 ms to fix the black background issue while using transparent window. More detais at https://github.com/electron/electron/issues/15947
     app.on('ready', () => setTimeout(function () {
         // Launch the os folder chooser
-        ipcMain.handle('dialog:selectDirectory', async () => {
-            const { canceled, filePaths } = await dialog.showOpenDialog({
+        ipcMain.handle('dialog:selectDirectory', () => {
+            const filePaths = dialog.showOpenDialogSync({
                 properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent'],
             });
-            if (!canceled) {
+            if (typeof filePaths != 'undefined') {
                 return filePaths[0];
             }
             return '';

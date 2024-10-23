@@ -1,4 +1,5 @@
-﻿using Core.Entities;
+﻿using System.Numerics.Tensors;
+using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
 using NetVips;
@@ -8,10 +9,9 @@ namespace Api.Implementations.SimilarImages.ImageProcessors;
 
 public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
-    public FileSearchType GetAssociatedSearchType()
-    {
-        return FileSearchType.Images;
-    }
+    public FileSearchType AssociatedSearchType => FileSearchType.Images;
+
+    public FileType AssociatedImageType => FileType.LibVipsImage;
 
     public FileType GetFileType(string path)
     {
@@ -35,31 +35,53 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         }
     }
 
-    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize),
             image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
         using var resizedImage = imageFromBuffer.ThumbnailImage(width, height, Enums.Size.Force);
-        using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
-        using var imageWithoutAlpha = grayscaleImage.Flatten();
-        imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
-        return true;
+
+        return ValueTask.FromResult(GenerateGrayscaleThumbnail(resizedImage, pixels));
     }
 
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
+        using var resizedImage = Image.Thumbnail(imagePath, width, height, Enums.Size.Force);
+
+        return ValueTask.FromResult(GenerateGrayscaleThumbnail(resizedImage, pixels));
+    }
+
+    private static bool GenerateGrayscaleThumbnail(Image thumbnail, Span<byte> pixels)
+    {
+        var pointer = IntPtr.Zero;
+        var done = false;
         try
         {
-            using var resizedImage =
-                Image.Thumbnail(imagePath, width, height, Enums.Size.Force);
-            using var grayscaleImage = resizedImage.Colourspace(Enums.Interpretation.Bw);
+            using var grayscaleImage = thumbnail.Colourspace(Enums.Interpretation.Bw);
             using var imageWithoutAlpha = grayscaleImage.Flatten();
-            imageWithoutAlpha.WriteToMemory().CopyTo(pixels);
-            return true;
+            pointer = imageWithoutAlpha.WriteToMemory(out var size);
+
+            var length = Convert.ToInt32(size);
+
+            ReadOnlySpan<byte> providedPixels;
+            unsafe
+            {
+                providedPixels = new Span<byte>(pointer.ToPointer(), length);
+            }
+
+            TensorPrimitives.ConvertChecked(providedPixels, pixels);
+
+            done = true;
         }
         catch (Exception)
         {
-            return false;
         }
+        finally
+        {
+            if (pointer != IntPtr.Zero)
+                NetVips.NetVips.Free(pointer);
+        }
+
+        return done;
     }
 }

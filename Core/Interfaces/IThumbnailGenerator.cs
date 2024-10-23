@@ -1,6 +1,10 @@
-﻿namespace Core.Interfaces;
+﻿using Core.Entities;
+
+namespace Core.Interfaces;
 
 public interface IThumbnailGenerator
 {
-    bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels);
+    ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels);
+
+    FileType AssociatedImageType { get; }
 }

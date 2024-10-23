@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Api.Controllers;
 
-[Route("api/duplicates")]
+[Route("duplicates")]
 [ApiController]
 public class DuplicatesController : Controller
 {
@@ -42,7 +42,7 @@ public class DuplicatesController : Controller
 
         var duplicatesGroups = await _searchService.SearchAsync(hypotheticalDuplicates,
             searchParameters.FileSearchType!.Value,
-            searchParameters.PerceptualHashAlgorithm ?? PerceptualHashAlgorithm.PerceptualHash,
+            searchParameters.PerceptualHashAlgorithm,
             searchParameters.DegreeOfSimilarity ?? 0, cancellationToken);
 
         GC.Collect(2, GCCollectionMode.Aggressive, true, true);

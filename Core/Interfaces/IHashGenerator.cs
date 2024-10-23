@@ -4,5 +4,5 @@ namespace Core.Interfaces;
 
 public interface IHashGenerator
 {
-    string? GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
+    ValueTask<byte[]?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
 }

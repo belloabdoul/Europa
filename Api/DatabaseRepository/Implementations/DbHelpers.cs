@@ -1,176 +1,204 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using System.Text.Json.Serialization;
+using System.Collections;
+using System.Collections.Concurrent;
 using Api.DatabaseRepository.Interfaces;
-using Api.Implementations.SimilarImages.ImageHashGenerators;
-using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
-using NRedisStack;
-using NRedisStack.RedisStackCommands;
-using NRedisStack.Search;
-using StackExchange.Redis;
+using Qdrant.Client;
+using Qdrant.Client.Grpc;
+using static Qdrant.Client.Grpc.Conditions;
 
 namespace Api.DatabaseRepository.Implementations;
 
 public class DbHelpers : IDbHelpers
 {
-    private readonly IDatabase _database;
+    private readonly QdrantClient _database;
 
-    public DbHelpers(IDatabase database)
+    public DbHelpers(QdrantClient database)
     {
         _database = database;
     }
-
-    public async ValueTask<Half[]?> GetImageInfosAsync(string id)
+    
+    public async ValueTask EnableIndexing(CancellationToken cancellationToken)
     {
-        var redisResult = await _database.JSON().GetAsync(key: $"{nameof(DifferenceHash)}:{id}", indent: null,
-            newLine: null, space: null, $"$.{nameof(ImagesGroup.ImageHash)}");
+        await _database.UpdateCollectionAsync("Europa",
+            optimizersConfig: new OptimizersConfigDiff { IndexingThreshold = 1 }, cancellationToken: cancellationToken);
 
-        if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
-            return default;
-
-        var jsonArray =
-            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString(), AppJsonSerializerContext.Default.JsonArray);
-
-        if (jsonArray is { Count: > 0 })
-            return JsonSerializer.Deserialize<Half[]>(
-                JsonSerializer.Serialize<JsonNode>(jsonArray[0]!, AppJsonSerializerContext.Default.JsonNode),
-                AppJsonSerializerContext.Default.HalfArray);
-
-        return default;
-    }
-
-    public Task<bool> CacheHashAsync(ImagesGroup group)
-    {
-        var jsonCommands = _database.JSON();
-        return jsonCommands.SetAsync($"{nameof(DifferenceHash)}:{group.Id}", "$", group, When.Always,
-            AppJsonSerializerContext.Default.Options);
-    }
-
-    public async Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string id)
-    {
-        var redisResult = await _database.JSON().GetAsync(key: $"{nameof(DifferenceHash)}:{id}", indent: null,
-            newLine: null, space: null,
-            path: $"$.{nameof(ImagesGroup.Similarities)}[*].{nameof(Similarity.DuplicateId)}");
-
-        if (redisResult.Resp2Type != ResultType.BulkString || redisResult.IsNull)
-            return [];
-
-        var jsonArray =
-            JsonSerializer.Deserialize<JsonArray>(redisResult.ToString(), AppJsonSerializerContext.Default.JsonArray);
-
-        if (jsonArray is not { Count: > 0 })
-            return [];
-
-        var result =
-            new ObservableHashSet<string>(jsonArray.Select(node => StringPool.Shared.GetOrAdd(node!.ToString())));
-
-        return result;
-    }
-
-    public async Task<List<Similarity>> GetSimilarImages<T>(string id, T[] imageHash,
-        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone) where T : struct
-    {
-        var queryBuilder = new StringBuilder();
-
-        if (groupsAlreadyDone.Count > 0)
+        bool isIndexingCompleted;
+        do
         {
-            queryBuilder.Append($"-@{nameof(ImagesGroup.Id)}:");
-            queryBuilder.Append('{');
-            var i = 0;
-            foreach (var group in groupsAlreadyDone)
+            isIndexingCompleted =
+                (await _database.GetCollectionInfoAsync("Europa", cancellationToken: cancellationToken)).Status ==
+                CollectionStatus.Green;
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+        } while (!isIndexingCompleted);
+    }
+
+    public async ValueTask DisableIndexing(CancellationToken cancellationToken)
+    {
+        await _database.UpdateCollectionAsync("Europa",
+            optimizersConfig: new OptimizersConfigDiff { IndexingThreshold = 0 }, cancellationToken: cancellationToken);
+    }
+
+    public static float[] Vectorize(BitArray vector)
+    {
+        var vectorFloats = GC.AllocateUninitializedArray<float>(vector.Count);
+
+        nuint i = 0;
+        foreach (bool bit in vector)
+        {
+            vectorFloats[i] = bit ? 1 : -1;
+            i++;
+        }
+
+        return vectorFloats;
+    }
+
+    public async ValueTask<(Guid? Uuid, BitArray? ImageHash)> GetImageInfos(byte[] id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm)
+    {
+        var images = await _database.QueryAsync("Europa",
+            filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id)),
+            limit: 1,
+            vectorsSelector: new WithVectorsSelector
+                { Enable = true, Include = new VectorsSelector { Names = { Enum.GetName(perceptualHashAlgorithm) } } });
+
+        if (images.Count == 0)
+            return (null, null);
+
+        var image = images[0];
+        if (!image.Vectors.Vectors_.Vectors.TryGetValue(Enum.GetName(perceptualHashAlgorithm)!,
+                out var imageHash))
+            return (Guid.Parse(image.Id.Uuid), null);
+
+        var tempHashBits = GC.AllocateUninitializedArray<bool>(imageHash.Data.Count);
+        nuint i = 0;
+        foreach (var bit in imageHash.Data)
+        {
+            tempHashBits[i] = bit > 0;
+            i++;
+        }
+
+        return (Guid.Parse(image.Id.Uuid), new BitArray(tempHashBits));
+    }
+
+    public async ValueTask<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    {
+        return (await _database.UpsertAsync("Europa", [
+            new PointStruct
             {
-                queryBuilder.Append(group);
-                if (i != groupsAlreadyDone.Count - 1)
-                    queryBuilder.Append('|');
-                i++;
+                Id = Guid.CreateVersion7(),
+                Payload =
+                {
+                    [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] =
+                        Array.Empty<string>(),
+                    [nameof(group.Id)] = Convert.ToHexStringLower(group.Id)
+                },
+                Vectors = new Dictionary<string, float[]>
+                {
+                    [Enum.GetName(perceptualHashAlgorithm)!] = Vectorize(group.ImageHash!)
+                }
             }
+        ])).Status == UpdateStatus.Completed;
+    }
 
-            queryBuilder.Append("} ");
-        }
+    public async ValueTask<bool> AddImageHash(Guid uuid, ImagesGroup group,
+        PerceptualHashAlgorithm perceptualHashAlgorithm)
+    {
+        var done = (await _database.SetPayloadAsync("Europa", new Dictionary<string, Value>
+        {
+            [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] =
+                Array.Empty<string>()
+        }, uuid)).Status == UpdateStatus.Completed;
 
-        queryBuilder.Append("@ImageHash:[VECTOR_RANGE $distance $vector]=>{$YIELD_DISTANCE_AS: Score}");
+        if (!done)
+            return false;
 
-        var query = new Query(queryBuilder.ToString())
-            .AddParam("distance", degreeOfSimilarity)
-            .AddParam("vector", Vectorize(imageHash))
-            .ReturnFields(nameof(ImagesGroup.Id), nameof(Similarity.Score))
-            .Dialect(2);
-
-        query.SortBy = nameof(Similarity.Score);
-        var ftSearchCommands = _database.FT();
-
-        return (await ftSearchCommands.SearchAsync(nameof(ImagesGroup), query)).Documents.Select(document =>
-            new Similarity
+        done = (await _database.UpdateVectorsAsync("Europa", [
+            new PointVectors
             {
-                OriginalId = id,
-                DuplicateId = document[nameof(ImagesGroup.Id)]!,
-                Score = int.Parse(document[nameof(Similarity.Score)]!)
-            }).ToList();
+                Id = uuid,
+                Vectors = new Dictionary<string, float[]>
+                {
+                    [Enum.GetName(perceptualHashAlgorithm)!] = Vectorize(group.ImageHash!)
+                }
+            }
+        ])).Status == UpdateStatus.Completed;
+
+        return done;
     }
 
-    private static byte[] Vectorize<T>(T[] imageHash) where T : struct
+    public async ValueTask<ObservableHashSet<byte[]>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
+        PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        return MemoryMarshal.AsBytes(imageHash.AsSpan()).ToArray();
+        return new ObservableHashSet<byte[]>((await _database.QueryAsync("Europa",
+                filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(currentGroupId)),
+                limit: 1,
+                payloadSelector: new WithPayloadSelector
+                {
+                    Enable = true,
+                    Include = new PayloadIncludeSelector
+                    {
+                        Fields =
+                        {
+                            $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.DuplicateId)}"
+                        }
+                    }
+                }))[0].Payload[$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"].ListValue
+            .Values
+            .Select(value =>
+                Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue)),
+            new HashComparer());
     }
 
-    [SuppressMessage("ReSharper", "LoopCanBeConvertedToQuery")]
-    public async Task<bool> LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities)
+    public async ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
+        IReadOnlyCollection<byte[]> groupsAlreadyDone)
     {
-        var totalAdded = 0L;
-        foreach (var newSimilarity in newSimilarities)
+        var similarities = await _database.SearchAsync("Europa",
+            vector: Vectorize(imageHash), vectorName: Enum.GetName(perceptualHashAlgorithm),
+            scoreThreshold: hashSize - degreeOfSimilarity - 1, offset: 0, limit: 100,
+            filter: MatchExcept(nameof(ImagesGroup.Id),
+                groupsAlreadyDone.Select(Convert.ToHexStringLower).ToList()),
+            searchParams: new SearchParams { Exact = false },
+            payloadSelector: new WithPayloadSelector
+                { Enable = true, Include = new PayloadIncludeSelector { Fields = { "Id" } } }
+        );
+
+        return similarities.Select(value => new Similarity
         {
-            totalAdded += (await ArrAppendAsync($"{nameof(DifferenceHash)}:{id}",
-                $"$.{nameof(ImagesGroup.Similarities)}", newSimilarity))[0]!.Value;
-        }
-
-        return totalAdded > 0;
+            OriginalId = id,
+            DuplicateId = Convert.FromHexString(value.Payload[nameof(ImagesGroup.Id)].StringValue),
+            Score = Convert.ToDecimal(value.Score)
+        }).ToArray();
     }
 
-    // Copied from the class JsonCommandsAsync of NRedisStack with redundant code cleaned. Nothing has been changed
-    public async Task<long?[]> ArrAppendAsync(RedisKey key, string? path = null, params object[] values)
+    public async ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
+        Similarity[] newSimilarities)
     {
-        return (await _database.ExecuteAsync(ArrAppend(key, AppJsonSerializerContext.Default, path, values)))
-            .ToNullableLongArray();
-    }
-
-    // Copied from the class JsonCommandBuilder of NRedisStack with redundant code cleaned
-    // Create the command to send to redis. Here we pass our custom json serializer options since without it in AOT
-    // runtime an exception is throw for forbidden reflection-based serialization
-    public static SerializedCommand ArrAppend(RedisKey key, JsonSerializerContext jsonSerializerContext,
-        string? path = null, params object[] values)
-    {
-        if (values.Length < 1)
-            throw new ArgumentOutOfRangeException(nameof(values));
-        var objectList = new List<object>
-        {
-            key
-        };
-        if (path != null)
-            objectList.Add(path);
-        objectList.AddRange(
-            values.Select((Func<object, string>)(x =>
-                JsonSerializer.Serialize(x, typeof(Similarity), jsonSerializerContext))));
-        return new SerializedCommand("JSON.ARRAPPEND", objectList.ToArray());
-    }
-}
-
-public static class RedisResponseParser
-{
-    // Copied from the class JsonCommandBuilder of NRedisStack with code cleaned. Nothing has been changed
-    // Return the number of value updated per path. Since in our use case only one path is returned, the list will contain
-    // only one value
-    public static long?[] ToNullableLongArray(this RedisResult result)
-    {
-        if (result.IsNull)
-            return [];
-        return result.Resp2Type != ResultType.Integer
-            ? ((IEnumerable<RedisResult>)(RedisResult[])result)
-            .Select((Func<RedisResult, long?>)(x => (long?)x)).ToArray()
-            : [(long?)result];
+        return (await _database.SetPayloadAsync("Europa", new ConcurrentDictionary<string, Value>
+               {
+                   [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] = new()
+                   {
+                       ListValue = new ListValue
+                       {
+                           Values =
+                           {
+                               newSimilarities.Select(val => new Value
+                               {
+                                   StructValue = new Struct
+                                   {
+                                       Fields =
+                                       {
+                                           [nameof(val.OriginalId)] = Convert.ToHexStringLower(val.OriginalId),
+                                           [nameof(val.DuplicateId)] = Convert.ToHexStringLower(val.DuplicateId),
+                                           [nameof(val.Score)] = Convert.ToInt32(val.Score)
+                                       }
+                                   }
+                               })
+                           }
+                       }
+                   },
+               }, filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id)))).Status ==
+               UpdateStatus.Completed;
     }
 }

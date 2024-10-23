@@ -1,6 +1,5 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
-using Blake3;
 using Core.Entities;
 using Core.Interfaces;
 using Core.Interfaces.Common;
@@ -31,11 +30,8 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         readLock = new object();
     }
 
-    public PerceptualHashAlgorithm PerceptualHashAlgorithm { get; set; }
-    public int DegreeOfSimilarity { get; set; }
-
-    public async Task<IEnumerable<IGrouping<string, File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
-        CancellationToken token)
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+        int? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         Console.InputEncoding = Encoding.UTF8;
         Console.OutputEncoding = Encoding.UTF8;
@@ -45,13 +41,13 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         var tracks = _modelService.GetTrackIds();
         foreach (var track in tracks) _modelService.DeleteTrack(track);
 
-        token.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
 
         await Task.Factory.StartNew(() =>
         {
             hypotheticalDuplicates.AsParallel()
                 .WithDegreeOfParallelism((int)(Environment.ProcessorCount * 0.9))
-                .WithCancellation(token)
+                .WithCancellation(cancellationToken)
                 .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
                 .ForAll(file =>
                 {
@@ -59,7 +55,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
                     // var type = _fileTypeIdentifier.GetFileType(file);
                     // if (type.Equals("audio"))
                     // {
-                    //     //await semaphore.WaitAsync(token);
+                    //     //await semaphore.WaitAsync(cancellationToken);
                     //     lock (readLock)
                     //     {
                     //         try
@@ -87,11 +83,11 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
                     //     }
                     // }
                 });
-        }, token, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
-        token.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
 
-        token.ThrowIfCancellationRequested();
+        cancellationToken.ThrowIfCancellationRequested();
         return
         [
             .. duplicatedAudios.OrderByDescending(file => file.DateModified).GroupBy(file => file.Hash)

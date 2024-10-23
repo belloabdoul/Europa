@@ -41,6 +41,7 @@ import { CommonModule, KeyValuePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { File } from 'src/app/shared/models/file';
 import { SearchParametersErrors } from 'src/app/shared/models/search-parameters-errors';
+import { PerceptualHashAlgorithm } from 'src/app/shared/models/perceptual-hash-algorithm';
 
 @Component({
   selector: 'app-search-form',
@@ -82,6 +83,8 @@ export class SearchFormComponent implements OnDestroy {
 
   // Handle the presentation for the enum in the select
   fileSearchType: typeof FileSearchType = FileSearchType;
+  perceptualHashAlgorithm: typeof PerceptualHashAlgorithm =
+    PerceptualHashAlgorithm;
 
   // Handle the appearance of the cancel button when a search is running
   isSearchRunning: boolean;

@@ -16,10 +16,9 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         _libVipsThumbnailGenerator = thumbnailGenerators.Last();
     }
 
-    public FileSearchType GetAssociatedSearchType()
-    {
-        return FileSearchType.Images;
-    }
+    public FileSearchType AssociatedSearchType => FileSearchType.Images;
+
+    public FileType AssociatedImageType => FileType.LibRawImage;
 
     public FileType GetFileType(string path)
     {
@@ -34,7 +33,7 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         }
     }
 
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         using var context = RawContext.OpenFile(imagePath);
         try
@@ -47,7 +46,7 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         }
         catch (Exception)
         {
-            return false;
+            return ValueTask.FromResult(false);
         }
     }
 }

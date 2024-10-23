@@ -1,6 +1,11 @@
-﻿namespace Core.Interfaces;
+using System.Collections;
+using Core.Entities;
+
+namespace Core.Interfaces;
 
 public interface IImageHash
 {
-    Half[] GenerateHash(ReadOnlySpan<byte> pixels);
+    ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator);
+    PerceptualHashAlgorithm PerceptualHashAlgorithm { get; }
+    int HashSize { get; }
 }

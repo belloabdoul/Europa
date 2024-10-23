@@ -3,7 +3,7 @@ import {
   HttpTransportType,
   HubConnection,
   HubConnectionBuilder,
-  LogLevel,
+  JsonHubProtocol,
 } from '@microsoft/signalr';
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
@@ -28,7 +28,7 @@ export class SearchService {
   private similarFiles: Subject<File[][]> = new Subject();
   public similarFiles$: Observable<File[][]> = this.similarFiles.asObservable();
 
-  private apiUrl: string = 'http://localhost:5206/';
+  private apiUrl: string = 'https://localhost:7001/';
   private duplicatesApiUrl: string = `${this.apiUrl}duplicates/`;
 
   constructor(private http: HttpClient) {}
@@ -43,6 +43,7 @@ export class SearchService {
       .withUrl(url, {
         transport: HttpTransportType.WebSockets,
       })
+      .withHubProtocol(new JsonHubProtocol())
       .withStatefulReconnect()
       .build();
 

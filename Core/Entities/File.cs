@@ -11,5 +11,5 @@ public class File
     // The last time the file has been modified
     public DateTime DateModified { get; init; }
 
-    public string Hash { get; init; }
+    public byte[] Hash { get; init; }
 }

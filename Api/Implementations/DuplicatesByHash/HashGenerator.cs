@@ -1,6 +1,6 @@
-﻿using Core.Interfaces;
+﻿using System.Runtime.CompilerServices;
+using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
-using System.Runtime.CompilerServices;
 using Blake3;
 using CommunityToolkit.HighPerformance.Buffers;
 
@@ -8,18 +8,19 @@ namespace Api.Implementations.DuplicatesByHash;
 
 public class HashGenerator : IHashGenerator
 {
-    private const int BufferSize = 1_048_576;
-    private const int HashSize = 32;
-    
+    private const int MinSizeForMultiThreading = 131072;
 
-    [SkipLocalsInit]
-    public string? GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public async ValueTask<byte[]?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
         CancellationToken cancellationToken)
     {
         if (bytesToHash == 0)
             return null;
 
-        Span<byte> buffer = stackalloc byte[BufferSize];
+        var buffer = MemoryOwner<byte>.Allocate(bytesToHash >= MinSizeForMultiThreading
+            ? MinSizeForMultiThreading
+            : (int)bytesToHash);
+
         using var hasher = Hasher.New();
 
         var bytesHashed = 0L;
@@ -27,25 +28,20 @@ public class HashGenerator : IHashGenerator
         while (bytesHashed < bytesToHash)
         {
             var remainingToHash = bytesToHash - bytesHashed;
-            if (remainingToHash > buffer.Length)
-            {
-                bytesHashed += RandomAccess.Read(fileHandle, buffer, bytesHashed);
-                hasher.UpdateWithJoin(buffer);
-            }
+            if (remainingToHash < buffer.Length)
+                buffer = buffer[..(int)remainingToHash];
+            
+            var bytesRead = await RandomAccess.ReadAsync(fileHandle, buffer.Memory, bytesHashed,cancellationToken);
+            
+            if (bytesRead == MinSizeForMultiThreading)
+                hasher.UpdateWithJoin(buffer.Span);
             else
-            {
-                bytesHashed += RandomAccess.Read(fileHandle, buffer[..(int)remainingToHash], bytesHashed);
-                if (remainingToHash > 131072)
-                    hasher.UpdateWithJoin(buffer[..(int)remainingToHash]);
-                else
-                    hasher.Update(buffer[..(int)remainingToHash]);
-            }
+                hasher.Update(buffer.Span);
+            
+            bytesHashed += bytesRead;
         }
 
-        // Reuse the buffer already allocated on the stack instead of allocating a new one
-        hasher.Finalize(buffer[..HashSize]);
-        Span<char> charBuffer = stackalloc char[HashSize * 2];
-        Convert.TryToHexStringLower(buffer[..HashSize], charBuffer, out _);
-        return StringPool.Shared.GetOrAdd(charBuffer);
+        buffer.Dispose();
+        return hasher.Finalize().AsSpan().ToArray();
     }
 }

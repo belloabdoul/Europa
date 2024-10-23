@@ -27,22 +27,22 @@ public class SearchService : ISearchService
             searchImplementations.First(implementation => implementation.GetType() == typeof(SimilarImageFinder));
     }
 
-    public async Task<IEnumerable<IGrouping<string, File>>> SearchAsync(string[] hypotheticalDuplicates,
-        FileSearchType searchType,
-        PerceptualHashAlgorithm perceptualHashAlgorithm = PerceptualHashAlgorithm.DifferenceHash,
-        int degreeOfSimilarity = 0, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates,
+        FileSearchType searchType, PerceptualHashAlgorithm? perceptualHashAlgorithm, int degreeOfSimilarity = 0,
+        CancellationToken cancellationToken = default)
     {
         switch (searchType)
         {
             case FileSearchType.All:
-                return await _duplicateByHashFinder.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
+                return await _duplicateByHashFinder.FindSimilarFilesAsync(hypotheticalDuplicates,
+                    cancellationToken: cancellationToken);
             case FileSearchType.Audios:
-                return await _similarAudiosFinder.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
+                return await _similarAudiosFinder.FindSimilarFilesAsync(hypotheticalDuplicates,
+                    cancellationToken: cancellationToken);
             case FileSearchType.Images:
             default:
-                _similarImagesFinder.DegreeOfSimilarity = degreeOfSimilarity;
-                _similarImagesFinder.PerceptualHashAlgorithm = perceptualHashAlgorithm;
-                return await _similarImagesFinder.FindSimilarFilesAsync(hypotheticalDuplicates, cancellationToken);
+                return await _similarImagesFinder.FindSimilarFilesAsync(hypotheticalDuplicates, perceptualHashAlgorithm,
+                    degreeOfSimilarity, cancellationToken);
         }
     }
 }

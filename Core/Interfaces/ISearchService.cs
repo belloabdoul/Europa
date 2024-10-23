@@ -5,7 +5,7 @@ namespace Core.Interfaces;
 
 public interface ISearchService
 {
-    Task<IEnumerable<IGrouping<string, File>>> SearchAsync(string[] hypotheticalDuplicates, FileSearchType searchType,
-        PerceptualHashAlgorithm perceptualHashAlgorithm = PerceptualHashAlgorithm.DifferenceHash,
-        int degreeOfSimilarity = 0, CancellationToken cancellationToken = default);
+    Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates, FileSearchType searchType,
+        PerceptualHashAlgorithm? perceptualHashAlgorithm, int degreeOfSimilarity = 0,
+        CancellationToken cancellationToken = default);
 }

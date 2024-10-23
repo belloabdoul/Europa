@@ -1,18 +1,29 @@
-﻿using Core.Entities;
+using System.Collections;
+using Core.Entities;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace Api.DatabaseRepository.Interfaces;
 
 public interface IDbHelpers
 {
-    ValueTask<Half[]?> GetImageInfosAsync(string id);
+    ValueTask<(Guid? Uuid, BitArray? ImageHash)> GetImageInfos(byte[] id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm);
 
-    Task<bool> CacheHashAsync(ImagesGroup group);
+    ValueTask<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm);
 
-    Task<ObservableHashSet<string>> GetSimilarImagesAlreadyDoneInRange(string currentGroupId);
+    ValueTask<bool> AddImageHash(Guid uuid, ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm);
 
-    Task<List<Similarity>> GetSimilarImages<T>(string id, T[] imageHash,
-        int degreeOfSimilarity, IReadOnlyCollection<string> groupsAlreadyDone) where T : struct;
+    ValueTask DisableIndexing(CancellationToken cancellationToken);
 
-    Task<bool> LinkToSimilarImagesAsync(string id, ICollection<Similarity> newSimilarities);
+    ValueTask EnableIndexing(CancellationToken cancellationToken);
+
+    ValueTask<ObservableHashSet<byte[]>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
+        PerceptualHashAlgorithm perceptualHashAlgorithm);
+
+    ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
+        IReadOnlyCollection<byte[]> groupsAlreadyDone);
+
+    ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
+        Similarity[] newSimilarities);
 }

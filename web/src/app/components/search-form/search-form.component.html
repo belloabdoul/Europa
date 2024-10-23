@@ -102,6 +102,7 @@
         [(ngModel)]="searchParameters.fileSearchType"
         (ngModelChange)="clearErrorMessages('fileSearchType')"
         [disabled]="isSearchRunning"
+        labelPlacement="stacked"
       >
         <div slot="label">
           Search type <ion-text color="danger">(Required)</ion-text>
@@ -123,6 +124,35 @@
   </ion-item-group>
 
   @if(searchParameters.fileSearchType == fileSearchType.Images){
+  <ion-item-group>
+    <ion-item>
+      <ion-select
+        interface="popover"
+        placeholder="Select a perceptual hash algorithm"
+        labelPlacement="stacked"
+        [(ngModel)]="searchParameters.perceptualHashAlgorithm"
+        (ngModelChange)="clearErrorMessages('perceptualHashAlgorithm')"
+        [disabled]="isSearchRunning"
+      >
+        <div slot="label">
+          Perceptual hash algorithm
+          <ion-text color="danger">(Required)</ion-text>
+        </div>
+        @for (algorithm of perceptualHashAlgorithm | keyvalue; track $index) {
+        <ion-select-option [value]="algorithm.value">{{
+          algorithm.key
+        }}</ion-select-option>
+        }
+      </ion-select>
+    </ion-item>
+    @if (searchParametersErrors.perceptualHashAlgorithm.length != 0) {
+    <ion-item class="fit"
+      ><ion-note color="danger">
+        {{ searchParametersErrors.perceptualHashAlgorithm[0] }}
+      </ion-note>
+    </ion-item>
+    }
+  </ion-item-group>
   <ion-item-group>
     <ion-item>
       <ion-input

@@ -1,8 +1,9 @@
-﻿using Sdcb.LibRaw;
+﻿using System.Numerics;
+using Sdcb.LibRaw;
 
 namespace Core.Interfaces;
 
 public interface IMainThumbnailGenerator
 {
-    bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels);
+    ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels);
 }

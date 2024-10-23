@@ -71,11 +71,11 @@ try {
   app.on('ready', () =>
     setTimeout(function () {
       // Launch the os folder chooser
-      ipcMain.handle('dialog:selectDirectory', async () => {
-        const { canceled, filePaths } = await dialog.showOpenDialog({
+      ipcMain.handle('dialog:selectDirectory', () => {
+        const filePaths = dialog.showOpenDialogSync({
           properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent'],
         });
-        if (!canceled) {
+        if (typeof filePaths != 'undefined') {
           return filePaths[0];
         }
         return '';
