@@ -1,7 +1,10 @@
 ﻿using System.Numerics.Tensors;
 using Core.Entities;
+using Core.Entities.Files;
+using Core.Entities.SearchParameters;
 using Core.Interfaces;
 using Core.Interfaces.Common;
+using Core.Interfaces.SimilarImages;
 using NetVips;
 using Sdcb.LibRaw;
 

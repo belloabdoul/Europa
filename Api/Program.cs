@@ -1,15 +1,17 @@
 using System.Text.Json;
-using Api.DatabaseRepository.Implementations;
-using Api.DatabaseRepository.Interfaces;
+using Api.Client;
+using Api.Client.Repositories;
+using Api.Controllers;
 using Api.Implementations.Common;
 using Api.Implementations.DuplicatesByHash;
 using Api.Implementations.SimilarAudios;
 using Api.Implementations.SimilarImages;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
 using Api.Implementations.SimilarImages.ImageProcessors;
-using Core.Entities;
+using Core.Entities.SearchParameters;
 using Core.Interfaces;
 using Core.Interfaces.Common;
+using Core.Interfaces.SimilarImages;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Connections;
@@ -21,7 +23,6 @@ using PhotoSauce.NativeCodecs.Libjpeg;
 using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
-using Qdrant.Client;
 
 namespace Api;
 
@@ -60,10 +61,6 @@ public class Program
         // Add signalR
         services.AddSignalR(options => { options.EnableDetailedErrors = true; });
 
-        // Qdrant
-        services.AddSingleton(new QdrantClient("localhost"));
-        services.AddHostedService<QdrantService>();
-        
         // Initialize FFmpeg
         var current = AppDomain.CurrentDomain.BaseDirectory;
         var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
@@ -99,8 +96,12 @@ public class Program
         services.AddScoped<IImageHash, PerceptualHash>();
         services.AddScoped<IImageHash>(_ => new BlockMeanHash(true));
 
-        // Dependencies for redis database
-        services.AddScoped<IDbHelpers, DbHelpers>();
+        // Dependencies for qdrant database
+        services.AddTransient<ICollectionRepository, QdrantRepository>();
+        services.AddTransient<IIndexingRepository, QdrantRepository>();
+        services.AddTransient<IImagesInfosRepository, QdrantRepository>();
+        services.AddTransient<ISimilarImagesRepository, QdrantRepository>();
+        services.AddHostedService<QdrantConfig>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddScoped<ISimilarFilesFinder, DuplicateByHashFinder>();

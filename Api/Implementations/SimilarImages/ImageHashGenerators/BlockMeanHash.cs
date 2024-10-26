@@ -5,7 +5,10 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
+using Core.Entities.Images;
+using Core.Entities.SearchParameters;
 using Core.Interfaces;
+using Core.Interfaces.SimilarImages;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 

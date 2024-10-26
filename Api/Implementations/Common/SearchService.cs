@@ -2,8 +2,13 @@
 using Api.Implementations.SimilarAudios;
 using Api.Implementations.SimilarImages;
 using Core.Entities;
+using Core.Entities.Files;
+using Core.Entities.Images;
+using Core.Entities.SearchParameters;
 using Core.Interfaces;
-using File = Core.Entities.File;
+using Core.Interfaces.Common;
+using Core.Interfaces.SimilarImages;
+using File = Core.Entities.Files.File;
 
 namespace Api.Implementations.Common;
 

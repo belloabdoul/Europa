@@ -1,4 +1,6 @@
 ﻿using Core.Entities;
+using Core.Entities.Files;
+using Core.Entities.SearchParameters;
 using Core.Interfaces.Common;
 using MediaInfoLib;
 

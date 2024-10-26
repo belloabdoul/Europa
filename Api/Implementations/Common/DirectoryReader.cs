@@ -1,6 +1,8 @@
 ﻿using System.Buffers;
 using System.Security;
 using Core.Entities;
+using Core.Entities.Notifications;
+using Core.Entities.SearchParameters;
 using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
 
