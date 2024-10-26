@@ -4,7 +4,6 @@ using System.Threading.Channels;
 using Api.Implementations.Common;
 using Core.Entities;
 using Core.Interfaces;
-using DotNext.Runtime;
 using Microsoft.AspNetCore.SignalR;
 using File = Core.Entities.File;
 
@@ -77,14 +76,14 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     {
         var progress = 0;
 
-        await Parallel.ForAsync<nuint>(0, hypotheticalDuplicates.GetLength(),
+        await Parallel.ForEachAsync(hypotheticalDuplicates,
             new ParallelOptions
                 { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
-            async (i, hashingToken) =>
+            async (hypotheticalDuplicate, hashingToken) =>
             {
                 try
                 {
-                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicates[i], true, true);
+                    using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicate, true, true);
 
                     var size = RandomAccess.GetLength(fileHandle);
 
@@ -95,7 +94,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
                     if (hash == null)
                     {
-                        _ = SendError($"File {hypotheticalDuplicates[i]} is corrupted", _notificationContext,
+                        _ = SendError($"File {hypotheticalDuplicate} is corrupted", _notificationContext,
                             hashingToken);
 
                         return;
@@ -103,7 +102,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
 
                     var file = new File
                     {
-                        Path = hypotheticalDuplicates[i],
+                        Path = hypotheticalDuplicate,
                         DateModified = System.IO.File.GetLastWriteTime(fileHandle),
                         Size = size,
                         Hash = hash
@@ -118,7 +117,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 }
                 catch (IOException)
                 {
-                    _ = SendError($"File {hypotheticalDuplicates[i]} is already being used by another application",
+                    _ = SendError($"File {hypotheticalDuplicate} is already being used by another application",
                         _notificationContext, hashingToken);
                 }
                 catch (Exception e)
