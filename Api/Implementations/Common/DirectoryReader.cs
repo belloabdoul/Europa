@@ -1,4 +1,5 @@
-﻿using System.Security;
+﻿using System.Buffers;
+using System.Security;
 using Core.Entities;
 using Core.Interfaces.Common;
 using Microsoft.AspNetCore.SignalR;
@@ -25,11 +26,16 @@ public class DirectoryReader : IDirectoryReader
     {
         var files = new List<string>();
 
+        var fileTypesToInclude = SearchValues.Create(searchParameters.IncludedFileTypes,
+            StringComparison.OrdinalIgnoreCase);
+        var fileTypesToExclude = SearchValues.Create(searchParameters.ExcludedFileTypes,
+            StringComparison.OrdinalIgnoreCase);
+
         foreach (var folder in searchParameters.Folders)
             try
             {
                 files.AddRange(GetFilesInFolder(folder, searchParameters.MinSize, searchParameters.MaxSize,
-                    searchParameters.IncludedFileTypes, searchParameters.ExcludedFileTypes,
+                    fileTypesToInclude, fileTypesToExclude,
                     searchParameters.IncludeSubFolders));
             }
             catch (ArgumentNullException ex)
@@ -60,8 +66,8 @@ public class DirectoryReader : IDirectoryReader
         return files.ToArray();
     }
 
-    public IEnumerable<string> GetFilesInFolder(string folder, long? minSize, long? maxSize, string[] includedFileTypes,
-        string[] excludedFileTypes, bool includeSubFolders = false)
+    public IEnumerable<string> GetFilesInFolder(string folder, long? minSize, long? maxSize,
+        SearchValues<string> includedFileTypes, SearchValues<string> excludedFileTypes, bool includeSubFolders = false)
     {
         var enumerationOptions = new EnumerationOptions
         {
@@ -70,8 +76,8 @@ public class DirectoryReader : IDirectoryReader
         };
 
         return new DirectoryInfo(folder).EnumerateFiles("*", enumerationOptions).Where(file =>
-                (FileFilter.IsFileToBeIncluded(file.Extension, includedFileTypes) ||
-                 !FileFilter.IsFileToBeExcluded(file.Extension, excludedFileTypes)) &&
+                !FileFilter.IsFileToBeExcluded(file.Extension, excludedFileTypes) &&
+                FileFilter.IsFileToBeIncluded(file.Extension, includedFileTypes) &&
                 FileFilter.IsFileSizeInRange(file.Length, minSize, maxSize))
             .Select(file => file.FullName);
     }
