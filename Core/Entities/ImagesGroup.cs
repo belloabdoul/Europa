@@ -1,6 +1,6 @@
 using System.Collections;
 using System.Collections.Concurrent;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
+using NSwag.Collections;
 
 namespace Core.Entities;
 
@@ -20,7 +20,7 @@ public class ImagesGroup
 
     public ConcurrentStack<string> Duplicates { get; } = [];
     
-    public ObservableHashSet<byte[]>? SimilarImages { get; set; } = [];
+    public ObservableDictionary<byte[], byte>? SimilarImages { get; set; } = [];
 
     public Similarity[] Similarities { get; set; } = [];
 }

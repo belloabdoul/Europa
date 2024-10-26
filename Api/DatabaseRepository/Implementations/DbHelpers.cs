@@ -1,8 +1,12 @@
 using System.Collections;
 using System.Collections.Concurrent;
+using System.IO.Hashing;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Api.DatabaseRepository.Interfaces;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities;
-using Microsoft.EntityFrameworkCore.ChangeTracking;
+using NSwag.Collections;
 using Qdrant.Client;
 using Qdrant.Client.Grpc;
 using static Qdrant.Client.Grpc.Conditions;
@@ -12,12 +16,13 @@ namespace Api.DatabaseRepository.Implementations;
 public class DbHelpers : IDbHelpers
 {
     private readonly QdrantClient _database;
+    private static readonly HashComparer HashComparer = new();
 
     public DbHelpers(QdrantClient database)
     {
         _database = database;
     }
-    
+
     public async ValueTask EnableIndexing(CancellationToken cancellationToken)
     {
         await _database.UpdateCollectionAsync("Europa",
@@ -39,87 +44,84 @@ public class DbHelpers : IDbHelpers
             optimizersConfig: new OptimizersConfigDiff { IndexingThreshold = 0 }, cancellationToken: cancellationToken);
     }
 
-    public static float[] Vectorize(BitArray vector)
+    public static void Vectorize(BitArray vector, Span<float> vectorFLoats)
     {
-        var vectorFloats = GC.AllocateUninitializedArray<float>(vector.Count);
-
-        nuint i = 0;
-        foreach (bool bit in vector)
+        ref var vectorRef = ref MemoryMarshal.GetReference(vectorFLoats);
+        for (nuint i = 0; i < (nuint)vector.Length; i++)
         {
-            vectorFloats[i] = bit ? 1 : -1;
-            i++;
+            Unsafe.Add(ref vectorRef, i) = vector[(int)i] ? 1f : -1f;
         }
-
-        return vectorFloats;
     }
 
-    public async ValueTask<(Guid? Uuid, BitArray? ImageHash)> GetImageInfos(byte[] id,
+    public async Task<BitArray?> GetImageInfos(byte[] id,
         PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        var images = await _database.QueryAsync("Europa",
-            filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id)),
-            limit: 1,
-            vectorsSelector: new WithVectorsSelector
-                { Enable = true, Include = new VectorsSelector { Names = { Enum.GetName(perceptualHashAlgorithm) } } });
+        var images = await _database.RetrieveAsync("Europa", XxHash3.HashToUInt64(id),
+            false, true);
 
         if (images.Count == 0)
-            return (null, null);
+            return null;
 
         var image = images[0];
         if (!image.Vectors.Vectors_.Vectors.TryGetValue(Enum.GetName(perceptualHashAlgorithm)!,
                 out var imageHash))
-            return (Guid.Parse(image.Id.Uuid), null);
+            return new BitArray(0);
 
-        var tempHashBits = GC.AllocateUninitializedArray<bool>(imageHash.Data.Count);
-        nuint i = 0;
-        foreach (var bit in imageHash.Data)
+        var hash = new BitArray(imageHash.Data.Count);
+        for (var i = 0; i < imageHash.Data.Count; i++)
         {
-            tempHashBits[i] = bit > 0;
+            hash[i] = imageHash.Data[i] > 0;
             i++;
         }
 
-        return (Guid.Parse(image.Id.Uuid), new BitArray(tempHashBits));
+        return hash;
     }
 
-    public async ValueTask<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public async Task<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
+        using var tempVector = MemoryOwner<float>.Allocate(group.ImageHash!.Length);
+        Vectorize(group.ImageHash, tempVector.Span);
         return (await _database.UpsertAsync("Europa", [
             new PointStruct
             {
-                Id = Guid.CreateVersion7(),
+                Id = XxHash3.HashToUInt64(group.Id),
                 Payload =
                 {
+                    [nameof(ImagesGroup.Id)] = Convert.ToHexStringLower(group.Id),
                     [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] =
-                        Array.Empty<string>(),
-                    [nameof(group.Id)] = Convert.ToHexStringLower(group.Id)
+                        Array.Empty<string>()
                 },
-                Vectors = new Dictionary<string, float[]>
+                Vectors = new Dictionary<string, Vector>
                 {
-                    [Enum.GetName(perceptualHashAlgorithm)!] = Vectorize(group.ImageHash!)
+                    [Enum.GetName(perceptualHashAlgorithm)!] = new()
+                        { Data = { MemoryMarshal.ToEnumerable<float>(tempVector.Memory) } }
                 }
             }
         ])).Status == UpdateStatus.Completed;
     }
 
-    public async ValueTask<bool> AddImageHash(Guid uuid, ImagesGroup group,
+    public async ValueTask<bool> AddImageHash(ImagesGroup group,
         PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         var done = (await _database.SetPayloadAsync("Europa", new Dictionary<string, Value>
         {
             [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] =
                 Array.Empty<string>()
-        }, uuid)).Status == UpdateStatus.Completed;
+        }, XxHash3.HashToUInt64(group.Id))).Status == UpdateStatus.Completed;
 
         if (!done)
             return false;
 
+        using var tempVector = MemoryOwner<float>.Allocate(group.ImageHash!.Length);
+        Vectorize(group.ImageHash, tempVector.Span);
         done = (await _database.UpdateVectorsAsync("Europa", [
             new PointVectors
             {
-                Id = uuid,
-                Vectors = new Dictionary<string, float[]>
+                Id = XxHash3.HashToUInt64(group.Id),
+                Vectors = new Dictionary<string, Vector>
                 {
-                    [Enum.GetName(perceptualHashAlgorithm)!] = Vectorize(group.ImageHash!)
+                    [Enum.GetName(perceptualHashAlgorithm)!] = new()
+                        { Data = { MemoryMarshal.ToEnumerable<float>(tempVector.Memory) } }
                 }
             }
         ])).Status == UpdateStatus.Completed;
@@ -127,10 +129,10 @@ public class DbHelpers : IDbHelpers
         return done;
     }
 
-    public async ValueTask<ObservableHashSet<byte[]>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
-        PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public async ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(
+        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
-        return new ObservableHashSet<byte[]>((await _database.QueryAsync("Europa",
+        return new ObservableDictionary<byte[], byte>((await _database.QueryAsync("Europa",
                 filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(currentGroupId)),
                 limit: 1,
                 payloadSelector: new WithPayloadSelector
@@ -146,16 +148,18 @@ public class DbHelpers : IDbHelpers
                 }))[0].Payload[$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"].ListValue
             .Values
             .Select(value =>
-                Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue)),
-            new HashComparer());
+                Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue))
+            .ToDictionary(val => val, _ => (byte)0), HashComparer);
     }
 
     public async ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
-        IReadOnlyCollection<byte[]> groupsAlreadyDone)
+        ICollection<byte[]> groupsAlreadyDone)
     {
+        using var tempVector = MemoryOwner<float>.Allocate(imageHash.Length);
+        Vectorize(imageHash, tempVector.Span);
         var similarities = await _database.SearchAsync("Europa",
-            vector: Vectorize(imageHash), vectorName: Enum.GetName(perceptualHashAlgorithm),
+            vector: tempVector.Memory, vectorName: Enum.GetName(perceptualHashAlgorithm),
             scoreThreshold: hashSize - degreeOfSimilarity - 1, offset: 0, limit: 100,
             filter: MatchExcept(nameof(ImagesGroup.Id),
                 groupsAlreadyDone.Select(Convert.ToHexStringLower).ToList()),
@@ -175,30 +179,31 @@ public class DbHelpers : IDbHelpers
     public async ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
         Similarity[] newSimilarities)
     {
-        return (await _database.SetPayloadAsync("Europa", new ConcurrentDictionary<string, Value>
-               {
-                   [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] = new()
+        return (await new ValueTask<UpdateResult>(_database.SetPayloadAsync("Europa",
+                   new ConcurrentDictionary<string, Value>
                    {
-                       ListValue = new ListValue
+                       [$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"] = new()
                        {
-                           Values =
+                           ListValue = new ListValue
                            {
-                               newSimilarities.Select(val => new Value
+                               Values =
                                {
-                                   StructValue = new Struct
+                                   newSimilarities.Select(val => new Value
                                    {
-                                       Fields =
+                                       StructValue = new Struct
                                        {
-                                           [nameof(val.OriginalId)] = Convert.ToHexStringLower(val.OriginalId),
-                                           [nameof(val.DuplicateId)] = Convert.ToHexStringLower(val.DuplicateId),
-                                           [nameof(val.Score)] = Convert.ToInt32(val.Score)
+                                           Fields =
+                                           {
+                                               [nameof(val.OriginalId)] = Convert.ToHexStringLower(val.OriginalId),
+                                               [nameof(val.DuplicateId)] = Convert.ToHexStringLower(val.DuplicateId),
+                                               [nameof(val.Score)] = Convert.ToInt32(val.Score)
+                                           }
                                        }
-                                   }
-                               })
+                                   })
+                               }
                            }
-                       }
-                   },
-               }, filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id)))).Status ==
+                       },
+                   }, filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id))))).Status ==
                UpdateStatus.Completed;
     }
 }

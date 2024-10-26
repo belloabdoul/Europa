@@ -12,7 +12,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="DotNext" Version="5.14.0" />
+      <PackageReference Include="Blake3" Version="1.1.0" />
+      <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.3.2" />
       <PackageReference Include="MediaInfoDLL" Version="24.6.2" />
       <PackageReference Include="NetVips" Version="3.0.0-rc1" />
       <PackageReference Include="NetVips.Native" Version="8.16.0-rc2" />
@@ -26,6 +27,7 @@
       <PackageReference Include="Qdrant.Client" Version="1.12.0" />
       <PackageReference Include="SoundFingerprinting.Emy" Version="11.0.7" />
       <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0" />
+      <PackageReference Include="System.Numerics.Tensors" Version="9.0.0-rc.2.24473.5" />
     </ItemGroup>
 
     <ItemGroup>
