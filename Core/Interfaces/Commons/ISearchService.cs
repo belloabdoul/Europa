@@ -1,10 +1,7 @@
-﻿using Core.Entities;
-using Core.Entities.Files;
-using Core.Entities.Images;
-using Core.Entities.SearchParameters;
+﻿using Core.Entities.SearchParameters;
 using File = Core.Entities.Files.File;
 
-namespace Core.Interfaces.Common;
+namespace Core.Interfaces.Commons;
 
 public interface ISearchService
 {

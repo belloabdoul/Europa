@@ -5,10 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
-using Core.Entities;
-using Core.Entities.Images;
 using Core.Entities.SearchParameters;
-using Core.Interfaces;
 using Core.Interfaces.SimilarImages;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
@@ -16,8 +13,11 @@ namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 public class PerceptualHash : IImageHash
 {
     private const int Size = 32;
+    public int Width => Size;
+    public int Height => Size;
     public int HashSize => Size + Size;
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.PerceptualHash;
+    public int ImageSize => Size * Size;
 
     private static readonly float[][] DctCoefficients;
 
@@ -61,13 +61,15 @@ public class PerceptualHash : IImageHash
     }
 
     [SkipLocalsInit]
-    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public BitArray GenerateHash(ReadOnlySpan<byte> pixels)
     {
-        using var pixels = MemoryOwner<byte>.Allocate(Size * Size);
-        using var pixelsAsFloats = MemoryOwner<float>.Allocate(Size * Size);
+        if (pixels.Length != ImageSize)
+            throw new ArgumentException(
+                $"The pixel array is not of the size {ImageSize} required for perceptual hashing.");
 
-        await thumbnailGenerator.GenerateThumbnail(imagePath, Size, Size, pixels.Span);
-        TensorPrimitives.ConvertChecked<byte, float>(pixels.Span, pixelsAsFloats.Span);
+        using var pixelsAsFloats = MemoryOwner<float>.Allocate(ImageSize);
+
+        TensorPrimitives.ConvertChecked(pixels, pixelsAsFloats.Span);
 
         using var dctRowsResults = MemoryOwner<float>.Allocate(8 * Size);
         // The 2D DCT is given by R = C . X . t(C) where . is the matrix product and C the DCT matrix
@@ -86,7 +88,7 @@ public class PerceptualHash : IImageHash
         // Reuse the previously used array rented with pixelsAsFloats for the column
         Span<float> column = stackalloc float[Size];
         using var top8X8 = pixelsAsFloats[..HashSize];
-        
+
         // DCT for columns : we multiply each row of our DCT matrix by a column of our previous result to avoid multiple
         // copies. In this case, the result of this multiplication is aligned on the column since we lock according to 
         // the second member of the matrix product. With this, we automatically get the 8 x 8 top left frequencies

@@ -2,15 +2,16 @@ using System.Text.Json;
 using Api.Client;
 using Api.Client.Repositories;
 using Api.Controllers;
-using Api.Implementations.Common;
+using Api.Implementations.Commons;
 using Api.Implementations.DuplicatesByHash;
 using Api.Implementations.SimilarAudios;
 using Api.Implementations.SimilarImages;
 using Api.Implementations.SimilarImages.ImageHashGenerators;
 using Api.Implementations.SimilarImages.ImageProcessors;
+using Core.Entities.Files;
 using Core.Entities.SearchParameters;
-using Core.Interfaces;
-using Core.Interfaces.Common;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
 using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
@@ -23,6 +24,7 @@ using PhotoSauce.NativeCodecs.Libjpeg;
 using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
+using Sdcb.LibRaw;
 
 namespace Api;
 
@@ -63,27 +65,34 @@ public class Program
 
         // Initialize FFmpeg
         var current = AppDomain.CurrentDomain.BaseDirectory;
-        var ffmpegPath = Path.Combine(current, "FFmpeg", "bin", "x64");
+        var ffmpegPath = Path.Combine(current, "ffmpeg");
         DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
         DynamicallyLoadedBindings.Initialize();
 
-        // Register images identifiers
-        services.AddScoped<IFileTypeIdentifier, MagicScalerImageProcessor>();
-        services.AddScoped<IFileTypeIdentifier, LibRawImageProcessor>();
-        services.AddScoped<IFileTypeIdentifier, LibVipsImageProcessor>();
-        services.AddScoped<IFileTypeIdentifier, FileTypeIdentifier>();
-
-        // Register main thumbnail generators : these are to be used for libRaw only
-        services.AddScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>();
-        services.AddScoped<IMainThumbnailGenerator, LibVipsImageProcessor>();
-
-        // Register thumbnail generators
-        services.AddScoped<IThumbnailGenerator, MagicScalerImageProcessor>();
-        services.AddScoped<IThumbnailGenerator, LibRawImageProcessor>();
-        services.AddScoped<IThumbnailGenerator, LibVipsImageProcessor>();
-
         // Register directory reader
         services.AddScoped<IDirectoryReader, DirectoryReader>();
+
+        // Register file type's identifiers for audio search
+        services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Audios);
+        services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Audios);
+        services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Audios);
+        services.AddKeyedScoped<IFileTypeIdentifier, FileTypeIdentifier>(FileSearchType.Audios);
+        
+        // Register file type's identifiers for image search
+        services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
+        services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
+        services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
+        services.AddKeyedScoped<IFileTypeIdentifier, FileTypeIdentifier>(FileSearchType.Images);
+
+        // Register main thumbnail generators : these are to be used for libRaw only
+        services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
+        services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
+
+        // Register thumbnail generators
+        services.AddKeyedScoped<IThumbnailGenerator, MagicScalerImageProcessor>(FileType.MagicScalerImage);
+        services.AddKeyedScoped<IThumbnailGenerator, LibRawImageProcessor>(FileType.LibRawImage);
+        services.AddKeyedScoped<IThumbnailGenerator, LibVipsImageProcessor>(FileType.LibVipsImage);
+        services.AddScoped<IThumbnailGeneratorResolver, ThumbnailGeneratorResolver>();
 
         // Dependencies for finding duplicates by cryptographic hash.
         services.AddScoped<IHashGenerator, HashGenerator>();
@@ -92,21 +101,23 @@ public class Program
         services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddScoped<IImageHash, DifferenceHash>();
-        services.AddScoped<IImageHash, PerceptualHash>();
-        services.AddScoped<IImageHash>(_ => new BlockMeanHash(true));
-
+        services.AddKeyedScoped<IImageHash, DifferenceHash>(PerceptualHashAlgorithm.DifferenceHash);
+        services.AddKeyedScoped<IImageHash, PerceptualHash>(PerceptualHashAlgorithm.PerceptualHash);
+        services.AddKeyedScoped<IImageHash>(PerceptualHashAlgorithm.BlockMeanHash,
+            (_, _) => new BlockMeanHash(true));
+        services.AddScoped<IImageHashResolver, ImageHashResolver>();
+        
         // Dependencies for qdrant database
-        services.AddTransient<ICollectionRepository, QdrantRepository>();
-        services.AddTransient<IIndexingRepository, QdrantRepository>();
-        services.AddTransient<IImagesInfosRepository, QdrantRepository>();
-        services.AddTransient<ISimilarImagesRepository, QdrantRepository>();
+        services.AddSingleton<ICollectionRepository, QdrantRepository>();
+        services.AddScoped<IIndexingRepository, QdrantRepository>();
+        services.AddScoped<IImageInfosRepository, QdrantRepository>();
+        services.AddScoped<ISimilarImagesRepository, QdrantRepository>();
         services.AddHostedService<QdrantConfig>();
 
         // Register similar file search implementations for hash, audio and video
-        services.AddScoped<ISimilarFilesFinder, DuplicateByHashFinder>();
-        services.AddScoped<ISimilarFilesFinder, SimilarAudiosFinder>();
-        services.AddScoped<ISimilarFilesFinder, SimilarImageFinder>();
+        services.AddKeyedScoped<ISimilarFilesFinder, DuplicateByHashFinder>(FileSearchType.All);
+        services.AddKeyedScoped<ISimilarFilesFinder, SimilarAudiosFinder>(FileSearchType.Audios);
+        services.AddKeyedScoped<ISimilarFilesFinder, SimilarImageFinder>(FileSearchType.Images);
 
         services.AddScoped<ISearchService, SearchService>();
         var app = builder.Build();

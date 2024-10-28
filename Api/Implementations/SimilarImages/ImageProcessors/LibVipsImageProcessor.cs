@@ -1,9 +1,6 @@
 ﻿using System.Numerics.Tensors;
-using Core.Entities;
 using Core.Entities.Files;
-using Core.Entities.SearchParameters;
-using Core.Interfaces;
-using Core.Interfaces.Common;
+using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
 using NetVips;
 using Sdcb.LibRaw;
@@ -12,10 +9,6 @@ namespace Api.Implementations.SimilarImages.ImageProcessors;
 
 public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
-    public FileSearchType AssociatedSearchType => FileSearchType.Images;
-
-    public FileType AssociatedImageType => FileType.LibVipsImage;
-
     public FileType GetFileType(string path)
     {
         try
@@ -38,20 +31,20 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         }
     }
 
-    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
+    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var imageFromBuffer = Image.NewFromMemory(image.DataPointer, Convert.ToUInt64(image.DataSize),
             image.Width, image.Height, image.Channels, Enums.BandFormat.Uchar);
         using var resizedImage = imageFromBuffer.ThumbnailImage(width, height, Enums.Size.Force);
 
-        return ValueTask.FromResult(GenerateGrayscaleThumbnail(resizedImage, pixels));
+        return GenerateGrayscaleThumbnail(resizedImage, pixels);
     }
 
-    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         using var resizedImage = Image.Thumbnail(imagePath, width, height, Enums.Size.Force);
 
-        return ValueTask.FromResult(GenerateGrayscaleThumbnail(resizedImage, pixels));
+        return GenerateGrayscaleThumbnail(resizedImage, pixels);
     }
 
     private static bool GenerateGrayscaleThumbnail(Image thumbnail, Span<byte> pixels)

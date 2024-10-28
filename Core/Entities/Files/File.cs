@@ -12,4 +12,20 @@ public class File
     public DateTime DateModified { get; init; }
 
     public byte[] Hash { get; init; }
+
+    public File()
+    {
+        Path = string.Empty;
+        Size = 0;
+        DateModified = DateTime.MinValue;
+        Hash = [];
+    }
+    
+    public File(FileInfo fileInfo)
+    {
+        Path = fileInfo.FullName;
+        Size = fileInfo.Length;
+        DateModified = fileInfo.LastWriteTime;
+        Hash = [];
+    }
 }

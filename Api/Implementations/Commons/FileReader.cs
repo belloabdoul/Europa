@@ -1,6 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 
-namespace Api.Implementations.Common;
+namespace Api.Implementations.Commons;
 
 public static class FileReader
 {

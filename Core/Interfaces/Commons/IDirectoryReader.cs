@@ -1,8 +1,7 @@
 ﻿using System.Buffers;
-using Core.Entities;
 using Core.Entities.SearchParameters;
 
-namespace Core.Interfaces.Common;
+namespace Core.Interfaces.Commons;
 
 public interface IDirectoryReader
 {

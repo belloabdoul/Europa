@@ -1,12 +1,11 @@
 ﻿using System.Buffers;
 using System.Security;
-using Core.Entities;
 using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
-using Core.Interfaces.Common;
+using Core.Interfaces.Commons;
 using Microsoft.AspNetCore.SignalR;
 
-namespace Api.Implementations.Common;
+namespace Api.Implementations.Commons;
 
 public class DirectoryReader : IDirectoryReader
 {

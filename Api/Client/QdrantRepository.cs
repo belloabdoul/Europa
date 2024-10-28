@@ -15,7 +15,7 @@ using static Qdrant.Client.Grpc.Conditions;
 
 namespace Api.Client;
 
-public sealed class QdrantRepository : ICollectionRepository, IIndexingRepository, IImagesInfosRepository,
+public sealed class QdrantRepository : ICollectionRepository, IIndexingRepository, IImageInfosRepository,
     ISimilarImagesRepository, IDisposable
 {
     private readonly QdrantClient _database = new("localhost");

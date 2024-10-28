@@ -1,16 +1,8 @@
-﻿using Api.Implementations.DuplicatesByHash;
-using Api.Implementations.SimilarAudios;
-using Api.Implementations.SimilarImages;
-using Core.Entities;
-using Core.Entities.Files;
-using Core.Entities.Images;
-using Core.Entities.SearchParameters;
-using Core.Interfaces;
-using Core.Interfaces.Common;
-using Core.Interfaces.SimilarImages;
+﻿using Core.Entities.SearchParameters;
+using Core.Interfaces.Commons;
 using File = Core.Entities.Files.File;
 
-namespace Api.Implementations.Common;
+namespace Api.Implementations.Commons;
 
 public class SearchService : ISearchService
 {
@@ -20,16 +12,17 @@ public class SearchService : ISearchService
     private readonly ISimilarFilesFinder _similarImagesFinder;
 
 
-    public SearchService(IEnumerable<ISimilarFilesFinder> searchImplementations)
+    public SearchService([FromKeyedServices(FileSearchType.All)] ISimilarFilesFinder duplicateByHashFinder,
+        [FromKeyedServices(FileSearchType.Audios)]
+        ISimilarFilesFinder similarAudiosFinder,
+        [FromKeyedServices(FileSearchType.Images)]
+        ISimilarFilesFinder similarImagesFinder)
     {
-        _duplicateByHashFinder =
-            searchImplementations.First(implementation => implementation.GetType() == typeof(DuplicateByHashFinder));
+        _duplicateByHashFinder = duplicateByHashFinder;
 
-        _similarAudiosFinder =
-            searchImplementations.First(implementation => implementation.GetType() == typeof(SimilarAudiosFinder));
+        _similarAudiosFinder = similarAudiosFinder;
 
-        _similarImagesFinder =
-            searchImplementations.First(implementation => implementation.GetType() == typeof(SimilarImageFinder));
+        _similarImagesFinder = similarImagesFinder;
     }
 
     public async Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates,

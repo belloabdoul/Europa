@@ -3,41 +3,39 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Runtime.Intrinsics;
 using CommunityToolkit.HighPerformance.Buffers;
-using Core.Entities;
-using Core.Entities.Images;
 using Core.Entities.SearchParameters;
-using Core.Interfaces;
 using Core.Interfaces.SimilarImages;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
 public class DifferenceHash : IImageHash
 {
-    private const int Width = 9;
-    private const int Height = 8;
-    private const int ImageSize = Width * Height;
+    public int Width => 9;
+    public int Height => 8;
+    public int ImageSize => Width * Height;
     public int HashSize => Height * (Width - 1);
 
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.DifferenceHash;
 
-    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public BitArray GenerateHash(ReadOnlySpan<byte> pixels)
     {
-        using var pixels = MemoryOwner<byte>.Allocate(ImageSize);
-        await thumbnailGenerator.GenerateThumbnail(imagePath, Width, Height, pixels.Span);
+        if (pixels.Length != ImageSize)
+            throw new ArgumentException(
+                $"The pixel array is not of the size {ImageSize} required for perceptual hashing.");
 
         using var hash = MemoryOwner<byte>.Allocate(HashSize);
-        CompareLessThanOrEqual(pixels.Span, hash.Span);
+        CompareLessThanOrEqual(pixels, hash.Span);
         return new BitArray(Unsafe.BitCast<Span<byte>, Span<bool>>(hash.Span).ToArray());
     }
 
-    private static void CompareLessThanOrEqual(ReadOnlySpan<byte> source, Span<byte> destination)
+    private void CompareLessThanOrEqual(ReadOnlySpan<byte> source, Span<byte> destination)
     {
         ref var sourceRef = ref MemoryMarshal.GetReference(source);
         ref var destinationRef = ref MemoryMarshal.GetReference(destination);
 
-        for (nuint y = 0; y < Height; ++y)
+        for (nuint y = 0; y < (nuint)Height; ++y)
         {
-            var rowStart = y * (Width - 1);
+            var rowStart = y * (nuint)(Width - 1);
             Vector64.ConditionalSelect(Vector64.LessThan(
                         Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart)),
                         Unsafe.As<byte, Vector64<byte>>(ref Unsafe.Add(ref sourceRef, rowStart + 1))),

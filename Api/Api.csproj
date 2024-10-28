@@ -12,9 +12,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="Aurio.Exocortex" Version="4.2.1" />
+      <PackageReference Include="Aurio.FFmpeg" Version="4.2.1" />
       <PackageReference Include="Blake3" Version="1.1.0" />
       <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.3.2" />
-      <PackageReference Include="MediaInfoDLL" Version="24.6.2" />
+      <PackageReference Include="Lsj.MediaInfo.Wrapper.Core" Version="22.12.1" />
       <PackageReference Include="NetVips" Version="3.0.0-rc1" />
       <PackageReference Include="NetVips.Native" Version="8.16.0-rc2" />
       <PackageReference Include="PhotoSauce.MagicScaler" Version="0.14.2" />
@@ -32,6 +34,10 @@
 
     <ItemGroup>
       <ProjectReference Include="..\Core\Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Libs\" />
     </ItemGroup>
 
 </Project>

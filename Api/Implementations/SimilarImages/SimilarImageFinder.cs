@@ -1,14 +1,14 @@
 using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Api.Client.Repositories;
-using Api.Implementations.Common;
+using Api.Implementations.Commons;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Commons;
 using Core.Entities.Files;
 using Core.Entities.Images;
 using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
-using Core.Interfaces.Common;
+using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Win32.SafeHandles;
@@ -20,35 +20,33 @@ namespace Api.Implementations.SimilarImages;
 public class SimilarImageFinder : ISimilarFilesFinder
 {
     private readonly IIndexingRepository _indexingRepository;
-    private readonly IImagesInfosRepository _imagesInfosRepository;
+    private readonly IImageInfosRepository _imageInfosRepository;
     private readonly ISimilarImagesRepository _similarImagesRepository;
+
+    private readonly IFileTypeIdentifier[] _imagesIdentifiers;
+
     private readonly IHashGenerator _hashGenerator;
-    private readonly Dictionary<PerceptualHashAlgorithm, IImageHash> _imageHashGenerators;
-    private readonly List<IFileTypeIdentifier> _imagesIdentifiers;
+    private readonly IImageHashResolver _imageHashResolver;
+    private readonly IThumbnailGeneratorResolver _thumbnailGeneratorResolver;
     private readonly IHubContext<NotificationHub> _notificationContext;
-    private readonly Dictionary<FileType, IThumbnailGenerator> _thumbnailGenerators;
+
     private static readonly HashComparer HashComparer = new();
 
-    public SimilarImageFinder(IHubContext<NotificationHub> notificationContext,
-        IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers, IHashGenerator hashGenerator,
-        IEnumerable<IThumbnailGenerator> thumbnailGenerators, IEnumerable<IImageHash> imageHashGenerators,
-        IIndexingRepository indexingRepository, IImagesInfosRepository imagesInfosRepository,
-        ISimilarImagesRepository similarImagesRepository)
+    public SimilarImageFinder(IIndexingRepository indexingRepository, IImageInfosRepository imageInfosRepository,
+        ISimilarImagesRepository similarImagesRepository,
+        [FromKeyedServices(FileSearchType.Images)] IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers,
+        IHashGenerator hashGenerator, IThumbnailGeneratorResolver thumbnailGeneratorResolver,
+        IImageHashResolver imageHashResolver, IHubContext<NotificationHub> notificationContext
+    )
     {
-        _notificationContext = notificationContext;
-        _imagesIdentifiers = fileTypeIdentifiers.Where(fileTypeIdentifier =>
-            fileTypeIdentifier.AssociatedSearchType == FileSearchType.Images).ToList();
-        _hashGenerator = hashGenerator;
-        _thumbnailGenerators = thumbnailGenerators.ToDictionary(
-            thumbnailGenerator => thumbnailGenerator.AssociatedImageType,
-            thumbnailGenerator => thumbnailGenerator
-        );
-        _imageHashGenerators = imageHashGenerators.ToDictionary(
-            imageHashGenerator => imageHashGenerator.PerceptualHashAlgorithm,
-            imageHashGenerator => imageHashGenerator);
         _indexingRepository = indexingRepository;
-        _imagesInfosRepository = imagesInfosRepository;
+        _imageInfosRepository = imageInfosRepository;
         _similarImagesRepository = similarImagesRepository;
+        _imageHashResolver = imageHashResolver;
+        _notificationContext = notificationContext;
+        _imagesIdentifiers = fileTypeIdentifiers.ToArray();
+        _hashGenerator = hashGenerator;
+        _thumbnailGeneratorResolver = thumbnailGeneratorResolver;
     }
 
     public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
@@ -63,6 +61,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
             new ConcurrentDictionary<byte[], ImagesGroup>(Environment.ProcessorCount, hypotheticalDuplicates.Length,
                 HashComparer);
 
+        var imageHashGenerator = _imageHashResolver.GetImageHashGenerator(perceptualHashAlgorithm!.Value);
+
         // Await the end of all tasks or the cancellation by the user
         try
         {
@@ -70,9 +70,8 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
             await Task.WhenAll(
                 SendProgress(progress.Reader, NotificationType.HashGenerationProgress, cancellationToken),
-                GeneratePerceptualHashes(hypotheticalDuplicates, duplicateImagesGroups,
-                    _imageHashGenerators[perceptualHashAlgorithm!.Value], progress.Writer,
-                    cancellationToken)
+                GeneratePerceptualHashes(hypotheticalDuplicates, duplicateImagesGroups, imageHashGenerator,
+                    progress.Writer, cancellationToken)
             );
 
             await _indexingRepository.EnableIndexingAsync(cancellationToken);
@@ -106,7 +105,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     cancellationToken),
                 SendProgress(progress.Reader, NotificationType.SimilaritySearchProgress, cancellationToken),
                 LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups, perceptualHashAlgorithm.Value,
-                    _imageHashGenerators[perceptualHashAlgorithm.Value].HashSize, degreeOfSimilarity!.Value,
+                    imageHashGenerator.HashSize, degreeOfSimilarity!.Value,
                     groupingChannel.Writer, progress.Writer, cancellationToken)
             );
         }
@@ -165,7 +164,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     if (createdImagesGroup == null)
                         return;
 
-                    var imageInfos = await _imagesInfosRepository.GetImageInfos(createdImagesGroup.Id,
+                    var imageInfos = await _imageInfosRepository.GetImageInfos(createdImagesGroup.Id,
                         imageHashGenerator.PerceptualHashAlgorithm);
 
                     int current;
@@ -178,8 +177,13 @@ public class SimilarImageFinder : ISimilarFilesFinder
                         return;
                     }
 
-                    createdImagesGroup.ImageHash = await imageHashGenerator.GenerateHash(filePath,
-                        _thumbnailGenerators[createdImagesGroup.FileType]);
+                    var thumbnailGenerator =
+                        _thumbnailGeneratorResolver.GetThumbnailGenerator(createdImagesGroup.FileType);
+
+                    using var pixels = MemoryOwner<byte>.Allocate(imageHashGenerator.ImageSize);
+                    thumbnailGenerator.GenerateThumbnail(filePath, imageHashGenerator.Width, imageHashGenerator.Height,
+                        pixels.Span);
+                    createdImagesGroup.ImageHash = imageHashGenerator.GenerateHash(pixels.Span);
 
                     if (createdImagesGroup.ImageHash == null)
                         createdImagesGroup.IsCorruptedOrUnsupported = true;
@@ -191,10 +195,10 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     }
 
                     if (imageInfos == null)
-                        await _imagesInfosRepository.InsertImageInfos(createdImagesGroup,
+                        await _imageInfosRepository.InsertImageInfos(createdImagesGroup,
                             imageHashGenerator.PerceptualHashAlgorithm);
                     else
-                        await _imagesInfosRepository.AddImageHash(createdImagesGroup,
+                        await _imageInfosRepository.AddImageHash(createdImagesGroup,
                             imageHashGenerator.PerceptualHashAlgorithm);
                     current = Interlocked.Increment(ref progress);
                     progressWriter.TryWrite(current);
@@ -213,7 +217,6 @@ public class SimilarImageFinder : ISimilarFilesFinder
         progressWriter.Complete();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private FileType GetFileType(string hypotheticalDuplicate, CancellationToken cancellationToken = default)
     {
         // Go through every image identifiers to get the one to use.
@@ -228,7 +231,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
             fileType = _imagesIdentifiers[index].GetFileType(hypotheticalDuplicate);
             index++;
         } while (fileType is FileType.CorruptUnknownOrUnsupported &&
-                 index < _imagesIdentifiers.Count);
+                 index < _imagesIdentifiers.Length);
 
         return fileType;
     }

@@ -1,6 +1,6 @@
 ﻿using Microsoft.Win32.SafeHandles;
 
-namespace Core.Interfaces.Common;
+namespace Core.Interfaces.Commons;
 
 public interface IHashGenerator
 {

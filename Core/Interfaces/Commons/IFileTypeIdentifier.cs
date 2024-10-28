@@ -1,11 +1,8 @@
-﻿using Core.Entities;
-using Core.Entities.Files;
-using Core.Entities.SearchParameters;
+﻿using Core.Entities.Files;
 
-namespace Core.Interfaces.Common;
+namespace Core.Interfaces.Commons;
 
 public interface IFileTypeIdentifier
 {
     FileType GetFileType(string path);
-    FileSearchType AssociatedSearchType { get; }
 }

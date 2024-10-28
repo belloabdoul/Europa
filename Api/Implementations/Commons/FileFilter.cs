@@ -1,6 +1,6 @@
 ﻿using System.Buffers;
 
-namespace Api.Implementations.Common;
+namespace Api.Implementations.Commons;
 
 public static class FileFilter
 {
