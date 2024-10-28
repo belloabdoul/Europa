@@ -1,7 +1,7 @@
 ﻿using System.Drawing;
-using Core.Entities;
-using Core.Interfaces;
-using Core.Interfaces.Common;
+using Core.Entities.Files;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarImages;
 using Microsoft.IO;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.MagicScaler.Transforms;
@@ -13,10 +13,6 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 {
     private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
 
-    public FileSearchType AssociatedSearchType => FileSearchType.Images;
-
-    public FileType AssociatedImageType => FileType.MagicScalerImage;
-
     private static readonly IPixelTransform GreyPixelTransform = new FormatConversionTransform(PixelFormats.Grey8bpp);
 
     private static readonly ProcessImageSettings ProcessImageSettings = new()
@@ -25,7 +21,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
         HybridMode = HybridScaleMode.FavorQuality,
     };
-    
+
     private static Rectangle _area = new(0, 0, 0, 0);
 
     public FileType GetFileType(string path)
@@ -51,7 +47,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
-    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         if (_area.Width != width || _area.Height != height)
         {
@@ -64,10 +60,10 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 
         using var pipeline = MagicImageProcessor.BuildPipeline(imagePath, ProcessImageSettings);
 
-        return ValueTask.FromResult(GenerateThumbnail(pipeline, pixels));
+        return GenerateThumbnail(pipeline, pixels);
     }
 
-    public ValueTask<bool> GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
+    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<byte> pixels)
     {
         using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
 
@@ -82,18 +78,17 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
 
         using var pipeline = MagicImageProcessor.BuildPipeline(stream, ProcessImageSettings);
 
-        return ValueTask.FromResult(GenerateThumbnail(pipeline, pixels));
+        return GenerateThumbnail(pipeline, pixels);
     }
 
     private static bool GenerateThumbnail(ProcessingPipeline imageProcessingPipeline, Span<byte> pixels)
-    
     {
         try
         {
             imageProcessingPipeline.AddTransform(GreyPixelTransform);
-            
+
             imageProcessingPipeline.PixelSource.CopyPixels(_area, _area.Width, pixels);
-            
+
             return true;
         }
         catch (Exception)

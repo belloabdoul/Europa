@@ -1,12 +1,12 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
-using Core.Entities;
-using Core.Interfaces;
-using Core.Interfaces.Common;
+using Core.Entities.SearchParameters;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
-using File = Core.Entities.File;
+using File = Core.Entities.Files.File;
 
 namespace Api.Implementations.SimilarAudios;
 

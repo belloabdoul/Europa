@@ -3,6 +3,7 @@ using Core.Interfaces;
 using Microsoft.Win32.SafeHandles;
 using Blake3;
 using CommunityToolkit.HighPerformance.Buffers;
+using Core.Interfaces.Commons;
 
 namespace Api.Implementations.DuplicatesByHash;
 

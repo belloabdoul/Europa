@@ -1,11 +1,17 @@
 ﻿using System.Collections.Concurrent;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Api.Implementations.Common;
+using Api.Implementations.Commons;
 using Core.Entities;
+using Core.Entities.Commons;
+using Core.Entities.Images;
+using Core.Entities.Notifications;
+using Core.Entities.SearchParameters;
 using Core.Interfaces;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.SignalR;
-using File = Core.Entities.File;
+using File = Core.Entities.Files.File;
 
 namespace Api.Implementations.DuplicatesByHash;
 

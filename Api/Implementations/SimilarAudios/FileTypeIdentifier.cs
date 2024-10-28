@@ -1,6 +1,7 @@
-﻿using Core.Entities;
-using Core.Interfaces.Common;
-using MediaInfoLib;
+﻿using Core.Entities.Files;
+using Core.Interfaces.Commons;
+using MediaInfo;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Api.Implementations.SimilarAudios;
 
@@ -8,12 +9,19 @@ public class FileTypeIdentifier : IFileTypeIdentifier
 {
     public FileType GetFileType(string path)
     {
-        using var mediaInfoLib = new MediaInfo();
-        mediaInfoLib.WithOpen(path);
-        if (mediaInfoLib.Count_Get(StreamKind.Video) > 0)
-            return FileType.Video;
-        return mediaInfoLib.Count_Get(StreamKind.Audio) > 0 ? FileType.Audio : FileType.File;
-    }
+        var mediaInfo = new MediaInfoWrapper(path, NullLogger.Instance);
+        if (!mediaInfo.Success)
+            return FileType.File;
 
-    public FileSearchType AssociatedSearchType => FileSearchType.Audios;
+        if (mediaInfo.Duration == 0)
+            return FileType.File;
+        
+        if (mediaInfo.HasVideo)
+            return FileType.Video;
+
+        if (mediaInfo.AudioChannels > 0)
+            return FileType.Audio;
+
+        return FileType.File;
+    }
 }

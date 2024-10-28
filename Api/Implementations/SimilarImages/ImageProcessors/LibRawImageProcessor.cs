@@ -1,25 +1,19 @@
-﻿using Core.Entities;
-using Core.Interfaces;
-using Core.Interfaces.Common;
+﻿using Core.Entities.Files;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarImages;
 using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
 public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
 {
-    private readonly IMainThumbnailGenerator _libVipsThumbnailGenerator;
-    private readonly IMainThumbnailGenerator _magicScalerThumbnailGenerator;
+    private readonly IServiceProvider _serviceProvider;
 
-    public LibRawImageProcessor(IEnumerable<IMainThumbnailGenerator> thumbnailGenerators)
+    public LibRawImageProcessor(IServiceProvider serviceProvider)
     {
-        _magicScalerThumbnailGenerator = thumbnailGenerators.First();
-        _libVipsThumbnailGenerator = thumbnailGenerators.Last();
+        _serviceProvider = serviceProvider;
     }
-
-    public FileSearchType AssociatedSearchType => FileSearchType.Images;
-
-    public FileType AssociatedImageType => FileType.LibRawImage;
-
+    
     public FileType GetFileType(string path)
     {
         try
@@ -33,20 +27,24 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
         }
     }
 
-    public ValueTask<bool> GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
+    public bool GenerateThumbnail(string imagePath, int width, int height, Span<byte> pixels)
     {
         using var context = RawContext.OpenFile(imagePath);
         try
         {
             using var image = context.ExportThumbnail();
 
-            return image.ImageType == ProcessedImageType.Jpeg
-                ? _magicScalerThumbnailGenerator.GenerateThumbnail(image, width, height, pixels)
-                : _libVipsThumbnailGenerator.GenerateThumbnail(image, width, height, pixels);
+            var thumbnailGenerator = _serviceProvider.GetRequiredKeyedService<IMainThumbnailGenerator>(image.ImageType);
+            ArgumentNullException.ThrowIfNull(thumbnailGenerator);
+            return thumbnailGenerator.GenerateThumbnail(image, width, height, pixels);
+        }
+        catch (InvalidOperationException)
+        {
+            throw;
         }
         catch (Exception)
         {
-            return ValueTask.FromResult(false);
+            return false;
         }
     }
 }

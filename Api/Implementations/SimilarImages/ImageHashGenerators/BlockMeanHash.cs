@@ -4,21 +4,24 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
-using Core.Entities;
-using Core.Interfaces;
+using Core.Entities.SearchParameters;
+using Core.Interfaces.SimilarImages;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
 // Block mean hash
 public class BlockMeanHash : IImageHash
 {
-    private const int ImageSize = 256;
+    private const int HeightOrWidthSize = 256;
     private const int BlockSize = 16;
-    private const int BlockPerRowOrCol = ImageSize / BlockSize;
-    private const int LastRowOrColSize = ImageSize - BlockSize;
+    private const int BlockPerRowOrCol = HeightOrWidthSize / BlockSize;
+    private const int LastRowOrColSize = HeightOrWidthSize - BlockSize;
     private readonly int _pixelRowOrColStep;
     public int HashSize { get; }
-    
+    public int ImageSize => HeightOrWidthSize * HeightOrWidthSize;
+    public int Height => HeightOrWidthSize;
+    public int Width => HeightOrWidthSize;
+
     public BlockMeanHash()
     {
         HashSize = BlockPerRowOrCol * BlockPerRowOrCol;
@@ -40,14 +43,15 @@ public class BlockMeanHash : IImageHash
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.BlockMeanHash;
 
     [SkipLocalsInit]
-    public async ValueTask<BitArray> GenerateHash(string imagePath, IThumbnailGenerator thumbnailGenerator)
+    public BitArray GenerateHash(ReadOnlySpan<byte> pixels)
     {
-        using var pixels = MemoryOwner<byte>.Allocate(ImageSize * ImageSize);
-        using var pixelsAsInts = MemoryOwner<int>.Allocate(ImageSize * ImageSize);
+        if (pixels.Length != ImageSize)
+            throw new ArgumentException(
+                $"The pixel array is not of the size {ImageSize} required for perceptual hashing.");
+        using var pixelsAsInts = MemoryOwner<int>.Allocate(ImageSize);
 
-        await thumbnailGenerator.GenerateThumbnail(imagePath, ImageSize, ImageSize, pixels.Span);
-        TensorPrimitives.ConvertChecked<byte, int>(pixels.Span, pixelsAsInts.Span);
-        
+        TensorPrimitives.ConvertChecked(pixels, pixelsAsInts.Span);
+
         using var mean = MemoryOwner<double>.Allocate(HashSize);
         FindMean(pixelsAsInts.Span, mean.Span);
         return CreateHash(pixelsAsInts.Span, mean.Span);
@@ -56,13 +60,13 @@ public class BlockMeanHash : IImageHash
     [SkipLocalsInit]
     private BitArray CreateHash(ReadOnlySpan<int> pixels, Span<double> means)
     {
-        var median = TensorPrimitives.Sum(pixels) / (double)(ImageSize * ImageSize);
+        var median = TensorPrimitives.Sum(pixels) / (double)(ImageSize);
 
         var hash = new BitArray(means.Length);
         ref var meansReference = ref MemoryMarshal.GetReference(means);
         for (nint i = 0; i < means.Length; i++)
         {
-            if(Unsafe.Add(ref meansReference, i) < median)
+            if (Unsafe.Add(ref meansReference, i) < median)
                 continue;
             hash[(int)i] = true;
         }
@@ -74,7 +78,7 @@ public class BlockMeanHash : IImageHash
     private void FindMean(ReadOnlySpan<int> pixels, Span<double> means)
     {
         nint blockIdx = 0;
-        var pixels2D = pixels.AsSpan2D(ImageSize, ImageSize);
+        var pixels2D = pixels.AsSpan2D(HeightOrWidthSize, HeightOrWidthSize);
         ref var meansReference = ref MemoryMarshal.GetReference(means);
 
         for (var row = 0; row < LastRowOrColSize; row += _pixelRowOrColStep)
@@ -88,6 +92,7 @@ public class BlockMeanHash : IImageHash
                     Unsafe.Add(ref meansReference, blockIdx) +=
                         TensorPrimitives.Sum(block.GetRowSpan(i)) / (double)(BlockSize * BlockSize);
                 }
+
                 blockIdx++;
             }
         }
