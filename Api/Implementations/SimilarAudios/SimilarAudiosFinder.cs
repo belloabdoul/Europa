@@ -1,11 +1,8 @@
 ﻿using System.Collections.Concurrent;
 using System.Text;
-using Core.Entities;
-using Core.Entities.Images;
 using Core.Entities.SearchParameters;
-using Core.Interfaces;
-using Core.Interfaces.Common;
-using Core.Interfaces.SimilarImages;
+using Core.Interfaces.Commons;
+using Core.Interfaces.SimilarAudios;
 using SoundFingerprinting;
 using SoundFingerprinting.Audio;
 using SoundFingerprinting.Emy;
