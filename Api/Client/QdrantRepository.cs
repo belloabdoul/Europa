@@ -156,7 +156,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
     }
 
     public async ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(
-        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm)
+        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity)
     {
         var points = await _database.QueryAsync("Europa",
             filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(currentGroupId)),
@@ -168,7 +168,8 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
                 {
                     Fields =
                     {
-                        $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.DuplicateId)}"
+                        $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.DuplicateId)}",
+                        $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.Score)}"
                     }
                 }
             });
@@ -176,6 +177,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
         return new ObservableDictionary<byte[], byte>(points[0]
             .Payload[$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"].ListValue
             .Values
+            .Where(value => value.StructValue.Fields[nameof(Similarity.Score)].IntegerValue <= degreeOfSimilarity)
             .Select(value =>
                 Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue))
             .ToDictionary(val => val, _ => (byte)0), HashComparer);

@@ -25,6 +25,8 @@ using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
 using Sdcb.LibRaw;
+using SoundFingerprinting.Audio;
+using SoundFingerprinting.Emy;
 
 namespace Api;
 
@@ -77,12 +79,11 @@ public class Program
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Audios);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Audios);
         services.AddKeyedScoped<IFileTypeIdentifier, FileTypeIdentifier>(FileSearchType.Audios);
-        
+
         // Register file type's identifiers for image search
         services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
-        services.AddKeyedScoped<IFileTypeIdentifier, FileTypeIdentifier>(FileSearchType.Images);
 
         // Register main thumbnail generators : these are to be used for libRaw only
         services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
@@ -98,15 +99,19 @@ public class Program
         services.AddScoped<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
-        services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
+        // AudioStreamFactory.AddFactory(new FFmpegAudioStreamFactory());
+        // ResamplerFactory.Factory = new NAudioWdlResamplerFactory();
+        // FFTFactory.Factory = new Aurio.Exocortex.FFTFactory();
+        services.AddScoped<IAudioService, FFmpegAudioService>();
+        services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
         services.AddKeyedScoped<IImageHash, DifferenceHash>(PerceptualHashAlgorithm.DifferenceHash);
         services.AddKeyedScoped<IImageHash, PerceptualHash>(PerceptualHashAlgorithm.PerceptualHash);
-        services.AddKeyedScoped<IImageHash>(PerceptualHashAlgorithm.BlockMeanHash,
-            (_, _) => new BlockMeanHash(true));
+        // services.AddKeyedScoped<IImageHash>(PerceptualHashAlgorithm.BlockMeanHash,
+        //     (_, _) => new BlockMeanHash(true));
         services.AddScoped<IImageHashResolver, ImageHashResolver>();
-        
+
         // Dependencies for qdrant database
         services.AddSingleton<ICollectionRepository, QdrantRepository>();
         services.AddScoped<IIndexingRepository, QdrantRepository>();

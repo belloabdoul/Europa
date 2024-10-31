@@ -8,7 +8,7 @@ namespace Api.Client.Repositories;
 public interface ISimilarImagesRepository
 {
     ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
-        PerceptualHashAlgorithm perceptualHashAlgorithm);
+        PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity);
 
     ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,

@@ -303,9 +303,9 @@ public class SimilarImageFinder : ISimilarFilesFinder
                     // Get cached similar images
                     imagesGroup.SimilarImages =
                         await _similarImagesRepository.GetSimilarImagesAlreadyDoneInRange(imagesGroup.Id,
-                            perceptualHashAlgorithm) ??
+                            perceptualHashAlgorithm, degreeOfSimilarity) ??
                         new ObservableDictionary<byte[], byte>(HashComparer);
-
+                    
                     // Check for new similar images excluding the ones cached in a previous search and add to cached ones
                     imagesGroup.Similarities = await _similarImagesRepository.GetSimilarImages(imagesGroup.Id,
                         imagesGroup.ImageHash!,
