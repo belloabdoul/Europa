@@ -15,13 +15,10 @@ public class FileTypeIdentifier : IFileTypeIdentifier
 
         if (mediaInfo.Duration == 0)
             return FileType.File;
-        
+
         if (mediaInfo.HasVideo)
-            return FileType.Video;
+            return mediaInfo.AudioChannels > 0 ? FileType.AudioVideo : FileType.Video;
 
-        if (mediaInfo.AudioChannels > 0)
-            return FileType.Audio;
-
-        return FileType.File;
+        return mediaInfo.AudioChannels > 0 ? FileType.Audio : FileType.File;
     }
 }

@@ -83,6 +83,16 @@ export class ProgressComponent implements OnInit, OnDestroy {
           this.step3Text.next('Grouping similar images');
           this.step3Progress.next('0');
         }
+        else if (searchParameters.fileSearchType == FileSearchType.Audios) {
+          this.step1Text.next('Generating audio fingerprints');
+          this.step1Progress.next('0');
+
+          this.step2Text.next('Finding similar audios');
+          this.step2Progress.next('0');
+
+          this.step3Text.next('Grouping similar audios');
+          this.step3Progress.next('0');
+        }
       });
 
     this.notificationSubscription = this.searchService.notification$.subscribe(

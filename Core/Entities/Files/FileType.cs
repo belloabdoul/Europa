@@ -7,6 +7,7 @@ public enum FileType
     LibRawImage,
     LibVipsImage,
     Audio,
+    AudioVideo,
     Video,
     File,
     CorruptUnknownOrUnsupported
