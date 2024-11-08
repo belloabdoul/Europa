@@ -446,7 +446,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
         Parallel.ForEach(parentGroup.Similarities.Keys, new ParallelOptions { CancellationToken = cancellationToken },
             imageGroupId =>
             {
-                if (imageGroupId == parentGroupId)
+                if (imageGroupId.AsSpan().SequenceEqual(parentGroupId))
                 {
                     while (parentGroup.Duplicates.TryPop(out var image))
                     {

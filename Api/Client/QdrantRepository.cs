@@ -189,7 +189,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
             scoreThreshold: degreeOfSimilarity - 1, offset: 0, limit: 100,
             filter: MatchExcept(nameof(ImagesGroup.Id),
                 groupsAlreadyDone.Select(Convert.ToHexStringLower).ToList()),
-            searchParams: new SearchParams { Exact = false },
+            searchParams: new SearchParams { Exact = true },
             payloadSelector: new WithPayloadSelector
                 { Enable = true, Include = new PayloadIncludeSelector { Fields = { "Id" } } }
         );

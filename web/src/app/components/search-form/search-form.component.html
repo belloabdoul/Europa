@@ -124,7 +124,7 @@
   </ion-item-group>
 
   @if(searchParameters.fileSearchType == fileSearchType.Images){
-  <ion-item-group>
+  <!-- <ion-item-group>
     <ion-item>
       <ion-select
         interface="popover"
@@ -152,14 +152,13 @@
       </ion-note>
     </ion-item>
     }
-  </ion-item-group>
+  </ion-item-group> -->
   <ion-item-group>
     <ion-item>
       <ion-input
         type="number"
         placeholder="5"
-        counter="1"
-        max="20"
+        counter="0.1"
         min="0"
         [(ngModel)]="searchParameters.degreeOfSimilarity"
         (ngModelChange)="clearErrorMessages('degreeOfSimilarity')"
