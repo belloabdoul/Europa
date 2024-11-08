@@ -23,7 +23,7 @@
         <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6" />
         <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1" />
         <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1" />
-        <PackageReference Include="SoundFingerprinting" Version="11.0.0" />
+        <PackageReference Include="SoundFingerprinting" Version="11.1.0" />
         <PackageReference Include="System.IO.Hashing" Version="9.0.0-rc.2.24473.5" />
     </ItemGroup>
 
