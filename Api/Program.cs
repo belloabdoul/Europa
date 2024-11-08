@@ -73,7 +73,7 @@ public class Program
 
         // Register directory reader
         services.AddScoped<IDirectoryReader, DirectoryReader>();
-
+        
         // Register file type's identifiers for audio search
         services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Audios);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Audios);
@@ -85,6 +85,7 @@ public class Program
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
 
+        services.AddScoped<IColorSpaceConverter, LibVipsImageProcessor>();
         // Register main thumbnail generators : these are to be used for libRaw only
         services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
         services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
@@ -106,11 +107,8 @@ public class Program
         services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddKeyedScoped<IImageHash, DifferenceHash>(PerceptualHashAlgorithm.DifferenceHash);
-        services.AddKeyedScoped<IImageHash, PerceptualHash>(PerceptualHashAlgorithm.PerceptualHash);
-        // services.AddKeyedScoped<IImageHash>(PerceptualHashAlgorithm.BlockMeanHash,
-        //     (_, _) => new BlockMeanHash(true));
-        services.AddScoped<IImageHashResolver, ImageHashResolver>();
+        services.AddScoped<CosineTransform>();
+        services.AddKeyedScoped<IImageHash, QDctHash>(PerceptualHashAlgorithm.QDctHash);
 
         // Dependencies for qdrant database
         services.AddSingleton<ICollectionRepository, QdrantRepository>();

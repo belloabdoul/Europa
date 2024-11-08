@@ -1,7 +1,4 @@
-﻿using Core.Entities;
-using Core.Entities.Files;
-using Core.Entities.Images;
-using Core.Entities.SearchParameters;
+﻿using Core.Entities.SearchParameters;
 using FluentValidation;
 
 namespace Api.Controllers;
@@ -25,11 +22,6 @@ public class SearchParametersValidator : AbstractValidator<SearchParameters>
         RuleFor(searchParameters => searchParameters.DegreeOfSimilarity)
             .NotEmpty().WithMessage("The degree of similarity is required").When(searchParameters =>
                 searchParameters.FileSearchType == FileSearchType.Images)
-            .LessThanOrEqualTo(64).WithMessage("The degree of similarity must be less than 64").When(
-                searchParameters => searchParameters.PerceptualHashAlgorithm is PerceptualHashAlgorithm.DifferenceHash
-                    or PerceptualHashAlgorithm.PerceptualHash)
-            .LessThanOrEqualTo(256).WithMessage("The degree of similarity must be less than 256").When(
-                searchParameters => searchParameters.PerceptualHashAlgorithm is PerceptualHashAlgorithm.BlockMeanHash)
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.DegreeOfSimilarity)));
 
         RuleFor(searchParameters => searchParameters.MinSize)

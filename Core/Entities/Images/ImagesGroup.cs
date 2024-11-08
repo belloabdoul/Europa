@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Concurrent;
 using Core.Entities.Files;
 using NSwag.Collections;
@@ -17,11 +16,9 @@ public class ImagesGroup
 
     public DateTime DateModified { get; set; }
     
-    public BitArray? ImageHash { get; set; }
+    public Half[]? ImageHash { get; set; }
 
     public ConcurrentStack<string> Duplicates { get; } = [];
     
-    public ObservableDictionary<byte[], byte>? SimilarImages { get; set; } = [];
-
-    public Similarity[] Similarities { get; set; } = [];
+    public ObservableDictionary<byte[], Similarity> Similarities { get; set; } = [];
 }

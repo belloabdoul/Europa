@@ -5,7 +5,5 @@ namespace Core.Entities.SearchParameters;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PerceptualHashAlgorithm
 {
-    DifferenceHash,
-    PerceptualHash,
-    BlockMeanHash
+    QDctHash
 }

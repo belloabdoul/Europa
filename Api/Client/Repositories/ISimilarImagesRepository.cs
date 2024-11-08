@@ -7,13 +7,13 @@ namespace Api.Client.Repositories;
 
 public interface ISimilarImagesRepository
 {
-    ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity);
+    ValueTask<ObservableDictionary<byte[], Similarity>?> GetExistingSimilaritiesForImage(
+        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm);
 
-    ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
+    ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(byte[] id, Half[] imageHash,
         PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
         ICollection<byte[]> groupsAlreadyDone);
 
     ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        Similarity[] newSimilarities);
+        ICollection<Similarity> newSimilarities);
 }

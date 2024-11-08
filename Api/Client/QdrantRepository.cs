@@ -1,7 +1,6 @@
-﻿using System.Collections;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.IO.Hashing;
-using System.Runtime.CompilerServices;
+using System.Numerics.Tensors;
 using System.Runtime.InteropServices;
 using Api.Client.Repositories;
 using CommunityToolkit.HighPerformance.Buffers;
@@ -33,21 +32,12 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
             {
                 Map =
                 {
-                    [nameof(PerceptualHashAlgorithm.DifferenceHash)] = new VectorParams
+                    [nameof(PerceptualHashAlgorithm.QDctHash)] = new VectorParams
                     {
-                        Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot
-                    },
-                    [nameof(PerceptualHashAlgorithm.PerceptualHash)] = new VectorParams
-                    {
-                        Size = 64, Datatype = Datatype.Float16, Distance = Distance.Dot
-                    },
-                    [nameof(PerceptualHashAlgorithm.BlockMeanHash)] = new VectorParams
-                    {
-                        Size = 961, Datatype = Datatype.Float16, Distance = Distance.Dot
+                        Size = 256, Datatype = Datatype.Float16, Distance = Distance.Manhattan
                     }
                 }
-            }, cancellationToken: cancellationToken, onDiskPayload: true,
-            quantizationConfig: new QuantizationConfig { Binary = new BinaryQuantization { AlwaysRam = true } }
+            }, cancellationToken: cancellationToken, onDiskPayload: true
         ));
     }
 
@@ -79,7 +69,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
         return infos.Status == CollectionStatus.Green;
     }
 
-    public async ValueTask<BitArray?> GetImageInfos(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public async ValueTask<Half[]?> GetImageInfos(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         var images = await _database.RetrieveAsync("Europa", XxHash3.HashToUInt64(id),
             false, true);
@@ -90,13 +80,13 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
         var image = images[0];
         if (!image.Vectors.Vectors_.Vectors.TryGetValue(Enum.GetName(perceptualHashAlgorithm)!,
                 out var imageHash))
-            return new BitArray(0);
+            return [];
 
-        var hash = new BitArray(imageHash.Data.Count);
+        var hash = new Half[imageHash.Data.Count];
+
         for (var i = 0; i < imageHash.Data.Count; i++)
         {
-            hash[i] = imageHash.Data[i] > 0;
-            i++;
+            hash[i] = Half.CreateChecked(imageHash.Data[i]);
         }
 
         return hash;
@@ -105,7 +95,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
     public async ValueTask<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         using var tempVector = MemoryOwner<float>.Allocate(group.ImageHash!.Length);
-        Vectorize(group.ImageHash, tempVector.Span);
+        TensorPrimitives.ConvertToSingle(group.ImageHash, tempVector.Span);
         var result = await _database.UpsertAsync("Europa", [
             new PointStruct
             {
@@ -139,7 +129,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
             return false;
 
         using var tempVector = MemoryOwner<float>.Allocate(group.ImageHash!.Length);
-        Vectorize(group.ImageHash, tempVector.Span);
+        TensorPrimitives.ConvertToSingle(group.ImageHash, tempVector.Span);
         result = await _database.UpdateVectorsAsync("Europa", [
             new PointVectors
             {
@@ -155,8 +145,8 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
         return result.Status == UpdateStatus.Completed;
     }
 
-    public async ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(
-        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm, int degreeOfSimilarity)
+    public async ValueTask<ObservableDictionary<byte[], Similarity>?> GetExistingSimilaritiesForImage(
+        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm)
     {
         var points = await _database.QueryAsync("Europa",
             filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(currentGroupId)),
@@ -174,24 +164,29 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
                 }
             });
 
-        return new ObservableDictionary<byte[], byte>(points[0]
+        return new ObservableDictionary<byte[], Similarity>(points[0]
             .Payload[$"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}"].ListValue
             .Values
-            .Where(value => value.StructValue.Fields[nameof(Similarity.Score)].IntegerValue <= degreeOfSimilarity)
             .Select(value =>
-                Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue))
-            .ToDictionary(val => val, _ => (byte)0), HashComparer);
+                new Similarity
+                {
+                    OriginalId = currentGroupId,
+                    DuplicateId =
+                        Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue),
+                    Score = value.StructValue.Fields[nameof(Similarity.Score)].IntegerValue
+                })
+            .ToDictionary(val => val.DuplicateId, val => val, HashComparer), HashComparer);
     }
 
-    public async ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize,
-        int degreeOfSimilarity, ICollection<byte[]> groupsAlreadyDone)
+    public async ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(byte[] id,
+        Half[] imageHash, PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
+        ICollection<byte[]> groupsAlreadyDone)
     {
         using var tempVector = MemoryOwner<float>.Allocate(imageHash.Length);
-        Vectorize(imageHash, tempVector.Span);
+        TensorPrimitives.ConvertToSingle(imageHash, tempVector.Span);
         var similarities = await _database.SearchAsync("Europa",
             vector: tempVector.Memory, vectorName: Enum.GetName(perceptualHashAlgorithm),
-            scoreThreshold: hashSize - degreeOfSimilarity - 1, offset: 0, limit: 100,
+            scoreThreshold: degreeOfSimilarity - 1, offset: 0, limit: 100,
             filter: MatchExcept(nameof(ImagesGroup.Id),
                 groupsAlreadyDone.Select(Convert.ToHexStringLower).ToList()),
             searchParams: new SearchParams { Exact = false },
@@ -199,16 +194,20 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
                 { Enable = true, Include = new PayloadIncludeSelector { Fields = { "Id" } } }
         );
 
-        return similarities.Select(value => new Similarity
+        return similarities.Select(value =>
         {
-            OriginalId = id,
-            DuplicateId = Convert.FromHexString(value.Payload[nameof(ImagesGroup.Id)].StringValue),
-            Score = Convert.ToDecimal(value.Score)
-        }).ToArray();
+            var duplicateId = Convert.FromHexString(value.Payload[nameof(ImagesGroup.Id)].StringValue);
+            return new KeyValuePair<byte[], Similarity>(duplicateId, new Similarity
+            {
+                OriginalId = id,
+                DuplicateId = duplicateId,
+                Score = Convert.ToDecimal(value.Score)
+            });
+        });
     }
 
     public async ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        Similarity[] newSimilarities)
+        ICollection<Similarity> similarities)
     {
         var result = await _database.SetPayloadAsync("Europa",
             new ConcurrentDictionary<string, Value>
@@ -219,7 +218,7 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
                     {
                         Values =
                         {
-                            newSimilarities.Select(val => new Value
+                            similarities.Select(val => new Value
                             {
                                 StructValue = new Struct
                                 {
@@ -234,18 +233,9 @@ public sealed class QdrantRepository : ICollectionRepository, IIndexingRepositor
                         }
                     }
                 },
-            }, filter: MatchKeyword(nameof(ImagesGroup.Id), Convert.ToHexStringLower(id)));
+            }, XxHash3.HashToUInt64(id));
 
         return result.Status == UpdateStatus.Completed;
-    }
-
-    private static void Vectorize(BitArray vector, Span<float> vectorFLoats)
-    {
-        ref var vectorRef = ref MemoryMarshal.GetReference(vectorFLoats);
-        for (nuint i = 0; i < (nuint)vector.Length; i++)
-        {
-            Unsafe.Add(ref vectorRef, i) = vector[(int)i] ? 1f : -1f;
-        }
     }
 
     public void Dispose()
