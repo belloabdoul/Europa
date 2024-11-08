@@ -14,7 +14,6 @@
     <ItemGroup>
       <PackageReference Include="Blake3" Version="1.1.0" />
       <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0-preview1" />
-      <PackageReference Include="DotNext.Unsafe" Version="5.14.0" />
       <PackageReference Include="Lsj.MediaInfo.Wrapper.Core" Version="22.12.1" />
       <PackageReference Include="NetVips" Version="3.0.0" />
       <PackageReference Include="NetVips.Native" Version="8.16.0" />
