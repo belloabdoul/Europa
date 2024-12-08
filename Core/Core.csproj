@@ -16,15 +16,30 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="FluentValidation" Version="11.10.0" />
-        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0-rc.2.24473.5" />
-        <PackageReference Include="NSwag.Core" Version="14.1.0" />
+        <PackageReference Include="DotNext.IO" Version="5.16.1" />
+        <PackageReference Include="FluentValidation" Version="11.11.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
+        <PackageReference Include="NSwag.Core" Version="14.2.0" />
         <PackageReference Include="Qdrant.Client" Version="1.12.0" />
         <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6" />
         <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1" />
         <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1" />
         <PackageReference Include="SoundFingerprinting" Version="11.1.0" />
-        <PackageReference Include="System.IO.Hashing" Version="9.0.0-rc.2.24473.5" />
+        <PackageReference Include="System.IO.Hashing" Version="9.0.0" />
     </ItemGroup>
 
+    <ItemGroup>
+        <None Update="Libs\vec0-x86_64.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Libs\vec0-x86_64.so">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Libs\vec0-aarch64.dylib">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Libs\vec0-x86_64.dylib">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
 </Project>
