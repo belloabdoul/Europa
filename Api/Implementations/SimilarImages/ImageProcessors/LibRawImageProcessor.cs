@@ -35,7 +35,7 @@ public class LibRawImageProcessor : IFileTypeIdentifier, IThumbnailGenerator
             case ColorSpace.Grayscale when pixels.Length < width * height:
                 throw new ArgumentException($"Not enough space for thumbnail. Required buffer size is {width * height}",
                     nameof(pixels));
-            case ColorSpace.Lab or ColorSpace.Rgb when pixels.Length < width * height * 3:
+            case ColorSpace.Rgb when pixels.Length < width * height * 3:
                 throw new ArgumentException(
                     $"Not enough space for thumbnail. Required buffer size is {width * height * 3}", nameof(pixels));
         }

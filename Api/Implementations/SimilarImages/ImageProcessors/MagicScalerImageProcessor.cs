@@ -1,10 +1,12 @@
-﻿using System.Drawing;
+﻿using System.Buffers;
+using System.Drawing;
+using System.Numerics.Tensors;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Files;
 using Core.Entities.Images;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
-using Microsoft.IO;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.MagicScaler.Transforms;
 using Sdcb.LibRaw;
@@ -13,8 +15,6 @@ namespace Api.Implementations.SimilarImages.ImageProcessors;
 
 public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
-    private static readonly RecyclableMemoryStreamManager RecyclableMemoryStreamManager = new();
-
     private static readonly IPixelTransform GreyPixelTransform = new FormatConversionTransform(PixelFormats.Grey8bpp);
     private static readonly IPixelTransform BgrPixelTransform = new FormatConversionTransform(PixelFormats.Bgr24bpp);
 
@@ -25,13 +25,6 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
     };
 
     private static Rectangle _area = new(0, 0, 0, 0);
-
-    private readonly IColorSpaceConverter _colorSpaceConverter;
-
-    public MagicScalerImageProcessor(IColorSpaceConverter colorSpaceConverter)
-    {
-        _colorSpaceConverter = colorSpaceConverter;
-    }
 
     public FileType GetFileType(string path)
     {
@@ -66,7 +59,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
                     throw new ArgumentException(
                         $"Not enough space for thumbnail. Required buffer size is {width * height}",
                         nameof(pixels));
-                case ColorSpace.Lab or ColorSpace.Rgb when pixels.Length < width * height * 3:
+                case ColorSpace.Rgb when pixels.Length < width * height * 3:
                     throw new ArgumentException(
                         $"Not enough space for thumbnail. Required buffer size is {width * height * 3}",
                         nameof(pixels));
@@ -95,26 +88,26 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         }
     }
 
-    public bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<float> pixels,
+    public unsafe bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<float> pixels,
         ColorSpace colorSpace)
     {
-        using var stream = RecyclableMemoryStreamManager.GetStream(image.AsSpan<byte>());
-
+        using var stream = new UnmanagedMemoryStream((byte*)image.DataPointer.ToPointer(), image.DataSize);
+        
         if (_area.Width != width || _area.Height != height)
         {
             _area.Width = width;
             _area.Height = height;
-
+        
             ProcessImageSettings.Width = _area.Width;
             ProcessImageSettings.Height = _area.Height;
         }
-
+        
         using var pipeline = MagicImageProcessor.BuildPipeline(stream, ProcessImageSettings);
-
+        
         return GenerateThumbnail(pipeline, pixels, colorSpace);
     }
 
-    private bool GenerateThumbnail(ProcessingPipeline imageProcessingPipeline, Span<float> pixels,
+    private static bool GenerateThumbnail(ProcessingPipeline imageProcessingPipeline, Span<float> pixels,
         ColorSpace colorSpace)
     {
         try
@@ -125,8 +118,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
                 using var tempGrayPixels = SpanOwner<byte>.Allocate(_area.Width * _area.Height);
                 imageProcessingPipeline.PixelSource.CopyPixels(_area, _area.Width, tempGrayPixels.Span);
 
-                for (var i = 0; i < _area.Width * _area.Height; i++)
-                    pixels[i] = tempGrayPixels.Span[i];
+                TensorPrimitives.ConvertChecked<byte, float>(tempGrayPixels.Span, pixels);
 
                 return true;
             }
@@ -137,24 +129,18 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
             using var tempPixels = MemoryOwner<byte>.Allocate(stride * _area.Height);
             imageProcessingPipeline.PixelSource.CopyPixels(_area, stride, tempPixels.Span);
 
-            if (colorSpace is ColorSpace.Lab)
-            {
-                for (var i = 0; i < tempPixels.Length; i += 3)
-                {
-                    (tempPixels.Span[i], tempPixels.Span[i + 2]) = (tempPixels.Span[i + 2], tempPixels.Span[i]);
-                }
-
-                return _colorSpaceConverter.GetPixelsInLabColorSpace(tempPixels.Memory, _area.Width, _area.Height,
-                    pixels);
-            }
-
-            // Colorspace is Rgb
-            var imageSize = tempPixels.Length / 3;
+            // Swap from BGR to RGB since libvips only support RGB
             for (var i = 0; i < tempPixels.Length; i += 3)
             {
-                pixels[i / 3] = tempPixels.Span[i + 2];
+                (tempPixels.Span[i], tempPixels.Span[i + 2]) = (tempPixels.Span[i + 2], tempPixels.Span[i]);
+            }
+
+            var imageSize = _area.Width * _area.Height;
+            for (var i = 0; i < tempPixels.Length; i+= 3)
+            {
+                pixels[i / 3] = tempPixels.Span[i];
                 pixels[imageSize + i / 3] = tempPixels.Span[i + 1];
-                pixels[2 * imageSize + i / 3] = tempPixels.Span[i];
+                pixels[2 * imageSize + i / 3] = tempPixels.Span[i + 2];
             }
 
             return true;

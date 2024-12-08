@@ -9,8 +9,7 @@ using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
-public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator,
-    IColorSpaceConverter
+public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
     public FileType GetFileType(string path)
     {
@@ -36,15 +35,14 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
 
     public bool GenerateThumbnail(string imagePath, int width, int height, Span<float> pixels, ColorSpace colorSpace)
     {
-        var pixelCount = width * height;
         switch (colorSpace)
         {
-            case ColorSpace.Grayscale when pixels.Length < pixelCount:
-                throw new ArgumentException($"Not enough space for thumbnail. Required buffer size is {pixelCount}",
+            case ColorSpace.Grayscale when pixels.Length < width * height:
+                throw new ArgumentException($"Not enough space for thumbnail. Required buffer size is {width * height}",
                     nameof(pixels));
-            case ColorSpace.Lab or ColorSpace.Rgb when pixels.Length < pixelCount * 3:
+            case ColorSpace.Rgb when pixels.Length < width * height * 3:
                 throw new ArgumentException(
-                    $"Not enough space for thumbnail. Required buffer size is {pixelCount * 12}", nameof(pixels));
+                    $"Not enough space for thumbnail. Required buffer size is {width * height * 3}", nameof(pixels));
         }
 
         using var resizedImage = Image.Thumbnail(imagePath, width, height, Enums.Size.Force);
@@ -68,17 +66,23 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         bool done;
         try
         {
-            using var colourSpaceImage =
-                thumbnail.Colourspace(colorSpace is ColorSpace.Grayscale ? Enums.Interpretation.Bw :
-                    colorSpace is ColorSpace.Lab ? Enums.Interpretation.Lab : Enums.Interpretation.Srgb);
+            using var colourSpaceImage = thumbnail.Colourspace(colorSpace switch
+            {
+                ColorSpace.Grayscale => Enums.Interpretation.Bw,
+                _ => Enums.Interpretation.Srgb
+            });
             using var imageWithoutAlpha = colourSpaceImage.Flatten();
-            using var imageWithoutAlphaAsFloat = colourSpaceImage.Cast(Enums.BandFormat.Float);
 
-            pointer = imageWithoutAlpha.WriteToMemory(out var size);
+
+            using var imageWithoutAlphaAsDouble = imageWithoutAlpha.Cast(Enums.BandFormat.Float);
+            pointer = imageWithoutAlphaAsDouble.WriteToMemory(out var size);
+
+
             done = CopyPixels(pointer, pixels, Convert.ToInt32(size), colorSpace);
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            Console.WriteLine(e);
             done = false;
         }
         finally
@@ -98,46 +102,21 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
             providedPixels = new Span<byte>(pointer.ToPointer(), length);
         }
 
-        if (colorSpace is ColorSpace.Grayscale or ColorSpace.Lab)
+        // For Grayscale or LAB there is nothing to do
+        if (colorSpace is ColorSpace.Grayscale)
         {
             MemoryMarshal.Cast<byte, float>(providedPixels).CopyTo(pixels);
             return true;
         }
 
         var pixelsRgb = MemoryMarshal.Cast<byte, float>(providedPixels);
-        
-        var pixelsRgb2D = pixelsRgb.AsSpan2D(length / 12, 3);
 
-        pixelsRgb2D.GetColumn(0).CopyTo(pixels[..pixelsRgb2D.Height]);
-        pixelsRgb2D.GetColumn(1).CopyTo(pixels.Slice(pixelsRgb2D.Height, pixelsRgb2D.Height));
-        pixelsRgb2D.GetColumn(2).CopyTo(pixels.Slice(2 * pixelsRgb2D.Height, pixelsRgb2D.Height));
-        
+        // Separate channels - Ex: RGB-RGB-RGB to RRR-GGG-BBB
+        var pixelPerChannel = pixelsRgb.Length / 3;
+        var pixelsRgb2D = pixelsRgb.AsSpan2D(pixelPerChannel, 3);
+        pixelsRgb2D.GetColumn(0).CopyTo(pixels[..pixelPerChannel]);
+        pixelsRgb2D.GetColumn(1).CopyTo(pixels.Slice(pixelPerChannel, pixelPerChannel));
+        pixelsRgb2D.GetColumn(2).CopyTo(pixels.Slice(2 * pixelPerChannel, pixelPerChannel));
         return true;
-    }
-
-
-    public bool GetPixelsInLabColorSpace(ReadOnlyMemory<byte> pixels, int width, int height, Span<float> pixelsLabs)
-    {
-        var pointer = IntPtr.Zero;
-        bool done;
-        try
-        {
-            using var image = Image.NewFromMemory(pixels, width, height, 3, Enums.BandFormat.Uchar);
-            using var labImage = image.Colourspace(Enums.Interpretation.Lab);
-            pointer = labImage.WriteToMemory(out var size);
-
-            done = CopyPixels(pointer, pixelsLabs, Convert.ToInt32(size), ColorSpace.Lab);
-        }
-        catch (Exception)
-        {
-            done = false;
-        }
-        finally
-        {
-            if (pointer != IntPtr.Zero)
-                NetVips.NetVips.Free(pointer);
-        }
-
-        return done;
     }
 }

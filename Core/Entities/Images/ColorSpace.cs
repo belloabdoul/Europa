@@ -3,6 +3,5 @@
 public enum ColorSpace
 {
     Grayscale,
-    Rgb,
-    Lab
+    Rgb
 }

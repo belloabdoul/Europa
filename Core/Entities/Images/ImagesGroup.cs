@@ -6,7 +6,7 @@ namespace Core.Entities.Images;
 
 public class ImagesGroup
 {
-    public byte[] Id { get; set; }
+    public byte[]? Id { get; set; }
 
     public FileType FileType { get; set; }
 
@@ -15,10 +15,10 @@ public class ImagesGroup
     public long Size { get; set; }
 
     public DateTime DateModified { get; set; }
-    
-    public Half[]? ImageHash { get; set; }
+
+    public ReadOnlyMemory<Half>? ImageHash { get; set; }
 
     public ConcurrentStack<string> Duplicates { get; } = [];
-    
+
     public ObservableDictionary<byte[], Similarity> Similarities { get; set; } = [];
 }
