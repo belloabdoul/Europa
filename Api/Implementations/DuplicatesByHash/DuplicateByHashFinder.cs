@@ -1,15 +1,10 @@
 ﻿using System.Collections.Concurrent;
-using System.Runtime.CompilerServices;
 using System.Threading.Channels;
 using Api.Implementations.Commons;
-using Core.Entities;
 using Core.Entities.Commons;
-using Core.Entities.Images;
 using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
-using Core.Interfaces;
 using Core.Interfaces.Commons;
-using Core.Interfaces.SimilarImages;
 using Microsoft.AspNetCore.SignalR;
 using File = Core.Entities.Files.File;
 
@@ -26,8 +21,9 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         _notificationContext = notificationContext;
     }
 
-    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
-        int? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
+        PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+        decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         // Partial hash generation
         var partialDuplicates =
@@ -90,21 +86,15 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 try
                 {
                     using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicate, true, true);
-
+                    
                     var size = RandomAccess.GetLength(fileHandle);
 
                     var bytesToHash = Convert.ToInt64(decimal.Round(decimal.Multiply(size, percentageOfFileToHash),
                         MidpointRounding.ToPositiveInfinity));
+                    
+                    using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle, bytesToHash);
 
-                    var hash = await _hashGenerator.GenerateHash(fileHandle, bytesToHash, hashingToken);
-
-                    if (hash == null)
-                    {
-                        _ = SendError($"File {hypotheticalDuplicate} is corrupted", _notificationContext,
-                            hashingToken);
-
-                        return;
-                    }
+                    var hash = await _hashGenerator.GenerateHash(memoryMappedFile, hashingToken);
 
                     var file = new File
                     {
@@ -135,15 +125,14 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
         progressWriter.Complete();
     }
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public static Task SendError(string message, IHubContext<NotificationHub> notificationContext,
+    private static Task SendError(string message, IHubContext<NotificationHub> notificationContext,
         CancellationToken cancellationToken)
     {
         return notificationContext.Clients.All.SendAsync("notify",
             new Notification(NotificationType.Exception, message), cancellationToken);
     }
 
-    public async Task SendProgress(ChannelReader<int> progressReader, decimal percentageOfFileToHash,
+    private async Task SendProgress(ChannelReader<int> progressReader, decimal percentageOfFileToHash,
         CancellationToken cancellationToken)
     {
         var progress = 0;
