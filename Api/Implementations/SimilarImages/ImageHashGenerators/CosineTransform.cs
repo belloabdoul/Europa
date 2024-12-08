@@ -9,16 +9,16 @@ namespace Api.Implementations.SimilarImages.ImageHashGenerators;
 
 public class CosineTransform
 {
-    private readonly float[][] _dctCoefficients;
+    private static readonly float[][] DctCoefficients;
     private const int Size = 128;
 
-    public CosineTransform()
+    static CosineTransform()
     {
-        _dctCoefficients = new float[Size][];
+        DctCoefficients = new float[Size][];
 
         // Vector from 1 to Size
         using var rowVector = SpanOwner<float>.Allocate(Size);
-        ref var rowVectorReference = ref rowVector.DangerousGetReference();
+        ref var rowVectorReference = ref MemoryMarshal.GetReference(rowVector.Span);
         for (nint i = 0; i < Size; i++)
         {
             Unsafe.Add(ref rowVectorReference, i) = i;
@@ -43,10 +43,10 @@ public class CosineTransform
             TensorPrimitives.Cos<float>(dctCoefficients, dctCoefficients);
 
             // Multiply by sqrt(alpha / Size), with alpha = 1 if coefficient = 0, and alpha = 2 if coefficient > 0
-            TensorPrimitives.Multiply(dctCoefficients, coefficient > 0 ? float.Sqrt(2) / 8.0f : 1.0f / 8.0f,
+            TensorPrimitives.Multiply(dctCoefficients, coefficient > 0 ? 1.0f / 8.0f : 1.0f / float.Sqrt(128.0f),
                 dctCoefficients);
 
-            _dctCoefficients[coefficient] = dctCoefficients;
+            DctCoefficients[coefficient] = dctCoefficients;
         }
     }
 
@@ -60,14 +60,14 @@ public class CosineTransform
         ref var inputReference = ref MemoryMarshal.GetReference(input);
         using var temp = SpanOwner<float>.Allocate(Size);
         input.CopyTo(temp.Span);
-        Unsafe.Add(ref inputReference, 0) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[0]);
-        Unsafe.Add(ref inputReference, 1) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[1]);
-        Unsafe.Add(ref inputReference, 2) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[2]);
-        Unsafe.Add(ref inputReference, 3) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[3]);
-        Unsafe.Add(ref inputReference, 4) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[4]);
-        Unsafe.Add(ref inputReference, 5) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[5]);
-        Unsafe.Add(ref inputReference, 6) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[6]);
-        Unsafe.Add(ref inputReference, 7) = TensorPrimitives.Dot<float>(temp.Span, _dctCoefficients[7]);
+        Unsafe.Add(ref inputReference, 0) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[0]);
+        Unsafe.Add(ref inputReference, 1) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[1]);
+        Unsafe.Add(ref inputReference, 2) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[2]);
+        Unsafe.Add(ref inputReference, 3) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[3]);
+        Unsafe.Add(ref inputReference, 4) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[4]);
+        Unsafe.Add(ref inputReference, 5) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[5]);
+        Unsafe.Add(ref inputReference, 6) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[6]);
+        Unsafe.Add(ref inputReference, 7) = TensorPrimitives.Dot<float>(temp.Span, DctCoefficients[7]);
     }
 
     /// <summary>
