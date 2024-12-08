@@ -6,5 +6,5 @@ namespace Core.Interfaces.Commons;
 public interface ISimilarFilesFinder
 {
     Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
-        int? degreeOfSimilarity = null, CancellationToken cancellationToken = default);
+        decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default);
 }

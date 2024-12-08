@@ -6,6 +6,6 @@ namespace Core.Interfaces.Commons;
 public interface ISearchService
 {
     Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates, FileSearchType searchType,
-        PerceptualHashAlgorithm? perceptualHashAlgorithm, int degreeOfSimilarity = 0,
+        PerceptualHashAlgorithm? perceptualHashAlgorithm, decimal degreeOfSimilarity = 0,
         CancellationToken cancellationToken = default);
 }

@@ -25,8 +25,6 @@ using PhotoSauce.NativeCodecs.Libjxl;
 using PhotoSauce.NativeCodecs.Libpng;
 using PhotoSauce.NativeCodecs.Libwebp;
 using Sdcb.LibRaw;
-using SoundFingerprinting.Audio;
-using SoundFingerprinting.Emy;
 
 namespace Api;
 
@@ -84,8 +82,7 @@ public class Program
         services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
-
-        services.AddScoped<IColorSpaceConverter, LibVipsImageProcessor>();
+        
         // Register main thumbnail generators : these are to be used for libRaw only
         services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
         services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
@@ -100,22 +97,17 @@ public class Program
         services.AddScoped<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
-        // AudioStreamFactory.AddFactory(new FFmpegAudioStreamFactory());
-        // ResamplerFactory.Factory = new NAudioWdlResamplerFactory();
-        // FFTFactory.Factory = new Aurio.Exocortex.FFTFactory();
-        services.AddScoped<IAudioService, FFmpegAudioService>();
-        services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
+        services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
         services.AddScoped<CosineTransform>();
         services.AddKeyedScoped<IImageHash, QDctHash>(PerceptualHashAlgorithm.QDctHash);
 
-        // Dependencies for qdrant database
-        services.AddSingleton<ICollectionRepository, QdrantRepository>();
-        services.AddScoped<IIndexingRepository, QdrantRepository>();
-        services.AddScoped<IImageInfosRepository, QdrantRepository>();
-        services.AddScoped<ISimilarImagesRepository, QdrantRepository>();
-        services.AddHostedService<QdrantConfig>();
+        // Dependencies for Qdrant images database
+        services.AddKeyedSingleton<ICollectionRepository, QdrantImagesRepository>(FileSearchType.Images);
+        services.AddScoped<IIndexingRepository, QdrantImagesRepository>();
+        services.AddScoped<IImageInfosRepository, QdrantImagesRepository>();
+        services.AddScoped<ISimilarImagesRepository, QdrantImagesRepository>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddKeyedScoped<ISimilarFilesFinder, DuplicateByHashFinder>(FileSearchType.All);

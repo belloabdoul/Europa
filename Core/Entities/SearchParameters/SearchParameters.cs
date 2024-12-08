@@ -12,7 +12,7 @@ public class SearchParameters
     public FileSearchType? FileSearchType { get; set; }
 
     // The degree of similarity between images (only for images)
-    public int? DegreeOfSimilarity { get; set; }
+    public decimal? DegreeOfSimilarity { get; set; }
     
     // The perceptual hash algorithm to use (only for images)
     public PerceptualHashAlgorithm? PerceptualHashAlgorithm { get; set; }
