@@ -108,6 +108,11 @@ public class Program
         services.AddScoped<IIndexingRepository, QdrantImagesRepository>();
         services.AddScoped<IImageInfosRepository, QdrantImagesRepository>();
         services.AddScoped<ISimilarImagesRepository, QdrantImagesRepository>();
+        
+        // Dependencies for sqlite audio database
+        services.AddKeyedSingleton<ICollectionRepository, SqLiteAudioRepository>(FileSearchType.Audios);
+        services.AddScoped<IAudioInfosRepository, SqLiteAudioRepository>();
+        services.AddScoped<ISimilarAudiosRepository, SqLiteAudioRepository>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddKeyedScoped<ISimilarFilesFinder, DuplicateByHashFinder>(FileSearchType.All);

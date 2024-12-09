@@ -6,7 +6,9 @@ namespace Core.Entities.Images;
 
 public class ImagesGroup
 {
-    public byte[]? Id { get; set; }
+    public Guid Id { get; set; }
+
+    public byte[] FileHash { get; set; } = null!;
 
     public FileType FileType { get; set; }
 

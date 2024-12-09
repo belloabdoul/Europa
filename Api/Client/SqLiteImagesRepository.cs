@@ -5,6 +5,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Api.Client.Repositories;
+using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Images;
 using Core.Entities.SearchParameters;
 using NSwag.Collections;
@@ -29,11 +30,12 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
 
     private readonly SQLiteConnection _connection;
     private bool _isDisposed;
-    
+
     private static readonly string ImageHashColumn =
         JsonNamingPolicy.SnakeCaseLower.ConvertName(nameof(ImagesGroup.ImageHash));
 
-    private static readonly string ImageIdColumn = JsonNamingPolicy.SnakeCaseLower.ConvertName(nameof(ImagesGroup.Id));
+    private static readonly string ImageIdColumn =
+        JsonNamingPolicy.SnakeCaseLower.ConvertName(nameof(ImagesGroup.FileHash));
 
     private static readonly string ImageSimilaritiesColumn =
         JsonNamingPolicy.SnakeCaseLower.ConvertName(nameof(ImagesGroup.Similarities));
@@ -97,7 +99,7 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
         }
     }
 
-    public async ValueTask CreateCollectionAsync(string collectionName, CancellationToken cancellationToken)
+    public async ValueTask CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         // Create the vector table
         await using var command = _connection.CreateCommand();
@@ -114,8 +116,8 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
-    public async ValueTask<ReadOnlyMemory<Half>?> GetImageInfos(string collectionName, byte[] id,
-        PerceptualHashAlgorithm perceptualHashAlgorithm)
+    public async ValueTask<ImageInfos> GetImageInfos(string collectionName, byte[] id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, CancellationToken cancellationToken = default)
     {
         await using var command = _connection.CreateCommand();
         var tableName = JsonNamingPolicy.SnakeCaseLower.ConvertName(collectionName);
@@ -125,21 +127,21 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
             $"SELECT {ImageHashColumn} FROM {tableName} WHERE {ImageIdColumn} = @{ImageIdColumn}";
 
         command.Parameters.AddWithValue(ImageIdColumn, Convert.ToHexStringLower(id));
-        await using var result = await command.ExecuteReaderAsync(CommandBehavior.SingleRow);
+        await using var result = await command.ExecuteReaderAsync(CommandBehavior.SingleRow, cancellationToken);
 
         if (!result.HasRows)
-            return null;
+            return new ImageInfos(Guid.Empty, Array.Empty<Half>());
 
-        await result.ReadAsync();
+        await result.ReadAsync(cancellationToken);
         var tempHash = MemoryMarshal.Cast<byte, float>(result[ImageHashColumn] as byte[]);
         var imageHash = new Half[tempHash.Length];
         TensorPrimitives.ConvertToHalf(tempHash, imageHash);
-        return imageHash;
+        return new ImageInfos(Guid.Empty, imageHash);
     }
 
     [SkipLocalsInit]
     public async ValueTask<bool> InsertImageInfos(string collectionName, List<ImagesGroup> groups,
-        PerceptualHashAlgorithm perceptualHashAlgorithm)
+        PerceptualHashAlgorithm perceptualHashAlgorithm, CancellationToken cancellationToken = default)
     {
         await using var command = _connection.CreateCommand();
         var tableName = JsonNamingPolicy.SnakeCaseLower.ConvertName(collectionName);
@@ -147,33 +149,35 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
         command.CommandText =
             $"INSERT INTO {tableName} VALUES(@{ImageIdColumn}, @{ImageHashColumn}, @{ImageSimilaritiesColumn})";
 
-        Span<float> tempVector = stackalloc float[groups[0].ImageHash!.Value.Length];
+        using var tempVector = MemoryOwner<float>.Allocate(groups[0].ImageHash!.Value.Length);
         await using var transaction = _connection.BeginTransaction();
         foreach (var group in groups)
         {
-            var id = Convert.ToHexStringLower(group.Id);
+            var id = Convert.ToHexStringLower(group.FileHash);
             // Insert vector
             command.Parameters.AddWithValue(ImageIdColumn, id);
-            TensorPrimitives.ConvertToSingle(group.ImageHash!.Value.Span, tempVector);
-            command.Parameters.AddWithValue(ImageHashColumn, MemoryMarshal.AsBytes(tempVector).ToArray());
+            TensorPrimitives.ConvertToSingle(group.ImageHash!.Value.Span, tempVector.Span);
+            command.Parameters.AddWithValue(ImageHashColumn, MemoryMarshal.AsBytes(tempVector.Span).ToArray());
             command.Parameters.AddWithValue(ImageSimilaritiesColumn, JsonSerializer.Serialize(group.Similarities));
-            command.ExecuteNonQuery();
+            await command.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        await transaction.CommitAsync();
+        await transaction.CommitAsync(cancellationToken);
         return true;
     }
-    
+
     public ValueTask<ObservableDictionary<byte[], Similarity>?> GetExistingSimilaritiesForImage(string collectionName,
-        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm)
+        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm,
+        CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult<ObservableDictionary<byte[], Similarity>?>(null);
     }
 
     [SkipLocalsInit]
-    public async ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(string collectionName, 
+    public async ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(string collectionName,
         byte[] id, ReadOnlyMemory<Half> imageHash, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        decimal degreeOfSimilarity, ICollection<byte[]> groupsAlreadyDone)
+        decimal degreeOfSimilarity, ICollection<byte[]> groupsAlreadyDone,
+        CancellationToken cancellationToken = default)
     {
         // Span<float> tempVector = stackalloc float[imageHash.Length];
         // TensorPrimitives.ConvertToSingle(imageHash.Span, tempVector);
@@ -209,13 +213,13 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
 
         command.Parameters.AddWithValue(SimilarityDistanceColumn, degreeOfSimilarity);
 
-        var result = await command.ExecuteReaderAsync(CommandBehavior.Default);
+        var result = await command.ExecuteReaderAsync(CommandBehavior.Default, cancellationToken);
 
         if (!result.HasRows)
             return [];
 
         var matchingIds = new List<KeyValuePair<byte[], Similarity>>();
-        while (await result.ReadAsync())
+        while (await result.ReadAsync(cancellationToken))
         {
             var distance = result.GetDecimal(SimilarityDistanceColumn);
 
@@ -237,8 +241,9 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
         return matchingIds;
     }
 
-    public async ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        ICollection<Similarity> newSimilarities)
+    public async ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, Guid id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, ICollection<Similarity> newSimilarities,
+        CancellationToken cancellationToken = default)
     {
         // var tableName = JsonNamingPolicy.SnakeCaseLower.ConvertName(collectionName);
         // await using var command = _connection.CreateCommand();
@@ -269,17 +274,17 @@ public sealed class SqLiteImagesRepository : ICollectionRepository, IIndexingRep
         _isDisposed = true;
     }
 
-    public ValueTask DisableIndexingAsync(string collectionName, CancellationToken cancellationToken)
+    public ValueTask DisableIndexingAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask EnableIndexingAsync(string collectionName, CancellationToken cancellationToken)
+    public ValueTask EnableIndexingAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return ValueTask.CompletedTask;
     }
 
-    public ValueTask<bool> IsIndexingDoneAsync(string collectionName, CancellationToken cancellationToken)
+    public ValueTask<bool> IsIndexingDoneAsync(string collectionName, CancellationToken cancellationToken = default)
     {
         return ValueTask.FromResult(true);
     }

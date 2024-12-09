@@ -2,5 +2,5 @@
 
 public interface ICollectionRepository
 {
-    ValueTask CreateCollectionAsync(string collectionName, CancellationToken cancellationToken);
+    ValueTask CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
 }

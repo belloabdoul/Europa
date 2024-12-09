@@ -5,7 +5,9 @@ namespace Api.Client.Repositories;
 
 public interface IImageInfosRepository
 {
-    ValueTask<ReadOnlyMemory<Half>?> GetImageInfos(string collectionName, byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm);
+    ValueTask<ImageInfos> GetImageInfos(string collectionName, byte[] id,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, CancellationToken cancellationToken = default);
 
-    ValueTask<bool> InsertImageInfos(string collectionName, List<ImagesGroup> group, PerceptualHashAlgorithm perceptualHashAlgorithm);
+    ValueTask<bool> InsertImageInfos(string collectionName, List<ImagesGroup> group,
+        PerceptualHashAlgorithm perceptualHashAlgorithm, CancellationToken cancellationToken = default);
 }
