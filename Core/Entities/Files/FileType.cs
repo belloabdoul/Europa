@@ -3,6 +3,7 @@
 public enum FileType
 {
     Animation,
+    FFmpegImage,
     MagicScalerImage,
     LibRawImage,
     LibVipsImage,

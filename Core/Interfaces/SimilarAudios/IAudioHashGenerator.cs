@@ -1,10 +1,10 @@
-﻿using SoundFingerprinting;
-using SoundFingerprinting.Audio;
+﻿using Core.Entities.Audios;
 
 namespace Core.Interfaces.SimilarAudios;
 
 public interface IAudioHashGenerator
 {
-    string GetAudioMatches(string path, IModelService modelService, IAudioService mediaService);
-    void GenerateAudioHashes(string path, IModelService modelService, IAudioService mediaService);
+    Profile FingerprintingConfiguration { get; }
+    ValueTask<List<Fingerprint>> GenerateAudioHashesAsync(string path, byte[] fileId,
+        bool random = false, CancellationToken cancellationToken = default);
 }

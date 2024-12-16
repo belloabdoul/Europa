@@ -71,18 +71,18 @@ public class Program
 
         // Register directory reader
         services.AddScoped<IDirectoryReader, DirectoryReader>();
-        
+
         // Register file type's identifiers for audio search
         services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Audios);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Audios);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Audios);
-        services.AddKeyedScoped<IFileTypeIdentifier, FileTypeIdentifier>(FileSearchType.Audios);
+        services.AddKeyedTransient<IFileTypeIdentifier, FfMpegIdentifier>(FileSearchType.Audios);
 
         // Register file type's identifiers for image search
         services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
-        
+
         // Register main thumbnail generators : these are to be used for libRaw only
         services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
         services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
@@ -97,21 +97,22 @@ public class Program
         services.AddScoped<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
-        services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
+        services.AddTransient<IAudioInfosGetter, FfMpegIdentifier>();
+        services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
         services.AddScoped<CosineTransform>();
         services.AddKeyedScoped<IImageHash, QDctHash>(PerceptualHashAlgorithm.QDctHash);
 
         // Dependencies for Qdrant images database
-        services.AddKeyedSingleton<ICollectionRepository, QdrantImagesRepository>(FileSearchType.Images);
+        services.AddKeyedScoped<ICollectionRepository, QdrantImagesRepository>(FileSearchType.Images);
         services.AddScoped<IIndexingRepository, QdrantImagesRepository>();
         services.AddScoped<IImageInfosRepository, QdrantImagesRepository>();
         services.AddScoped<ISimilarImagesRepository, QdrantImagesRepository>();
-        
+
         // Dependencies for sqlite audio database
-        services.AddKeyedSingleton<ICollectionRepository, SqLiteAudioRepository>(FileSearchType.Audios);
-        services.AddScoped<IAudioInfosRepository, SqLiteAudioRepository>();
+        services.AddKeyedScoped<ICollectionRepository, SqLiteAudioRepository>(FileSearchType.Audios);
+        services.AddTransient<IAudioInfosRepository, SqLiteAudioRepository>();
         services.AddScoped<ISimilarAudiosRepository, SqLiteAudioRepository>();
 
         // Register similar file search implementations for hash, audio and video

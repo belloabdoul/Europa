@@ -1,11 +1,12 @@
-﻿using System.Collections;
-using Core.Entities.Audios;
+﻿using Core.Entities.Audios;
 
 namespace Api.Client.Repositories;
 
 public interface IAudioInfosRepository
 {
-    ValueTask<BitArray?> GetAudioInfos(byte[] id);
+    ValueTask<bool> IsAlreadyInsertedAsync(string collectionName, byte[] id, int estimatedNumberOfFingerprints,
+        CancellationToken cancellationToken = default);
 
-    ValueTask<bool> InsertAudioInfos(AudioGroups group);
+    ValueTask<bool> InsertFingerprintsAsync(string collectionName, List<Fingerprint> group,
+        CancellationToken cancellationToken = default);
 }

@@ -138,7 +138,7 @@ public sealed class QdrantImagesRepository : ICollectionRepository, IIndexingRep
                     Fields =
                     {
                         $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.DuplicateId)}",
-                        $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.Distance)}"
+                        $"{Enum.GetName(perceptualHashAlgorithm)}{nameof(ImagesGroup.Similarities)}[].{nameof(Similarity.Score)}"
                     }
                 }
             }, cancellationToken: cancellationToken);
@@ -152,7 +152,7 @@ public sealed class QdrantImagesRepository : ICollectionRepository, IIndexingRep
                     OriginalId = currentGroupId,
                     DuplicateId =
                         Convert.FromHexString(value.StructValue.Fields[nameof(Similarity.DuplicateId)].StringValue),
-                    Distance = Convert.ToDecimal(value.StructValue.Fields[nameof(Similarity.Distance)].DoubleValue)
+                    Score = Convert.ToDecimal(value.StructValue.Fields[nameof(Similarity.Score)].DoubleValue)
                 })
             .ToDictionary(val => val.DuplicateId, val => val, HashComparer), HashComparer);
     }
@@ -179,7 +179,7 @@ public sealed class QdrantImagesRepository : ICollectionRepository, IIndexingRep
             var duplicateId = Convert.FromHexString(value.Payload[nameof(ImagesGroup.FileHash)].StringValue);
             return new KeyValuePair<byte[], Similarity>(duplicateId,
                 new Similarity
-                    { OriginalId = id, DuplicateId = duplicateId, Distance = Convert.ToDecimal(value.Score) });
+                    { OriginalId = id, DuplicateId = duplicateId, Score = Convert.ToDecimal(value.Score) });
         });
     }
 
@@ -219,7 +219,7 @@ public sealed class QdrantImagesRepository : ICollectionRepository, IIndexingRep
                                                 {
                                                     Convert.TryToHexStringLower(val.DuplicateId, output, out _);
                                                 }),
-                                            [nameof(val.Distance)] = Convert.ToDouble(val.Distance)
+                                            [nameof(val.Score)] = Convert.ToDouble(val.Score)
                                         }
                                     }
                                 };

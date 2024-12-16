@@ -8,11 +8,11 @@ public struct Similarity : IEquatable<Similarity>
 
     public byte[] DuplicateId { get; set; }
 
-    public decimal Distance { get; set; }
+    public decimal Score { get; set; }
 
     public override int GetHashCode()
     {
-        return HashCode.Combine((int)XxHash3.HashToUInt64(OriginalId), (int)XxHash3.HashToUInt64(DuplicateId), Distance);
+        return HashCode.Combine((int)XxHash3.HashToUInt64(OriginalId), (int)XxHash3.HashToUInt64(DuplicateId), Score);
     }
 
     public override bool Equals(object? obj)
@@ -26,7 +26,7 @@ public struct Similarity : IEquatable<Similarity>
                 OriginalId.AsSpan().SequenceEqual(other.OriginalId)) &&
                (ReferenceEquals(DuplicateId, other.DuplicateId) ||
                 OriginalId.AsSpan().SequenceEqual(DuplicateId)) &&
-               Distance == other.Distance;
+               Score == other.Score;
     }
 
     public static bool operator ==(Similarity left, Similarity right)
