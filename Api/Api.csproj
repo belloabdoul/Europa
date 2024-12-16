@@ -29,8 +29,8 @@
       <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
       <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.1.0" />
       <PackageReference Include="SoundFingerprinting.Emy" Version="11.1.0" />
-      <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="7.1.0" />
-      <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="7.1.0" />
+      <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="7.2.0" />
+      <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="7.2.0" />
       <PackageReference Include="System.Data.SQLite" Version="1.0.119" />
       <PackageReference Include="System.Numerics.Tensors" Version="9.0.0" />
     </ItemGroup>
