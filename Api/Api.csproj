@@ -13,13 +13,11 @@
 
     <ItemGroup>
       <PackageReference Include="Blake3" Version="1.1.0" />
-      <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0-preview3" />
+      <PackageReference Include="CommunityToolkit.HighPerformance" Version="8.4.0" />
       <PackageReference Include="DotNext.Unsafe" Version="5.16.1" />
       <PackageReference Include="FftFlat" Version="1.0.1" />
-      <PackageReference Include="Lsj.MediaInfo.Wrapper.Core" Version="22.12.1" />
       <PackageReference Include="NetVips" Version="3.0.0" />
       <PackageReference Include="NetVips.Native" Version="8.16.0" />
-      <PackageReference Include="NoAlloq" Version="0.2.0" />
       <PackageReference Include="PhotoSauce.MagicScaler" Version="0.15.0" />
       <PackageReference Include="PhotoSauce.NativeCodecs.Giflib" Version="5.2.2-preview3" />
       <PackageReference Include="PhotoSauce.NativeCodecs.Libheif" Version="1.19.5-preview1" />
@@ -29,7 +27,7 @@
       <PackageReference Include="PhotoSauce.NativeCodecs.Libwebp" Version="1.4.0-preview1" />
       <PackageReference Include="Qdrant.Client" Version="1.12.0" />
       <PackageReference Include="Sdcb.FFmpeg" Version="7.0.0" />
-      <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.0.0" />
+      <PackageReference Include="Sdcb.FFmpeg.runtime.windows-x64" Version="7.1.0" />
       <PackageReference Include="SoundFingerprinting.Emy" Version="11.1.0" />
       <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="7.1.0" />
       <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="7.1.0" />
