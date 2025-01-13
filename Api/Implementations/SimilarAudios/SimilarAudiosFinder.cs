@@ -384,7 +384,7 @@ public class SimilarAudiosFinder(
 
                 // Here there are either multiple images audiosGroup remaining or it is a single image with multiple duplicates
                 // We associate them to one another.
-                LinkImagesToParentGroup(groupId, duplicateAudiosGroups, finalAudios, cancellationToken);
+                await LinkImagesToParentGroup(groupId, duplicateAudiosGroups, finalAudios, cancellationToken);
 
                 // After associating the current image with its remaining similar images, we add them to the list of already
                 // processed images
@@ -432,7 +432,7 @@ public class SimilarAudiosFinder(
         };
     }
 
-    private static void LinkImagesToParentGroup(byte[] parentGroupId,
+    private static async Task LinkImagesToParentGroup(byte[] parentGroupId,
         ConcurrentDictionary<byte[], AudiosGroup> duplicateAudiosGroups, ConcurrentStack<File> finalAudios,
         CancellationToken cancellationToken)
     {
@@ -440,8 +440,8 @@ public class SimilarAudiosFinder(
         // In the case of the current audiosGroup, it will not be used after so we dequeue
         // each file's path. For the similar images they will not be dequeued here.
         var parentGroup = duplicateAudiosGroups[parentGroupId];
-        Parallel.ForEach(parentGroup.Matches.Keys, new ParallelOptions { CancellationToken = cancellationToken },
-            imageGroupId =>
+        await Parallel.ForEachAsync(parentGroup.Matches.Keys, cancellationToken,
+            (imageGroupId, _) =>
             {
                 if (imageGroupId.AsSpan().SequenceEqual(parentGroupId))
                 {
@@ -459,7 +459,7 @@ public class SimilarAudiosFinder(
                 else
                 {
                     if (!duplicateAudiosGroups.TryGetValue(imageGroupId, out var audiosGroup))
-                        return;
+                        return ValueTask.CompletedTask;
 
                     foreach (var image in audiosGroup.Duplicates)
                     {
@@ -472,6 +472,7 @@ public class SimilarAudiosFinder(
                         });
                     }
                 }
+                return ValueTask.CompletedTask;
             });
     }
 }
