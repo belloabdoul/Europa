@@ -1,9 +1,12 @@
-﻿using System.IO.Hashing;
+﻿using System.Security.Cryptography;
 
 namespace Core.Entities.Commons;
 
-public class HashComparer : IEqualityComparer<byte[]>
+public class HashComparer : IEqualityComparer<byte[]>, IComparer<byte[]>
 {
+    private static readonly UInt128 USeed = new(BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)),
+        BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)));
+
     public bool Equals(byte[]? x, byte[]? y)
     {
         if (ReferenceEquals(x, y))
@@ -15,6 +18,11 @@ public class HashComparer : IEqualityComparer<byte[]>
 
     public int GetHashCode(byte[] obj)
     {
-        return (int)XxHash3.HashToUInt64(obj);
+        return GxHash.GxHash.Hash32(obj, USeed);
+    }
+
+    public int Compare(byte[]? x, byte[]? y)
+    {
+        return x.AsSpan().SequenceCompareTo(y);
     }
 }

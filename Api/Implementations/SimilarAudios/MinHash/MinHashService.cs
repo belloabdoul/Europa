@@ -1,11 +1,11 @@
 ﻿using System.Collections;
+using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using DotNext.Collections.Generic;
 
 namespace Api.Implementations.SimilarAudios.MinHash;
 
-internal class MinHashService : IMinHashService<int>
+internal class MinHashService : IMinHashService
 {
     private readonly IPermutations _permutations;
 
@@ -19,9 +19,9 @@ internal class MinHashService : IMinHashService<int>
     /// </summary>
     public static MinHashService MaxEntropy { get; } = new(new MaxEntropyPermutations());
 
-    public int[] Hash(BitArray fingerprint, int n)
+    public T[] Hash<T>(BitArray fingerprint, int n) where T: struct, INumber<T>
     {
-        return ComputeMinHashSignature(fingerprint, n);
+        return ComputeMinHashSignature<T>(fingerprint, n);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ internal class MinHashService : IMinHashService<int>
     /// I.e. http://infolab.stanford.edu/~ullman/mmds/book.pdf s.3.3.4
     /// </remarks>
     [SkipLocalsInit]
-    private int[] ComputeMinHashSignature(BitArray fingerprint, int n)
+    private T[] ComputeMinHashSignature<T>(BitArray fingerprint, int n) where T: struct, INumber<T>
     {
         if (n > _permutations.Count)
         {
@@ -66,6 +66,6 @@ internal class MinHashService : IMinHashService<int>
             }
         }
 
-        return MemoryMarshal.Cast<byte, int>(minHash).ToArray(); /*Array of 100 elements with bit turned ON if permutation captured successfully a TRUE bit*/
+        return MemoryMarshal.Cast<byte, T>(minHash).ToArray(); /*Array of 100 elements with bit turned ON if permutation captured successfully a TRUE bit*/
     }
 }

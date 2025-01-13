@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Core.Entities.Commons;
 using Core.Entities.Files;
 using NSwag.Collections;
 

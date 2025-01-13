@@ -1,8 +1,10 @@
 ﻿using DotNext.IO.MemoryMappedFiles;
+using Microsoft.Win32.SafeHandles;
 
 namespace Core.Interfaces.Commons;
 
 public interface IHashGenerator
 {
-    ValueTask<byte[]> GenerateHash(ReadOnlySequenceAccessor? fileHandle, CancellationToken cancellationToken);
+    ValueTask<byte[]> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+        CancellationToken cancellationToken);
 }

@@ -5,23 +5,16 @@ using Core.Entities.Commons;
 using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
+using DotNext.Runtime;
 using Microsoft.AspNetCore.SignalR;
 using File = Core.Entities.Files.File;
 
 namespace Api.Implementations.DuplicatesByHash;
 
-public class DuplicateByHashFinder : ISimilarFilesFinder
+public class DuplicateByHashFinder(IHashGenerator hashGenerator, IHubContext<NotificationHub> notificationContext) : ISimilarFilesFinder
 {
-    private readonly IHashGenerator _hashGenerator;
-    private readonly IHubContext<NotificationHub> _notificationContext;
-
-    public DuplicateByHashFinder(IHashGenerator hashGenerator, IHubContext<NotificationHub> notificationContext)
-    {
-        _hashGenerator = hashGenerator;
-        _notificationContext = notificationContext;
-    }
-
-    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(
+        string[] hypotheticalDuplicates,
         PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
@@ -78,23 +71,22 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
     {
         var progress = 0;
 
-        await Parallel.ForEachAsync(hypotheticalDuplicates,
-            new ParallelOptions
-                { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
-            async (hypotheticalDuplicate, hashingToken) =>
+        await Parallel.ForAsync<nuint>(0, hypotheticalDuplicates.GetLength(), cancellationToken,
+            async (index, hashingToken) =>
             {
+                var hypotheticalDuplicate = hypotheticalDuplicates[index];
                 try
                 {
                     using var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicate, true, true);
-                    
+
                     var size = RandomAccess.GetLength(fileHandle);
 
                     var bytesToHash = Convert.ToInt64(decimal.Round(decimal.Multiply(size, percentageOfFileToHash),
                         MidpointRounding.ToPositiveInfinity));
-                    
-                    using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle, bytesToHash);
 
-                    var hash = await _hashGenerator.GenerateHash(memoryMappedFile, hashingToken);
+                    // using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle, bytesToHash);
+
+                    var hash = await hashGenerator.GenerateHash(fileHandle, bytesToHash, hashingToken);
 
                     var file = new File
                     {
@@ -108,13 +100,12 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                     group.Push(file);
 
                     var current = Interlocked.Increment(ref progress);
-
-                    progressWriter.TryWrite(current);
+                    await progressWriter.WriteAsync(current, hashingToken);
                 }
                 catch (IOException)
                 {
                     _ = SendError($"File {hypotheticalDuplicate} is already being used by another application",
-                        _notificationContext, hashingToken);
+                        notificationContext, hashingToken);
                 }
                 catch (Exception e)
                 {
@@ -143,7 +134,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
             if (progress % 100 != 0)
                 continue;
 
-            await _notificationContext.Clients.All.SendAsync("notify",
+            await notificationContext.Clients.All.SendAsync("notify",
                 new Notification(percentageOfFileToHash switch
                 {
                     0.1m => NotificationType.HashGenerationProgress,
@@ -151,7 +142,7 @@ public class DuplicateByHashFinder : ISimilarFilesFinder
                 }, progress.ToString()), cancellationToken);
         }
 
-        await _notificationContext.Clients.All.SendAsync("notify",
+        await notificationContext.Clients.All.SendAsync("notify",
             new Notification(percentageOfFileToHash switch
             {
                 0.1m => NotificationType.HashGenerationProgress,

@@ -1,17 +1,15 @@
 ﻿using System.Collections.Concurrent;
-using System.Text;
 using System.Threading.Channels;
 using Api.Client.Repositories;
 using Api.Implementations.Commons;
 using Core.Entities.Audios;
 using Core.Entities.Commons;
 using Core.Entities.Files;
-using Core.Entities.Images;
 using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarAudios;
-using DotNext.Collections.Generic;
+using DotNext.Runtime;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Win32.SafeHandles;
 using NSwag.Collections;
@@ -19,65 +17,58 @@ using File = Core.Entities.Files.File;
 
 namespace Api.Implementations.SimilarAudios;
 
-public class SimilarAudiosFinder : ISimilarFilesFinder
+public class SimilarAudiosFinder(
+    [FromKeyedServices(FileSearchType.Audios)]
+    ICollectionRepository collectionRepository,
+    [FromKeyedServices(FileSearchType.Audios)]
+    IIndexingRepository indexingRepository,
+    [FromKeyedServices(FileSearchType.Audios)]
+    IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers,
+    IAudioHashGenerator audioHashGenerator,
+    IHashGenerator hashGenerator,
+    IAudioInfosRepository audioInfosRepository,
+    ISimilarAudiosRepository similarAudiosRepository,
+    IHubContext<NotificationHub> notificationContext)
+    : ISimilarFilesFinder
 {
-    private readonly ICollectionRepository _collectionRepository;
-    private readonly IAudioHashGenerator _audioHashGenerator;
-    private readonly IEnumerable<IFileTypeIdentifier> _fileTypeIdentifiers;
-    private readonly IHashGenerator _hashGenerator;
-    private readonly IAudioInfosRepository _audioInfosRepository;
-    private readonly ISimilarAudiosRepository _similarAudiosRepository;
-    private readonly IHubContext<NotificationHub> _notificationContext;
-    private readonly IAudioInfosGetter _audioInfosGetter;
     private static readonly HashComparer HashComparer = new();
     private const string CollectionName = "Europa-Audios";
-
-    public SimilarAudiosFinder(
-        [FromKeyedServices(FileSearchType.Audios)]
-        ICollectionRepository collectionRepository,
-        [FromKeyedServices(FileSearchType.Audios)]
-        IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers,
-        IAudioHashGenerator audioHashGenerator,
-        IAudioInfosGetter audioInfosGetter,
-        IHashGenerator hashGenerator,
-        IAudioInfosRepository audioInfosRepository,
-        ISimilarAudiosRepository similarAudiosRepository,
-        IHubContext<NotificationHub> notificationContext)
-    {
-        _collectionRepository = collectionRepository;
-        _fileTypeIdentifiers = fileTypeIdentifiers;
-        _audioHashGenerator = audioHashGenerator;
-        _audioInfosGetter = audioInfosGetter;
-        _hashGenerator = hashGenerator;
-        _notificationContext = notificationContext;
-        _audioInfosRepository = audioInfosRepository;
-        _similarAudiosRepository = similarAudiosRepository;
-    }
 
     public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
         PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
-        Console.InputEncoding = Encoding.UTF8;
-        Console.OutputEncoding = Encoding.UTF8;
-
         // Part 1 : Generate and cache perceptual hash of non-corrupted files
-        var progress = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
+        var progressChannel = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
+            { SingleReader = true, SingleWriter = true });
+
+        var audiosGroupsChannel = Channel.CreateUnbounded<AudiosGroup>(new UnboundedChannelOptions
             { SingleReader = true, SingleWriter = false });
 
         var duplicateAudiosGroups =
             new ConcurrentDictionary<byte[], AudiosGroup>(Environment.ProcessorCount, hypotheticalDuplicates.Length,
                 HashComparer);
 
+        var filesWithFingerprintsCount = new Dictionary<byte[], int>(HashComparer);
+
         // Await the end of all tasks or the cancellation by the user
         try
         {
-            await _collectionRepository.CreateCollectionAsync(CollectionName, cancellationToken);
+            await collectionRepository.CreateCollectionAsync(CollectionName, cancellationToken);
+            await indexingRepository.DisableIndexingAsync(CollectionName, cancellationToken);
             await Task.WhenAll(
-                SendProgress(progress.Reader, NotificationType.HashGenerationProgress, cancellationToken),
+                SendProgress(progressChannel.Reader, NotificationType.HashGenerationProgress, cancellationToken),
+                InsertFingerprints(audiosGroupsChannel.Reader, filesWithFingerprintsCount, progressChannel.Writer,
+                    cancellationToken),
                 GenerateAudioFingerprints(hypotheticalDuplicates, duplicateAudiosGroups,
-                    progress.Writer, cancellationToken)
+                    audiosGroupsChannel.Writer, cancellationToken)
             );
+            await indexingRepository.EnableIndexingAsync(CollectionName, cancellationToken);
+            do
+            {
+                await Task.Delay(delay: TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
+            } while (!await indexingRepository.IsIndexingDoneAsync(collectionName: CollectionName,
+                         cancellationToken: cancellationToken));
         }
         catch (OperationCanceledException)
         {
@@ -85,55 +76,53 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
             return [];
         }
 
-        // Part 2 : Group similar images together
-        progress = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
-            { SingleReader = true, SingleWriter = false });
-
-        var groupingChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
-            { SingleReader = true, SingleWriter = false });
-
-        var finalAudios = new ConcurrentStack<File>();
-
-        const int thresholdVotes = 4;
-        // Gap allowed in s
-        const float gapAllowed = 2f;
-        degreeOfSimilarity ??= 0.9m;
-
-        // Await the end of all tasks or the cancellation by the user
-        try
-        {
-            await Task.WhenAll(
-                ProcessGroupsForFinalList(groupingChannel.Reader, duplicateAudiosGroups, finalAudios,
-                    cancellationToken),
-                SendProgress(progress.Reader, NotificationType.SimilaritySearchProgress, cancellationToken),
-                LinkSimilarAudiosGroupsToOneAnother(duplicateAudiosGroups, degreeOfSimilarity.Value, gapAllowed,
-                    thresholdVotes,
-                    groupingChannel.Writer, progress.Writer, cancellationToken)
-            );
-        }
-        catch (Exception e)
-        {
-            Console.WriteLine(e);
-            duplicateAudiosGroups.Clear();
-            return [];
-        }
-
-        // Return images grouped by hashes
-        return finalAudios.GroupBy(file => file.Hash, HashComparer).Where(i => i.Skip(1).Any()).ToList();
+        // // Part 2 : Group similar images together
+        // progressChannel = Channel.CreateUnboundedPrioritized(new UnboundedPrioritizedChannelOptions<int>
+        //     { SingleReader = true, SingleWriter = false });
+        //
+        // var groupingChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
+        //     { SingleReader = true, SingleWriter = false });
+        //
+        // var finalAudios = new ConcurrentStack<File>();
+        //
+        // const int thresholdVotes = 4;
+        // // Gap allowed in s
+        // const double gapAllowed = 2.0;
+        // degreeOfSimilarity ??= 0.95m;
+        //
+        // // Await the end of all tasks or the cancellation by the user
+        // try
+        // {
+        //     await Task.WhenAll(
+        //         ProcessGroupsForFinalList(groupingChannel.Reader, duplicateAudiosGroups, finalAudios,
+        //             cancellationToken),
+        //         SendProgress(progressChannel.Reader, NotificationType.SimilaritySearchProgress, cancellationToken),
+        //         LinkSimilarAudiosGroupsToOneAnother(duplicateAudiosGroups, filesWithFingerprintsCount,
+        //             degreeOfSimilarity.Value, gapAllowed,
+        //             thresholdVotes, groupingChannel.Writer, progressChannel.Writer, cancellationToken)
+        //     );
+        // }
+        // catch (Exception e)
+        // {
+        //     Console.WriteLine(e);
+        //     duplicateAudiosGroups.Clear();
+        //     return [];
+        // }
+        //
+        // // Return images grouped by hashes
+        // return finalAudios.GroupBy(file => file.Hash, HashComparer).Where(i => i.Skip(1).Any()).ToList();
         return [];
     }
 
     private async Task GenerateAudioFingerprints(string[] hypotheticalDuplicates,
-        ConcurrentDictionary<byte[], AudiosGroup> duplicateAudiosGroups, ChannelWriter<int> progressWriter,
+        ConcurrentDictionary<byte[], AudiosGroup> duplicateAudiosGroups, ChannelWriter<AudiosGroup> audiosGroupsWriter,
         CancellationToken cancellationToken)
     {
-        var progress = 0;
-
-        await Parallel.ForEachAsync(hypotheticalDuplicates,
-            new ParallelOptions
-                { MaxDegreeOfParallelism = Environment.ProcessorCount, CancellationToken = cancellationToken },
-            async (filePath, hashingToken) =>
+        await Parallel.ForAsync<nuint>(0, hypotheticalDuplicates.GetLength(), cancellationToken,
+            async (index, hashingToken) =>
             {
+                var filePath = hypotheticalDuplicates[index];
+                byte[] hash = [];
                 try
                 {
                     var fileType = GetFileType(filePath, hashingToken);
@@ -143,14 +132,8 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
 
                     using var fileHandle = FileReader.GetFileHandle(filePath, true, true);
 
-                    var fingerprintingConfiguration = _audioHashGenerator.FingerprintingConfiguration;
-                    var estimatedNumberOfFingerprints = _audioInfosGetter.EstimateNumberOfFingerprints(filePath,
-                        fingerprintingConfiguration.SampleRate, fingerprintingConfiguration.DftSize,
-                        fingerprintingConfiguration.Overlap, fingerprintingConfiguration.FingerprintSize,
-                        fingerprintingConfiguration.Stride / fingerprintingConfiguration.Overlap);
-
-                    using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle);
-                    var hash = await _hashGenerator.GenerateHash(memoryMappedFile, hashingToken);
+                    hash = await hashGenerator.GenerateHash(fileHandle, RandomAccess.GetLength(fileHandle),
+                        hashingToken);
 
                     if (hash.Length == 0)
                         return;
@@ -161,37 +144,28 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
                     if (createdAudiosGroup == null)
                         return;
 
-                    int current;
-                    var found = await _audioInfosRepository.IsAlreadyInsertedAsync(CollectionName,
-                        createdAudiosGroup.Id, estimatedNumberOfFingerprints, hashingToken);
+                    var fingerprintsCount = await audioInfosRepository.GetFingerprintsCount(CollectionName,
+                        createdAudiosGroup.Id, hashingToken);
 
-                    if (found)
+                    if (fingerprintsCount > 0)
                     {
-                        createdAudiosGroup.IsCorruptedOrUnsupported = false;
-                        current = Interlocked.Increment(ref progress);
-                        progressWriter.TryWrite(current);
-                        createdAudiosGroup.FingerprintsCount = estimatedNumberOfFingerprints;
-
+                        // Console.WriteLine($"{filePath} {fingerprintsCount}");
+                        createdAudiosGroup.ToInsert = false;
+                        createdAudiosGroup.FingerprintsCount = fingerprintsCount;
+                        await audiosGroupsWriter.WriteAsync(createdAudiosGroup, hashingToken);
                         return;
                     }
 
-                    var fingerprints = await _audioHashGenerator.GenerateAudioHashesAsync(filePath, hash,
+                    createdAudiosGroup.Fingerprints = await audioHashGenerator.GenerateAudioHashesAsync(filePath, hash,
                         cancellationToken: hashingToken);
 
-                    if (fingerprints.Count == 0)
-                        createdAudiosGroup.IsCorruptedOrUnsupported = true;
-
-                    if (!createdAudiosGroup.IsCorruptedOrUnsupported)
+                    if (createdAudiosGroup.Fingerprints.Count != 0)
                     {
-                        await _audioInfosRepository.InsertFingerprintsAsync(CollectionName, fingerprints,
-                            cancellationToken);
-                        createdAudiosGroup.FingerprintsCount = estimatedNumberOfFingerprints;
+                        createdAudiosGroup.ToInsert = true;
+                        await audiosGroupsWriter.WriteAsync(createdAudiosGroup, hashingToken);
                     }
                     else
-                        Console.WriteLine(createdAudiosGroup.Duplicates.First());
-
-                    current = Interlocked.Increment(ref progress);
-                    progressWriter.TryWrite(current);
+                        duplicateAudiosGroups.Remove(hash, out _);
                 }
                 catch (OperationCanceledException)
                 {
@@ -199,13 +173,38 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine(e);
+                    Console.WriteLine($"{filePath} {e.Message}");
+                    duplicateAudiosGroups.Remove(hash, out _);
                 }
             });
 
 
-        progressWriter.Complete();
+        audiosGroupsWriter.Complete();
     }
+
+    private async Task InsertFingerprints(ChannelReader<AudiosGroup> audiosGroupsReader,
+        Dictionary<byte[], int> filesWithFingerprintsCount, ChannelWriter<int> progressChannelWriter,
+        CancellationToken cancellationToken)
+    {
+        var progress = 0;
+        await foreach (var audioGroup in audiosGroupsReader.ReadAllAsync(cancellationToken))
+        {
+            if (audioGroup.ToInsert)
+            {
+                filesWithFingerprintsCount.TryAdd(audioGroup.Id, await audioInfosRepository.InsertFingerprintsAsync(
+                    CollectionName, audioGroup.Fingerprints!, cancellationToken));
+                audioGroup.Fingerprints?.Clear();
+                audioGroup.Fingerprints = null;
+            }
+            else
+                filesWithFingerprintsCount.TryAdd(audioGroup.Id, audioGroup.FingerprintsCount);
+
+            await progressChannelWriter.WriteAsync(++progress, cancellationToken);
+        }
+
+        progressChannelWriter.Complete();
+    }
+
 
     private FileType GetFileType(string hypotheticalDuplicate, CancellationToken cancellationToken = default)
     {
@@ -213,7 +212,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         // If the file is not supported send a message, else send the
         // image for the next step which is hash generation and grouping
 
-        foreach (var fileTypeIdentifier in _fileTypeIdentifiers)
+        foreach (var fileTypeIdentifier in fileTypeIdentifiers)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var fileType = fileTypeIdentifier.GetFileType(hypotheticalDuplicate);
@@ -261,80 +260,68 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
         {
             progress = hashProcessed;
 
-            if (progress % 100 != 0)
-                continue;
+            // if (progress % 100 != 0)
+            //     continue;
 
-            await _notificationContext.Clients.All.SendAsync("notify",
+            await notificationContext.Clients.All.SendAsync("notify",
                 new Notification(notificationType, progress.ToString()), cancellationToken);
         }
 
-        await _notificationContext.Clients.All.SendAsync("notify",
+        await notificationContext.Clients.All.SendAsync("notify",
             new Notification(notificationType, progress.ToString()), cancellationToken);
     }
 
     private async Task LinkSimilarAudiosGroupsToOneAnother(
-        ConcurrentDictionary<byte[], AudiosGroup> duplicateAudiosGroups, decimal degreeOfSimilarity, float gapAllowed,
-        byte thresholdVotes, ChannelWriter<byte[]> groupingChannelWriter, ChannelWriter<int> progressWriter,
+        ConcurrentDictionary<byte[], AudiosGroup> duplicateAudiosGroups,
+        Dictionary<byte[], int> filesWithFingerprintsCount, decimal degreeOfSimilarity, double gapAllowed,
+        int thresholdVotes, ChannelWriter<byte[]> groupingChannelWriter, ChannelWriter<int> progressWriter,
         CancellationToken cancellationToken)
     {
         var progress = 0;
 
         var keys = duplicateAudiosGroups.Keys.ToArray();
 
-        await Parallel.ForEachAsync(keys,
-            new ParallelOptions { CancellationToken = cancellationToken },
+        await Parallel.ForEachAsync(keys, cancellationToken,
             async (key, similarityToken) =>
+                // foreach (var key in keys)
             {
                 try
                 {
                     var audiosGroup = duplicateAudiosGroups[key];
                     var fingerprints = await
-                        _audioHashGenerator.GenerateAudioHashesAsync(audiosGroup.Duplicates.First(), audiosGroup.Id,
+                        audioHashGenerator.GenerateAudioHashesAsync(audiosGroup.Duplicates.First(), audiosGroup.Id,
                             true, similarityToken);
 
                     audiosGroup.Matches =
-                        await _similarAudiosRepository.GetExistingMatchesForFileAsync(CollectionName, audiosGroup.Id,
-                            cancellationToken);
+                        await similarAudiosRepository.GetExistingMatchesForFileAsync(CollectionName, audiosGroup.Id,
+                            similarityToken);
 
-                    var matchingFingerprints =
-                        new Dictionary<byte[], ConcurrentDictionary<double, byte>>(HashComparer);
+                    audiosGroup.Matches.Add(audiosGroup.Id,
+                        new Similarity { OriginalId = audiosGroup.Id, DuplicateId = audiosGroup.Id, Score = 1 });
 
-                    audiosGroup.Matches.TryAdd(
-                        audiosGroup.Id,
-                        new Similarity { OriginalId = audiosGroup.Id, DuplicateId = audiosGroup.Id, Score = 1 }
-                    );
-
-                    foreach (var fingerprint in fingerprints)
+                    foreach (var match in await similarAudiosRepository
+                                 .GetMatchingFingerprintsAsync(CollectionName, fingerprints,
+                                     thresholdVotes, gapAllowed, degreeOfSimilarity, audiosGroup.Id,
+                                     audiosGroup.Matches.Keys, filesWithFingerprintsCount, similarityToken))
                     {
-                        foreach (var match in await _similarAudiosRepository
-                                     .GetMatchingFingerprintsAsync(CollectionName, fingerprint,
-                                         thresholdVotes, gapAllowed, audiosGroup.Matches.Keys, similarityToken))
-                        {
-                            var matchPositions = matchingFingerprints.GetOrAdd(match.Key,
-                                new ConcurrentDictionary<double, byte>());
-
-                            matchPositions.TryAdd(match.Value, Convert.ToByte(1));
-                        }
+                        audiosGroup.Matches.TryAdd(match.Key,
+                            new Similarity { OriginalId = key, DuplicateId = match.Key, Score = match.Value });
                     }
 
-                    foreach (var match in matchingFingerprints)
+                    foreach (var match in audiosGroup.Matches)
                     {
-                        if (!duplicateAudiosGroups.TryGetValue(match.Key, out _))
+                        if (!duplicateAudiosGroups.TryGetValue(match.Key, out var group))
                             continue;
-
-                        var matchScore = decimal.Divide(match.Value.Count, audiosGroup.FingerprintsCount);
-
-                        if (matchScore >= degreeOfSimilarity)
-                            audiosGroup.Matches.TryAdd(match.Key,
-                                new Similarity { OriginalId = key, DuplicateId = match.Key, Score = matchScore });
+                        Console.WriteLine(
+                            $"{audiosGroup.Duplicates.First()} {group.Duplicates.First()} {match.Value.Score}");
                     }
 
-                    await _similarAudiosRepository.LinkToSimilarFilesAsync(CollectionName, audiosGroup.Id,
-                        audiosGroup.Matches.Values, cancellationToken);
+                    // await _similarAudiosRepository.LinkToSimilarFilesAsync(CollectionName, audiosGroup.Id,
+                    //     audiosGroup.Matches.Values, cancellationToken);
 
                     // Send progress
                     var current = Interlocked.Increment(ref progress);
-                    await progressWriter.WriteAsync(current, similarityToken);
+                    await progressWriter.WriteAsync(current, cancellationToken: similarityToken);
 
                     // Queue to the next step
                     await groupingChannelWriter.WriteAsync(key, similarityToken);
@@ -413,7 +400,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
                 if (progress % 100 != 0)
                     continue;
 
-                await _notificationContext.Clients.All.SendAsync("notify",
+                await notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.TotalProgress, progress.ToString()),
                     cancellationToken);
             }
@@ -423,7 +410,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
             }
         }
 
-        await _notificationContext.Clients.All.SendAsync("notify",
+        await notificationContext.Clients.All.SendAsync("notify",
             new Notification(NotificationType.TotalProgress, progress.ToString()),
             cancellationToken);
     }
@@ -433,7 +420,7 @@ public class SimilarAudiosFinder : ISimilarFilesFinder
     {
         audiosGroup.Matches.PropertyChanged += (sender, args) =>
         {
-            if (args.PropertyName != nameof(ObservableDictionary<byte[], FingerprintMatch>.Count) ||
+            if (args.PropertyName != nameof(ObservableDictionary<byte[], Similarity>.Count) ||
                 audiosGroup.Matches.Count != 0)
                 return;
 

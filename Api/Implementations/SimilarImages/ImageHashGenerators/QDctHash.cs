@@ -11,6 +11,8 @@ public class QDctHash : IImageHash
 {
     private const int Size = 128;
     private const int FeatureSize = 64;
+    private readonly CosineTransform _dct;
+
     public int Width => Size;
     public int Height => Size;
     public int ImageSize => Size * Size;
@@ -18,7 +20,6 @@ public class QDctHash : IImageHash
     public int HashSize => FeatureSize * 4;
     public ColorSpace ColorSpace => ColorSpace.Rgb;
     public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.QDctHash;
-    private readonly CosineTransform _dct;
 
     public QDctHash(CosineTransform dct)
     {
@@ -78,17 +79,16 @@ public class QDctHash : IImageHash
 
     private void ApplyDctForChannel(Span<float> channelPixels, Span<float> dctChannelResults)
     {
-        // channelPixels.Fill(1);
         var pixels2D = channelPixels.AsSpan2D(Height, Width);
         _dct.Forward8X8(pixels2D);
-        // pixels2D.GetRowSpan(0)[1..8].CopyTo(dctChannelResults);
-        // pixels2D.GetRowSpan(1)[..7].CopyTo(dctChannelResults[7..]);
-        // pixels2D.GetRowSpan(2)[..6].CopyTo(dctChannelResults[14..]);
-        // pixels2D.GetRowSpan(3)[..5].CopyTo(dctChannelResults[20..]);
-        // pixels2D.GetRowSpan(4)[..4].CopyTo(dctChannelResults[25..]);
-        // pixels2D.GetRowSpan(5)[..3].CopyTo(dctChannelResults[29..]);
-        // dctChannelResults[^1] = pixels2D.GetRowSpan(6)[0];
-        pixels2D.Slice(0, 0, 8, 8).CopyTo(dctChannelResults);
-        dctChannelResults[0] = 0;
+        pixels2D.GetRowSpan(0)[1..8].CopyTo(dctChannelResults);
+        pixels2D.GetRowSpan(1)[..7].CopyTo(dctChannelResults[7..]);
+        pixels2D.GetRowSpan(2)[..6].CopyTo(dctChannelResults[14..]);
+        pixels2D.GetRowSpan(3)[..5].CopyTo(dctChannelResults[20..]);
+        pixels2D.GetRowSpan(4)[..4].CopyTo(dctChannelResults[25..]);
+        pixels2D.GetRowSpan(5)[..3].CopyTo(dctChannelResults[29..]);
+        dctChannelResults[^1] = pixels2D.GetRowSpan(6)[0];
+        // pixels2D.Slice(0, 0, 8, 8).CopyTo(dctChannelResults);
+        // dctChannelResults[0] = 0;
     }
 }

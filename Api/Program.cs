@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Aelian.FFT;
 using Api.Client;
 using Api.Client.Repositories;
 using Api.Controllers;
@@ -13,7 +14,6 @@ using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarAudios;
 using Core.Interfaces.SimilarImages;
-using FFmpeg.AutoGen.Bindings.DynamicallyLoaded;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Connections;
 using NetVips;
@@ -66,9 +66,6 @@ public class Program
         // Initialize FFmpeg
         var current = AppDomain.CurrentDomain.BaseDirectory;
         var ffmpegPath = Path.Combine(current, "ffmpeg");
-        DynamicallyLoadedBindings.LibrariesPath = ffmpegPath;
-        DynamicallyLoadedBindings.Initialize();
-
         // Register directory reader
         services.AddScoped<IDirectoryReader, DirectoryReader>();
 
@@ -84,7 +81,7 @@ public class Program
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
 
         // Register main thumbnail generators : these are to be used for libRaw only
-        services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
+        services.AddKeyedTransient<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
         services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
 
         // Register thumbnail generators
@@ -97,23 +94,29 @@ public class Program
         services.AddScoped<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
-        services.AddTransient<IAudioInfosGetter, FfMpegIdentifier>();
+        FastFourierTransform.Initialize();
         services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
         services.AddScoped<CosineTransform>();
         services.AddKeyedScoped<IImageHash, QDctHash>(PerceptualHashAlgorithm.QDctHash);
 
+        // Create service for launching database
+        services.AddSingleton<DatabaseService>();
+        services.AddHostedService<DatabaseService>(p => p.GetRequiredService<DatabaseService>());
+        services.AddSingleton<IConnectionStringBuilder>(p => p.GetRequiredService<DatabaseService>());
+
         // Dependencies for Qdrant images database
-        services.AddKeyedScoped<ICollectionRepository, QdrantImagesRepository>(FileSearchType.Images);
-        services.AddScoped<IIndexingRepository, QdrantImagesRepository>();
-        services.AddScoped<IImageInfosRepository, QdrantImagesRepository>();
-        services.AddScoped<ISimilarImagesRepository, QdrantImagesRepository>();
+        services.AddKeyedTransient<ICollectionRepository, PgSqlImagesRepository>(FileSearchType.Images);
+        services.AddKeyedSingleton<IIndexingRepository, PgSqlImagesRepository>(FileSearchType.Images);
+        services.AddTransient<IImageInfosRepository, PgSqlImagesRepository>();
+        services.AddTransient<ISimilarImagesRepository, PgSqlImagesRepository>();
 
         // Dependencies for sqlite audio database
-        services.AddKeyedScoped<ICollectionRepository, SqLiteAudioRepository>(FileSearchType.Audios);
-        services.AddTransient<IAudioInfosRepository, SqLiteAudioRepository>();
-        services.AddScoped<ISimilarAudiosRepository, SqLiteAudioRepository>();
+        services.AddKeyedTransient<ICollectionRepository, PgSqlAudioRepository>(FileSearchType.Audios);
+        services.AddKeyedTransient<IIndexingRepository, PgSqlAudioRepository>(FileSearchType.Audios);
+        services.AddTransient<IAudioInfosRepository, PgSqlAudioRepository>();
+        services.AddTransient<ISimilarAudiosRepository, PgSqlAudioRepository>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddKeyedScoped<ISimilarFilesFinder, DuplicateByHashFinder>(FileSearchType.All);

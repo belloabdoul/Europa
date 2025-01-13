@@ -2,10 +2,8 @@
 
 public class Fingerprint
 {
-    public Guid Id { get; set; }
-    public byte[] FileHash { get; set; } = [];
-    public double StartAt { get; set; }
-    public int[] HashBins { get; set; } = [];
-    public int Score;
+    public byte[] FileHash { get; init; } = [];
+    public double StartAt { get; init; }
+    public int[] HashBins { get; init; } = [];
     public const int BucketCount = 25;
 }

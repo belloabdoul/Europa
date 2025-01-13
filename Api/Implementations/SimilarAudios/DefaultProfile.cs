@@ -17,6 +17,8 @@
 //
 
 using System.Numerics;
+using System.Numerics.Tensors;
+using System.Runtime.CompilerServices;
 using Core.Entities.Audios;
 
 namespace Api.Implementations.SimilarAudios;
@@ -38,7 +40,7 @@ public class DefaultProfile : Profile
         FrequencyBands = 32;
         FingerprintSize = 128;
         Stride = 512;
-        
+
         _frequencyBands = GenerateLogFrequenciesDynamicBase();
     }
 
@@ -60,16 +62,17 @@ public class DefaultProfile : Profile
     {
         for (var i = 0; i < FrequencyBands; i++)
         {
-            outputBins[i] = 0.0;
-            int lowBound = _frequencyBands[i];
-            int higherBound = _frequencyBands[i + 1];
-
-            for (var k = lowBound; k < higherBound; k++)
-            {
-                outputBins[i] += Math.Pow(inputBins[k].Magnitude / inputBins.Length, 2);
-            }
-
-            outputBins[i] /= higherBound - lowBound;
+            SumBands(inputBins, outputBins, _frequencyBands[i], _frequencyBands[i + 1], i);
         }
+    }
+
+    [SkipLocalsInit]
+    private static void SumBands(ReadOnlySpan<Complex> inputBins, Span<double> outputBins, int lowerBound, int higherBound, int index)
+    {
+        Span<Complex> temp = stackalloc Complex[higherBound - lowerBound + 1];
+        TensorPrimitives.Multiply(inputBins[lowerBound..higherBound], inputBins[lowerBound..higherBound],
+            temp);
+        outputBins[index] = TensorPrimitives.SumOfMagnitudes<Complex>(temp).Real /
+                            (Math.Pow(inputBins.Length, 2) * (higherBound - lowerBound));
     }
 }

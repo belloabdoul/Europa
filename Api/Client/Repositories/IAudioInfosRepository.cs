@@ -4,9 +4,8 @@ namespace Api.Client.Repositories;
 
 public interface IAudioInfosRepository
 {
-    ValueTask<bool> IsAlreadyInsertedAsync(string collectionName, byte[] id, int estimatedNumberOfFingerprints,
-        CancellationToken cancellationToken = default);
+    ValueTask<int> GetFingerprintsCount(string collectionName, byte[] id, CancellationToken cancellationToken = default);
 
-    ValueTask<bool> InsertFingerprintsAsync(string collectionName, List<Fingerprint> group,
+    ValueTask<int> InsertFingerprintsAsync(string collectionName, IList<Fingerprint> group,
         CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
+using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using Aelian.FFT;
 using Api.Client.Repositories;
 using Api.Implementations.Commons;
 using CommunityToolkit.HighPerformance.Buffers;
@@ -11,59 +13,44 @@ using Core.Entities.Notifications;
 using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
+using DotNext.Runtime;
+using DotNext.Threading;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Win32.SafeHandles;
 using NSwag.Collections;
 using File = Core.Entities.Files.File;
+using UnboundedChannelOptions = System.Threading.Channels.UnboundedChannelOptions;
 
 namespace Api.Implementations.SimilarImages;
 
-public class SimilarImageFinder : ISimilarFilesFinder
+public class SimilarImageFinder(
+    [FromKeyedServices(FileSearchType.Images)]
+    ICollectionRepository collectionRepository,
+    [FromKeyedServices(FileSearchType.Images)]
+    IIndexingRepository indexingRepository,
+    IImageInfosRepository imageInfosRepository,
+    ISimilarImagesRepository similarImagesRepository,
+    [FromKeyedServices(FileSearchType.Images)]
+    IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers,
+    IHashGenerator hashGenerator,
+    IThumbnailGeneratorResolver thumbnailGeneratorResolver,
+    [FromKeyedServices(PerceptualHashAlgorithm.QDctHash)]
+    IImageHash imageHashGenerator,
+    IHubContext<NotificationHub> notificationContext)
+    : ISimilarFilesFinder
 {
-    private readonly ICollectionRepository _collectionRepository;
-    private readonly IIndexingRepository _indexingRepository;
-    private readonly IImageInfosRepository _imageInfosRepository;
-    private readonly ISimilarImagesRepository _similarImagesRepository;
-
-    private readonly IFileTypeIdentifier[] _imagesIdentifiers;
-
-    private readonly IHashGenerator _hashGenerator;
-    private readonly IImageHash _imageHashGenerator;
-    private readonly IThumbnailGeneratorResolver _thumbnailGeneratorResolver;
-    private readonly IHubContext<NotificationHub> _notificationContext;
+    private readonly IFileTypeIdentifier[] _imagesIdentifiers = fileTypeIdentifiers.ToArray();
 
     private static readonly HashComparer HashComparer = new();
     private const string CollectionName = "Europa-Images";
 
-    public SimilarImageFinder([FromKeyedServices(FileSearchType.Images)] ICollectionRepository collectionRepository,
-        IIndexingRepository indexingRepository,
-        IImageInfosRepository imageInfosRepository,
-        ISimilarImagesRepository similarImagesRepository,
-        [FromKeyedServices(FileSearchType.Images)]
-        IEnumerable<IFileTypeIdentifier> fileTypeIdentifiers,
-        IHashGenerator hashGenerator, IThumbnailGeneratorResolver thumbnailGeneratorResolver,
-        [FromKeyedServices(PerceptualHashAlgorithm.QDctHash)]
-        IImageHash imageHashGenerator, IHubContext<NotificationHub> notificationContext
-    )
-    {
-        _collectionRepository = collectionRepository;
-        _indexingRepository = indexingRepository;
-        _imageInfosRepository = imageInfosRepository;
-        _similarImagesRepository = similarImagesRepository;
-        _imageHashGenerator = imageHashGenerator;
-        _notificationContext = notificationContext;
-        _imagesIdentifiers = fileTypeIdentifiers.ToArray();
-        _hashGenerator = hashGenerator;
-        _thumbnailGeneratorResolver = thumbnailGeneratorResolver;
-    }
-
-    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(string[] hypotheticalDuplicates,
-        PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+    public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(
+        string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         perceptualHashAlgorithm = PerceptualHashAlgorithm.QDctHash;
         // Part 1 : Generate and cache perceptual hash of non-corrupted files
-        var progress = Channel.CreateUnboundedPrioritized(options: new UnboundedPrioritizedChannelOptions<int>
+        var progressChannel = Channel.CreateUnboundedPrioritized(options: new UnboundedPrioritizedChannelOptions<int>
             { SingleReader = true, SingleWriter = false });
 
         var duplicateImagesGroups =
@@ -74,31 +61,28 @@ public class SimilarImageFinder : ISimilarFilesFinder
         // Await the end of all tasks or the cancellation by the user
         try
         {
-            await _collectionRepository.CreateCollectionAsync(collectionName: CollectionName,
+            await collectionRepository.CreateCollectionAsync(collectionName: CollectionName,
                 cancellationToken: cancellationToken);
 
-            await _indexingRepository.DisableIndexingAsync(collectionName: CollectionName,
+            await indexingRepository.DisableIndexingAsync(collectionName: CollectionName,
                 cancellationToken: cancellationToken);
 
             await Task.WhenAll(
-                tasks: new[]
-                {
-                    SendProgress(progressReader: progress.Reader,
-                        notificationType: NotificationType.HashGenerationProgress,
-                        cancellationToken: cancellationToken),
-                    GeneratePerceptualHashes(hypotheticalDuplicates: hypotheticalDuplicates,
-                        duplicateImagesGroups: duplicateImagesGroups, imageHashGenerator: _imageHashGenerator,
-                        progressWriter: progress.Writer, cancellationToken: cancellationToken)
-                }
+                SendProgress(progressReader: progressChannel.Reader,
+                    notificationType: NotificationType.HashGenerationProgress,
+                    cancellationToken: cancellationToken),
+                GeneratePerceptualHashes(hypotheticalDuplicates: hypotheticalDuplicates,
+                    duplicateImagesGroups: duplicateImagesGroups, progressWriter: progressChannel.Writer,
+                    cancellationToken: cancellationToken)
             );
 
-            await _indexingRepository.EnableIndexingAsync(collectionName: CollectionName,
+            await indexingRepository.EnableIndexingAsync(collectionName: CollectionName,
                 cancellationToken: cancellationToken);
 
             do
             {
-                await Task.Delay(delay: TimeSpan.FromSeconds(seconds: 5), cancellationToken: cancellationToken);
-            } while (!await _indexingRepository.IsIndexingDoneAsync(collectionName: CollectionName,
+                await Task.Delay(delay: TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
+            } while (!await indexingRepository.IsIndexingDoneAsync(collectionName: CollectionName,
                          cancellationToken: cancellationToken));
         }
         catch (Exception e)
@@ -109,152 +93,141 @@ public class SimilarImageFinder : ISimilarFilesFinder
         }
 
 
-        // // Part 2 : Group similar images together
-        // progress = Channel.CreateUnboundedPrioritized(options: new UnboundedPrioritizedChannelOptions<int>
-        //     { SingleReader = true, SingleWriter = false });
-        //
-        // var groupingChannel = Channel.CreateUnbounded<byte[]>(options: new UnboundedChannelOptions
-        //     { SingleReader = true, SingleWriter = false });
-        //
-        // var finalImages = new ConcurrentStack<File>();
-        //
-        // // Await the end of all tasks or the cancellation by the user
-        // try
-        // {
-        //     await Task.WhenAll(
-        //         tasks: new[]
-        //         {
-        //             ProcessGroupsForFinalList(groupingChannelReader: groupingChannel.Reader,
-        //                 duplicateImagesGroups: duplicateImagesGroups, finalImages: finalImages,
-        //                 cancellationToken: cancellationToken),
-        //             SendProgress(progressReader: progress.Reader,
-        //                 notificationType: NotificationType.SimilaritySearchProgress,
-        //                 cancellationToken: cancellationToken),
-        //             LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups: duplicateImagesGroups,
-        //                 perceptualHashAlgorithm: perceptualHashAlgorithm.Value,
-        //                 degreeOfSimilarity: degreeOfSimilarity!.Value, groupingChannelWriter: groupingChannel.Writer,
-        //                 progressWriter: progress.Writer, cancellationToken: cancellationToken)
-        //         }
-        //     );
-        // }
-        // catch (Exception)
-        // {
-        //     duplicateImagesGroups.Clear();
-        //     return [];
-        // }
-        //
-        // // Return images grouped by hashes
-        // return finalImages.GroupBy(keySelector: file => file.Hash, comparer: HashComparer)
-        //     .Where(predicate: i => i.Skip(count: 1).Any()).ToList();
-        return [];
+        // Part 2 : Group similar images together
+        progressChannel = Channel.CreateUnboundedPrioritized(options: new UnboundedPrioritizedChannelOptions<int>
+            { SingleReader = true, SingleWriter = false });
+
+        var groupingChannel = Channel.CreateUnbounded<byte[]>(options: new UnboundedChannelOptions
+            { SingleReader = true, SingleWriter = false });
+
+        var finalImages = new ConcurrentStack<File>();
+
+        // Await the end of all tasks or the cancellation by the user
+        try
+        {
+            await Task.WhenAll(
+                tasks: new[]
+                {
+                    ProcessGroupsForFinalList(groupingChannelReader: groupingChannel.Reader,
+                        duplicateImagesGroups: duplicateImagesGroups, finalImages: finalImages,
+                        cancellationToken: cancellationToken),
+                    SendProgress(progressReader: progressChannel.Reader,
+                        notificationType: NotificationType.SimilaritySearchProgress,
+                        cancellationToken: cancellationToken),
+                    LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups: duplicateImagesGroups,
+                        perceptualHashAlgorithm: perceptualHashAlgorithm.Value,
+                        degreeOfSimilarity: degreeOfSimilarity!.Value, groupingChannelWriter: groupingChannel.Writer,
+                        progressWriter: progressChannel.Writer, cancellationToken: cancellationToken)
+                }
+            );
+        }
+        catch (Exception)
+        {
+            duplicateImagesGroups.Clear();
+            return [];
+        }
+
+        // Return images grouped by hashes
+        return finalImages.GroupBy(keySelector: file => file.Hash, comparer: HashComparer)
+            .Where(predicate: i => i.Skip(count: 1).Any()).ToList();
     }
 
     private async Task GeneratePerceptualHashes(string[] hypotheticalDuplicates,
-        ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups, IImageHash imageHashGenerator,
+        ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups,
         ChannelWriter<int> progressWriter, CancellationToken cancellationToken = default)
     {
         var progress = 0;
-        var batch = new List<ImagesGroup>(capacity: 2500);
 
-        foreach (var hypotheticalDuplicatesBatch in hypotheticalDuplicates.Chunk(size: 2500))
-        {
-            await Parallel.ForEachAsync(source: hypotheticalDuplicatesBatch,
-                parallelOptions: new ParallelOptions
-                    { CancellationToken = cancellationToken, MaxDegreeOfParallelism = Environment.ProcessorCount },
-                body: async (filePath, hashingToken) =>
+        await Parallel.ForAsync(UIntPtr.Zero, hypotheticalDuplicates.GetLength(), cancellationToken,
+            body: async (index, hashingToken) =>
+            {
+                var filePath = hypotheticalDuplicates[index];
+                try
                 {
-                    try
+                    var fileType = GetFileType(filePath, cancellationToken: hashingToken);
+
+                    if (fileType is FileType.Animation)
+                        return;
+
+                    if (fileType is not (FileType.MagicScalerImage or FileType.LibRawImage
+                        or FileType.LibVipsImage))
                     {
-                        var fileType = GetFileType(hypotheticalDuplicate: filePath, cancellationToken: hashingToken);
+                        // await SendError(
+                        //     message: $"File {filePath} is either of type unknown, corrupted or unsupported",
+                        //     notificationContext: _notificationContext, cancellationToken: cancellationToken);
+                        return;
+                    }
 
-                        if (fileType is FileType.Animation)
-                            return;
+                    using var fileHandle =
+                        FileReader.GetFileHandle(path: filePath, sequential: true, isAsync: true);
 
-                        if (fileType is not (FileType.FFmpegImage or FileType.MagicScalerImage or FileType.LibRawImage
-                            or FileType.LibVipsImage))
+                    // using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle: fileHandle);
+
+                    var hash = await hashGenerator.GenerateHash(fileHandle, RandomAccess.GetLength(fileHandle),
+                        cancellationToken: hashingToken);
+
+                    if (hash.Length == 0)
+                        return;
+
+                    var createdImagesGroup = CreateGroup(hash, filePath, fileType, fileHandle,
+                        duplicateImagesGroups, cancellationToken);
+
+                    if (createdImagesGroup == null)
+                        return;
+
+                    var imageInfos = await imageInfosRepository.GetImageInfos(CollectionName,
+                        createdImagesGroup.FileHash, imageHashGenerator.PerceptualHashAlgorithm, hashingToken);
+
+                    int current;
+                    if (imageInfos.ImageHash.Length != 0)
+                    {
+                        createdImagesGroup.ImageHash = imageInfos.ImageHash;
+                        createdImagesGroup.Id = imageInfos.Id;
+                        createdImagesGroup.IsCorruptedOrUnsupported = false;
+                        current = Interlocked.Increment(ref progress);
+                        await progressWriter.WriteAsync(current, cancellationToken: hashingToken);
+                        return;
+                    }
+
+                    var thumbnailGenerator =
+                        thumbnailGeneratorResolver.GetThumbnailGenerator(createdImagesGroup.FileType);
+
+                    using var pixels = MemoryOwner<byte>.Allocate(imageHashGenerator.ColorSpace switch
+                    {
+                        ColorSpace.Grayscale => imageHashGenerator.ImageSize * sizeof(float),
+                        _ => imageHashGenerator.ImageSize * 3 * sizeof(float)
+                    });
+
+                    if (thumbnailGenerator.GenerateThumbnail(filePath, imageHashGenerator.Width,
+                            imageHashGenerator.Height, MemoryMarshal.Cast<byte, float>(span: pixels.Span),
+                            imageHashGenerator.ColorSpace))
+                    {
+                        createdImagesGroup.ImageHash =
+                            imageHashGenerator.GenerateHash(
+                                pixels: MemoryMarshal.Cast<byte, float>(span: pixels.Span));
+                        if (createdImagesGroup.ImageHash.HasValue && createdImagesGroup.ImageHash.Value.Length != 0)
                         {
-                            await SendError(
-                                message: $"File {filePath} is either of type unknown, corrupted or unsupported",
-                                notificationContext: _notificationContext, cancellationToken: cancellationToken);
-                            return;
+                            await imageInfosRepository.InsertImageInfos(CollectionName, createdImagesGroup,
+                                imageHashGenerator.PerceptualHashAlgorithm, cancellationToken);
+                            current = Interlocked.Increment(ref progress);
+                            await progressWriter.WriteAsync(current, cancellationToken: hashingToken);
                         }
-
-                        using var fileHandle =
-                            FileReader.GetFileHandle(path: filePath, sequential: true, isAsync: true);
-
-                        using var memoryMappedFile = FileReader.GetMemoryMappedFile(fileHandle: fileHandle);
-
-                        var hash = await _hashGenerator.GenerateHash(fileHandle: memoryMappedFile,
-                            cancellationToken: hashingToken);
-
-                        if (hash.Length == 0)
-                            return;
-
-                        var createdImagesGroup = CreateGroup(hash, filePath, fileType, fileHandle,
-                            duplicateImagesGroups, cancellationToken);
-
-                        if (createdImagesGroup == null)
-                            return;
-
-                        var imageInfos = await _imageInfosRepository.GetImageInfos(CollectionName,
-                            createdImagesGroup.FileHash, imageHashGenerator.PerceptualHashAlgorithm, hashingToken);
-
-                        int current;
-                        if (imageInfos.Id != Guid.Empty && imageInfos.ImageHash.Length != 0)
-                        {
-                            createdImagesGroup.ImageHash = imageInfos.ImageHash;
-                            createdImagesGroup.Id = imageInfos.Id;
-                            createdImagesGroup.IsCorruptedOrUnsupported = false;
-                            current = Interlocked.Increment(location: ref progress);
-                            progressWriter.TryWrite(item: current);
-                            return;
-                        }
-
-                        // var thumbnailGenerator =
-                        //     _thumbnailGeneratorResolver.GetThumbnailGenerator(createdImagesGroup.FileType);
-                        //
-                        // using var pixels = MemoryOwner<byte>.Allocate(imageHashGenerator.ColorSpace switch
-                        // {
-                        //     ColorSpace.Grayscale => imageHashGenerator.ImageSize * sizeof(float),
-                        //     _ => imageHashGenerator.ImageSize * 3 * sizeof(float)
-                        // });
-                        //
-                        // if (thumbnailGenerator.GenerateThumbnail(filePath, imageHashGenerator.Width,
-                        //         imageHashGenerator.Height, MemoryMarshal.Cast<byte, float>(span: pixels.Span),
-                        //         imageHashGenerator.ColorSpace))
-                        // {
-                        //     createdImagesGroup.ImageHash =
-                        //         imageHashGenerator.GenerateHash(
-                        //             pixels: MemoryMarshal.Cast<byte, float>(span: pixels.Span));
-                        //     if (createdImagesGroup.ImageHash.HasValue && createdImagesGroup.ImageHash.Value.Length != 0)
-                        //         batch.Add(item: createdImagesGroup);
-                        //     else
-                        //         Console.WriteLine(value: $"Failed to generate thumbnail for {filePath}");
-                        // }
-
-                        current = Interlocked.Increment(location: ref progress);
-                        progressWriter.TryWrite(item: current);
+                        else
+                            Console.WriteLine(value: $"Failed to generate thumbnail for {filePath}");
                     }
-                    catch (IOException)
-                    {
-                        await SendError(message: $"File {filePath} is being used by another application",
-                            notificationContext: _notificationContext, cancellationToken: hashingToken);
-                    }
-                    catch (Exception e)
-                    {
-                        Console.WriteLine(value: e);
-                        throw;
-                    }
-                });
+                }
+                catch (IOException)
+                {
+                    await SendError(message: $"File {filePath} is being used by another application",
+                        notificationContext: notificationContext, cancellationToken: hashingToken);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(value: e);
+                    throw;
+                }
+            });
 
-            if (batch.Count == 0)
-                continue;
-
-            await _imageInfosRepository.InsertImageInfos(CollectionName, batch,
-                imageHashGenerator.PerceptualHashAlgorithm, cancellationToken);
-
-            batch.Clear();
-        }
 
         progressWriter.Complete();
     }
@@ -315,12 +288,18 @@ public class SimilarImageFinder : ISimilarFilesFinder
             if (progress % 100 != 0)
                 continue;
 
-            await _notificationContext.Clients.All.SendAsync(method: "notify",
+            if (progress % 1000 == 0)
+            {
+                GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+                GC.Collect(2, GCCollectionMode.Aggressive, true, true);
+            }
+
+            await notificationContext.Clients.All.SendAsync(method: "notify",
                 arg1: new Notification(type: notificationType, result: progress.ToString()),
                 cancellationToken: cancellationToken);
         }
 
-        await _notificationContext.Clients.All.SendAsync(method: "notify",
+        await notificationContext.Clients.All.SendAsync(method: "notify",
             arg1: new Notification(type: notificationType, result: progress.ToString()),
             cancellationToken: cancellationToken);
     }
@@ -335,8 +314,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
 
         var keys = duplicateImagesGroups.Keys.ToArray();
 
-        await Parallel.ForEachAsync(source: keys,
-            parallelOptions: new ParallelOptions { CancellationToken = cancellationToken },
+        await Parallel.ForEachAsync(source: keys, cancellationToken,
             body: async (key, similarityToken) =>
             {
                 var imagesGroup = duplicateImagesGroups[key: key];
@@ -344,21 +322,22 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 {
                     // Get cached similar images
                     imagesGroup.Similarities =
-                        await _similarImagesRepository.GetExistingSimilaritiesForImage(CollectionName,
+                        await similarImagesRepository.GetExistingSimilaritiesForImage(CollectionName,
                             imagesGroup.FileHash, perceptualHashAlgorithm, similarityToken) ??
                         new ObservableDictionary<byte[], Similarity>(comparer: HashComparer);
 
                     // Check for new similar images excluding the ones cached in a previous search and add to cached ones
                     imagesGroup.Similarities.AddRange(items: new Dictionary<byte[], Similarity>(
-                        collection: await _similarImagesRepository.GetSimilarImages(collectionName: CollectionName,
+                        collection: await similarImagesRepository.GetSimilarImages(collectionName: CollectionName,
                             id: imagesGroup.FileHash,
-                            imageHash: imagesGroup.ImageHash!.Value, perceptualHashAlgorithm: perceptualHashAlgorithm,
+                            imageHash: imagesGroup.ImageHash!.Value,
+                            perceptualHashAlgorithm: perceptualHashAlgorithm,
                             degreeOfSimilarity: degreeOfSimilarity,
                             groupsAlreadyDone: imagesGroup.Similarities.Keys, cancellationToken: similarityToken),
                         comparer: HashComparer));
 
                     // If there were new similar images, associate them to the imagesGroup
-                    await _similarImagesRepository.LinkToSimilarImagesAsync(CollectionName, imagesGroup.Id,
+                    await similarImagesRepository.LinkToSimilarImagesAsync(CollectionName, imagesGroup.FileHash,
                         perceptualHashAlgorithm, imagesGroup.Similarities.Values, similarityToken);
 
                     imagesGroup.Similarities =
@@ -368,19 +347,17 @@ public class SimilarImageFinder : ISimilarFilesFinder
                                 .ToDictionary(comparer: HashComparer), comparer: HashComparer);
 
                     // Send progress
-                    var current = Interlocked.Increment(location: ref progress);
-                    await progressWriter.WriteAsync(item: current, cancellationToken: similarityToken);
+                    var current = Interlocked.Increment(ref progress);
+                    await progressWriter.WriteAsync(current, cancellationToken: similarityToken);
 
                     // Queue to the next step
                     await groupingChannelWriter.WriteAsync(item: key, cancellationToken: similarityToken);
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
-                    Console.WriteLine(
-                        value: $"{imagesGroup.Duplicates.First()} {Convert.ToHexStringLower(inArray: key)}");
+                    Console.WriteLine(e);
                 }
             });
-
 
         progressWriter.Complete();
         groupingChannelWriter.Complete();
@@ -448,7 +425,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
                 if (progress % 100 != 0)
                     continue;
 
-                await _notificationContext.Clients.All.SendAsync(method: "notify",
+                await notificationContext.Clients.All.SendAsync(method: "notify",
                     arg1: new Notification(type: NotificationType.TotalProgress, result: progress.ToString()),
                     cancellationToken: cancellationToken);
             }
@@ -458,7 +435,7 @@ public class SimilarImageFinder : ISimilarFilesFinder
             }
         }
 
-        await _notificationContext.Clients.All.SendAsync(method: "notify",
+        await notificationContext.Clients.All.SendAsync(method: "notify",
             arg1: new Notification(type: NotificationType.TotalProgress, result: progress.ToString()),
             cancellationToken: cancellationToken);
     }

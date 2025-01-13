@@ -1,4 +1,4 @@
-﻿using Core.Entities.Images;
+﻿using Core.Entities.Commons;
 using Core.Entities.SearchParameters;
 using NSwag.Collections;
 
@@ -14,7 +14,7 @@ public interface ISimilarImagesRepository
         ReadOnlyMemory<Half> imageHash, PerceptualHashAlgorithm perceptualHashAlgorithm, decimal degreeOfSimilarity,
         ICollection<byte[]> groupsAlreadyDone, CancellationToken cancellationToken = default);
 
-    ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, Guid id,
+    ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, byte[] id,
         PerceptualHashAlgorithm perceptualHashAlgorithm, ICollection<Similarity> newSimilarities,
         CancellationToken cancellationToken = default);
 }

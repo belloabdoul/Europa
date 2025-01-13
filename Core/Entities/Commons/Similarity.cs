@@ -1,6 +1,9 @@
 ﻿using System.IO.Hashing;
+using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
-namespace Core.Entities.Images;
+namespace Core.Entities.Commons;
 
 public struct Similarity : IEquatable<Similarity>
 {
@@ -10,9 +13,17 @@ public struct Similarity : IEquatable<Similarity>
 
     public decimal Score { get; set; }
 
+    private static readonly UInt128 USeed = new(BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)),
+        BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)));
+
+    [SkipLocalsInit]
     public override int GetHashCode()
     {
-        return HashCode.Combine((int)XxHash3.HashToUInt64(OriginalId), (int)XxHash3.HashToUInt64(DuplicateId), Score);
+        Span<byte> hash = stackalloc byte[OriginalId.Length + DuplicateId.Length + sizeof(decimal)];
+        OriginalId.CopyTo(hash);
+        DuplicateId.CopyTo(hash[OriginalId.Length..]);
+        Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(hash[(OriginalId.Length + DuplicateId.Length)..]), Score);
+        return GxHash.GxHash.Hash32(hash, USeed);
     }
 
     public override bool Equals(object? obj)
