@@ -4,6 +4,7 @@ import {
   HubConnection,
   HubConnectionBuilder,
   JsonHubProtocol,
+  LogLevel
 } from '@microsoft/signalr';
 import { catchError, Observable, Subject, of } from 'rxjs';
 import { Notification } from '../../models/notification';
@@ -31,6 +32,8 @@ export class SearchService {
   private apiUrl: string = 'https://localhost:7001/';
   private duplicatesApiUrl: string = `${this.apiUrl}duplicates/`;
 
+  private keepAliveInterval: number = 3600000;
+
   constructor(private http: HttpClient) {}
 
   sendSearchParameters(searchParameters: SearchParameters | null): void {
@@ -41,10 +44,12 @@ export class SearchService {
     const url = `${this.apiUrl}notifications/`;
     this.connection = new HubConnectionBuilder()
       .withUrl(url, {
-        transport: HttpTransportType.WebSockets,
+        transport: HttpTransportType.WebSockets
       })
       .withHubProtocol(new JsonHubProtocol())
+      .withServerTimeout(this.keepAliveInterval)
       .withStatefulReconnect()
+      .configureLogging(LogLevel.Trace)
       .build();
 
     try {

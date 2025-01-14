@@ -18,36 +18,35 @@
 
 using System.Numerics;
 
-namespace Core.Entities.Audios
+namespace Core.Entities.Audios;
+
+/// <summary>
+/// Profile interface for the fingerprint generator.
+/// </summary>
+public abstract class Profile
 {
+    public int DftSize { get; protected init; }
+
+    public int Overlap { get; protected init; }
+
+    public int SampleRate { get; protected init; }
+
+    protected int MinFrequency { get; init; }
+
+    protected int MaxFrequency { get; init; }
+
+    public int FrequencyBands { get; protected init; }
+        
+    public int FingerprintSize { get; protected init; }
+        
+    public int Stride { get; protected init; }
+        
     /// <summary>
-    /// Profile interface for the fingerprint generator.
+    /// Maps the frequency bins from the FFT result to the target frequency bins that the fingerprint
+    /// will be generated from.
     /// </summary>
-    public abstract class Profile
-    {
-        public int DftSize { get; set; }
+    /// <param name="inputBins">FFT result bins</param>
+    /// <param name="outputBins">Target frequency bins</param>
 
-        public int Overlap { get; set; }
-
-        public int SampleRate { get; set; }
-
-        public int MinFrequency { get; set; }
-
-        public int MaxFrequency { get; set; }
-
-        public int FrequencyBands { get; set; }
-        
-        public int FingerprintSize { get; set; }
-        
-        public int Stride { get; set; }
-        
-        /// <summary>
-        /// Maps the frequency bins from the FFT result to the target frequency bins that the fingerprint
-        /// will be generated from.
-        /// </summary>
-        /// <param name="inputBins">FFT result bins</param>
-        /// <param name="outputBins">Target frequency bins</param>
-
-        public abstract void MapFrequencies(ReadOnlySpan<Complex> inputBins, Span<double> outputBins);
-    }
+    public abstract void MapFrequencies(ReadOnlySpan<Complex> inputBins, Span<double> outputBins);
 }

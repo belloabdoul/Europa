@@ -9,7 +9,7 @@ internal class MinHashService : IMinHashService
 {
     private readonly IPermutations _permutations;
 
-    internal MinHashService(IPermutations permutations)
+    private MinHashService(IPermutations permutations)
     {
         _permutations = permutations;
     }
@@ -17,7 +17,7 @@ internal class MinHashService : IMinHashService
     /// <summary>
     ///  Gets max entropy permutations.
     /// </summary>
-    public static MinHashService MaxEntropy { get; } = new(new MaxEntropyPermutations());
+    public static IMinHashService MaxEntropy { get; } = new MinHashService(new MaxEntropyPermutations());
 
     public T[] Hash<T>(BitArray fingerprint, int n) where T: struct, INumber<T>
     {

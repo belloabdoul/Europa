@@ -6,6 +6,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <TargetFramework>net9.0</TargetFramework>
         <LangVersion>latestmajor</LangVersion>
+        <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
@@ -21,12 +22,10 @@
         <PackageReference Include="FluentValidation" Version="11.11.0"/>
         <PackageReference Include="GxHash" Version="2.0.0" />
         <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.0"/>
-        <PackageReference Include="NSwag.Core" Version="14.2.0"/>
         <PackageReference Include="Sdcb.LibRaw" Version="0.21.1.6"/>
         <PackageReference Include="Sdcb.LibRaw.runtime.linux64" Version="0.21.1"/>
         <PackageReference Include="Sdcb.LibRaw.runtime.win64" Version="0.21.1"/>
         <PackageReference Include="Swordfish.NET.CollectionsV3" Version="3.3.15" />
-        <PackageReference Include="System.IO.Hashing" Version="9.0.0"/>
     </ItemGroup>
 
     <ItemGroup>

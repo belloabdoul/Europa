@@ -1,17 +1,16 @@
-﻿using System.IO.Hashing;
-using System.Runtime.CompilerServices;
+﻿using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
 namespace Core.Entities.Commons;
 
-public struct Similarity : IEquatable<Similarity>
+public readonly struct Similarity : IEquatable<Similarity>
 {
-    public byte[] OriginalId { get; set; }
+    public byte[] OriginalId { get; init; }
 
-    public byte[] DuplicateId { get; set; }
+    public byte[] DuplicateId { get; init; }
 
-    public decimal Score { get; set; }
+    public decimal Score { get; init; }
 
     private static readonly UInt128 USeed = new(BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)),
         BitConverter.ToUInt64(RandomNumberGenerator.GetBytes(8)));

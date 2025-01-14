@@ -34,7 +34,7 @@ public class AudioHashGenerator : IAudioHashGenerator
 
     private static readonly double[] HanningWindow = FillHanningWindow(FingerprintConfiguration.DftSize);
 
-    private static readonly MinHashService MinHashService = MinHashService.MaxEntropy;
+    private static readonly IMinHashService HashService = MinHashService.MaxEntropy;
 
     private static readonly FingerprintComparer FingerprintComparer = new();
 
@@ -248,17 +248,16 @@ public class AudioHashGenerator : IAudioHashGenerator
         }
     }
 
-    private static async Task GenerateFingerprintsMultithreaded(List<double> spectrum, int[] startingIndexes,
+    private static void GenerateFingerprintsMultithreaded(List<double> spectrum, int[] startingIndexes,
         ConcurrentObservableSortedCollection<Fingerprint> fingerprints, byte[] fileId, long sampleStart,
         CancellationToken cancellationToken)
     {
-        await Parallel.ForEachAsync(startingIndexes, cancellationToken,
+        Parallel.ForEach(startingIndexes, new ParallelOptions{CancellationToken = cancellationToken},
             (index, _) =>
             {
                 GenerateFingerprint(
                     CollectionsMarshal.AsSpan(spectrum).Slice(index, FingerprintConfiguration.FingerprintSize), index,
                     fingerprints, fileId, sampleStart);
-                return ValueTask.CompletedTask;
             });
     }
 
@@ -292,7 +291,7 @@ public class AudioHashGenerator : IAudioHashGenerator
                                              FingerprintConfiguration.FrequencyBands) *
                                          FingerprintConfiguration.Overlap /
                                          FingerprintConfiguration.SampleRate,
-            HashBins = MinHashService.Hash<int>(image, 100)
+            HashBins = HashService.Hash<int>(image, 100)
         });
     }
 
@@ -312,7 +311,7 @@ public class AudioHashGenerator : IAudioHashGenerator
             {
                 startingIndexes = RandomSequence(0, spectrum.Count, random).ToArray();
                 var lastIndex = startingIndexes[^1];
-                await GenerateFingerprintsMultithreaded(spectrum, startingIndexes, fingerprints, fileId, sampleStart,
+                GenerateFingerprintsMultithreaded(spectrum, startingIndexes, fingerprints, fileId, sampleStart,
                     cancellationToken);
                 var fingerprintStart = lastIndex / FingerprintConfiguration.FrequencyBands + GetNextIndex(random);
                 sampleStart += fingerprintStart;
@@ -325,7 +324,7 @@ public class AudioHashGenerator : IAudioHashGenerator
                 continue;
 
             startingIndexes = RandomSequence(0, spectrum.Count, random).ToArray();
-            await GenerateFingerprintsMultithreaded(spectrum, startingIndexes, fingerprints, fileId, sampleStart,
+            GenerateFingerprintsMultithreaded(spectrum, startingIndexes, fingerprints, fileId, sampleStart,
                 cancellationToken);
         }
     }

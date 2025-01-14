@@ -2,7 +2,7 @@
 
 public static class QuickSelectAlgorithm
 {
-    public static int Find(int kth, Span<double> list, Span<ushort> indexes, int lo, int hi)
+    public static void Find(int kth, Span<double> list, Span<ushort> indexes, int lo, int hi)
     {
         while (lo != hi)
         {
@@ -14,7 +14,7 @@ public static class QuickSelectAlgorithm
             pi = Partition(list, indexes, pi, lo, hi);
             if (pi == kth)
             {
-                return pi;
+                return;
             }
 
             if (pi > kth)
@@ -26,8 +26,6 @@ public static class QuickSelectAlgorithm
                 lo = pi + 1;
             }
         }
-
-        return lo;
     }
 
     private static int Partition(Span<double> list, Span<ushort> indexes, int pivotIndex, int lo, int hi)

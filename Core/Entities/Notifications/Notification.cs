@@ -1,16 +1,11 @@
-﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
+﻿using System.Diagnostics.CodeAnalysis;
 
 namespace Core.Entities.Notifications;
 
-public class Notification
+[SuppressMessage("ReSharper", "UnusedMember.Global")]
+public class Notification(NotificationType type, string result)
 {
-    public Notification(NotificationType type, string result)
-    {
-        Type = type;
-        Result = result;
-    }
+    public NotificationType Type { get; set; } = type;
 
-    public NotificationType Type { get; set; }
-
-    public string Result { get; set; }
+    public string Result { get; set; } = result;
 }

@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using CommunityToolkit.HighPerformance;
 using Core.Entities.Files;
 using Core.Entities.Images;
@@ -33,6 +34,7 @@ public class LibVipsImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, I
         }
     }
 
+    [SuppressMessage("ReSharper", "SwitchStatementHandlesSomeKnownEnumValuesWithDefault")]
     public bool GenerateThumbnail(string imagePath, int width, int height, Span<float> pixels, ColorSpace colorSpace)
     {
         switch (colorSpace)

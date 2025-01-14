@@ -21,7 +21,7 @@ public class SearchParametersValidator : AbstractValidator<SearchParameters>
         //
         RuleFor(searchParameters => searchParameters.DegreeOfSimilarity)
             .NotEmpty().WithMessage("The degree of similarity is required").When(searchParameters =>
-                searchParameters.FileSearchType == FileSearchType.Images)
+                searchParameters.FileSearchType is FileSearchType.Images or FileSearchType.Audios)
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.DegreeOfSimilarity)));
 
         RuleFor(searchParameters => searchParameters.MinSize)

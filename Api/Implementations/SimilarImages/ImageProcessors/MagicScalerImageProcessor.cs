@@ -1,7 +1,6 @@
-﻿using System.Buffers;
+﻿using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Numerics.Tensors;
-using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Files;
 using Core.Entities.Images;
@@ -49,6 +48,7 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
+    [SuppressMessage("ReSharper", "SwitchStatementHandlesSomeKnownEnumValuesWithDefault")]
     public bool GenerateThumbnail(string imagePath, int width, int height, Span<float> pixels, ColorSpace colorSpace)
     {
         try

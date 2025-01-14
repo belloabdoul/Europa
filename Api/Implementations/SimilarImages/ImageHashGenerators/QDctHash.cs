@@ -2,7 +2,6 @@
 using CommunityToolkit.HighPerformance;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Images;
-using Core.Entities.SearchParameters;
 using Core.Interfaces.SimilarImages;
 
 namespace Api.Implementations.SimilarImages.ImageHashGenerators;
@@ -11,20 +10,13 @@ public class QDctHash : IImageHash
 {
     private const int Size = 128;
     private const int FeatureSize = 64;
-    private readonly CosineTransform _dct;
 
     public int Width => Size;
     public int Height => Size;
     public int ImageSize => Size * Size;
 
-    public int HashSize => FeatureSize * 4;
+    private const int HashSize = FeatureSize * 4;
     public ColorSpace ColorSpace => ColorSpace.Rgb;
-    public PerceptualHashAlgorithm PerceptualHashAlgorithm => PerceptualHashAlgorithm.QDctHash;
-
-    public QDctHash(CosineTransform dct)
-    {
-        _dct = dct;
-    }
 
     public Half[] GenerateHash(Span<float> pixels)
     {
@@ -80,7 +72,7 @@ public class QDctHash : IImageHash
     private void ApplyDctForChannel(Span<float> channelPixels, Span<float> dctChannelResults)
     {
         var pixels2D = channelPixels.AsSpan2D(Height, Width);
-        _dct.Forward8X8(pixels2D);
+        CosineTransform.Forward8X8(pixels2D);
         pixels2D.GetRowSpan(0)[1..8].CopyTo(dctChannelResults);
         pixels2D.GetRowSpan(1)[..7].CopyTo(dctChannelResults[7..]);
         pixels2D.GetRowSpan(2)[..6].CopyTo(dctChannelResults[14..]);

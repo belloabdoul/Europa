@@ -48,11 +48,11 @@ public class DatabaseService : IHostedService, IConnectionStringBuilder
         
         var extensionDir =
             Path.Combine(
+#pragma warning disable SYSLIB0044
                 Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase)![6..],
+#pragma warning restore SYSLIB0044
                 "Libs", "pgvector");
         
-        Console.WriteLine(extensionDir);
-
         // Copy extension file to PostgreSQL
         Utils.CopyDirectory(Path.Combine(extensionDir, ExtensionsLocation),
             _server.DataDir.Replace("data", ExtensionsLocation), true);
@@ -78,7 +78,8 @@ public class DatabaseService : IHostedService, IConnectionStringBuilder
             // OSX - Either X64 OR ARM64
             if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                switch (RuntimeInformation.ProcessArchitecture)
+                var architecture = RuntimeInformation.ProcessArchitecture;
+                switch (architecture)
                 {
                     case Architecture.Arm64:
                         File.Copy(Path.Combine(extensionDir, "lib", "vector-arm64.dylib"),
@@ -97,7 +98,7 @@ public class DatabaseService : IHostedService, IConnectionStringBuilder
                     case Architecture.Ppc64le:
                     case Architecture.RiscV64:
                     default:
-                        throw new ArgumentOutOfRangeException();
+                        throw new UnsupportedPlatformException();
                 }
             }
         }

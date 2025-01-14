@@ -7,21 +7,8 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Api.Implementations.Commons;
 
-public class DirectoryReader : IDirectoryReader
+public class DirectoryReader(IHubContext<NotificationHub> notificationContext) : IDirectoryReader
 {
-    // private static readonly HashSet<string> AudioFormats =
-    // [
-    //     ".mp3", ".flac", ".wav", ".ogg", ".m4a", ".aac", ".aiff", ".pcm", ".aif", ".aiff", ".aifc", ".m3a", ".mp2",
-    //     ".mp4a", ".mp2a", ".mpga", ".wave", ".weba", ".wma", ".oga"
-    // ];
-
-    private readonly IHubContext<NotificationHub> _notificationContext;
-
-    public DirectoryReader(IHubContext<NotificationHub> notificationContext)
-    {
-        _notificationContext = notificationContext;
-    }
-
     public async Task<string[]> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
@@ -42,25 +29,25 @@ public class DirectoryReader : IDirectoryReader
             catch (ArgumentNullException ex)
             {
                 Console.WriteLine(ex.Message);
-                await _notificationContext.Clients.All.SendAsync("notify",
+                await notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (SecurityException ex)
             {
                 Console.WriteLine(ex.Message);
-                await _notificationContext.Clients.All.SendAsync("notify",
+                await notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (PathTooLongException ex)
             {
                 Console.WriteLine(ex.Message);
-                await _notificationContext.Clients.All.SendAsync("notify",
+                await notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
             catch (DirectoryNotFoundException ex)
             {
                 Console.WriteLine(ex.Message);
-                await _notificationContext.Clients.All.SendAsync("notify",
+                await notificationContext.Clients.All.SendAsync("notify",
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
 

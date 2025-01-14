@@ -1,20 +1,16 @@
 using System.Collections.Concurrent;
 using Core.Entities.Commons;
 using Core.Entities.Files;
-using NSwag.Collections;
+using Swordfish.NET.Collections;
 
 namespace Core.Entities.Images;
 
 public class ImagesGroup
 {
-    public Guid Id { get; set; }
-
-    public byte[] FileHash { get; set; } = null!;
+    public byte[] Id { get; set; } = null!;
 
     public FileType FileType { get; set; }
-
-    public bool IsCorruptedOrUnsupported { get; set; }
-
+    
     public long Size { get; set; }
 
     public DateTime DateModified { get; set; }
@@ -23,5 +19,5 @@ public class ImagesGroup
 
     public ConcurrentStack<string> Duplicates { get; } = [];
 
-    public ObservableDictionary<byte[], Similarity> Similarities { get; set; } = [];
+    public ConcurrentObservableDictionary<byte[], Similarity> Similarities { get; set; } = [];
 }

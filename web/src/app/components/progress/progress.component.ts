@@ -97,6 +97,7 @@ export class ProgressComponent implements OnInit, OnDestroy {
 
     this.notificationSubscription = this.searchService.notification$.subscribe(
       (notification) => {
+        console.log(notification)
         if (notification.type == NotificationType.HashGenerationProgress)
           this.step1Progress.next(notification.result);
         else if (notification.type == NotificationType.SimilaritySearchProgress)

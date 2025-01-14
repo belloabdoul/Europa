@@ -2,7 +2,6 @@ using System.Collections.Concurrent;
 using System.Runtime;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
-using Aelian.FFT;
 using Api.Client.Repositories;
 using Api.Implementations.Commons;
 using CommunityToolkit.HighPerformance.Buffers;
@@ -14,10 +13,9 @@ using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
 using DotNext.Runtime;
-using DotNext.Threading;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Win32.SafeHandles;
-using NSwag.Collections;
+using Swordfish.NET.Collections;
 using File = Core.Entities.Files.File;
 using UnboundedChannelOptions = System.Threading.Channels.UnboundedChannelOptions;
 
@@ -45,10 +43,9 @@ public class SimilarImageFinder(
     private const string CollectionName = "Europa-Images";
 
     public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(
-        string[] hypotheticalDuplicates, PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
+        string[] hypotheticalDuplicates,
         decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
-        perceptualHashAlgorithm = PerceptualHashAlgorithm.QDctHash;
         // Part 1 : Generate and cache perceptual hash of non-corrupted files
         var progressChannel = Channel.CreateUnboundedPrioritized(options: new UnboundedPrioritizedChannelOptions<int>
             { SingleReader = true, SingleWriter = false });
@@ -64,8 +61,7 @@ public class SimilarImageFinder(
             await collectionRepository.CreateCollectionAsync(collectionName: CollectionName,
                 cancellationToken: cancellationToken);
 
-            await indexingRepository.DisableIndexingAsync(collectionName: CollectionName,
-                cancellationToken: cancellationToken);
+            await indexingRepository.DisableIndexingAsync(cancellationToken: cancellationToken);
 
             await Task.WhenAll(
                 SendProgress(progressReader: progressChannel.Reader,
@@ -82,8 +78,7 @@ public class SimilarImageFinder(
             do
             {
                 await Task.Delay(delay: TimeSpan.FromSeconds(5), cancellationToken: cancellationToken);
-            } while (!await indexingRepository.IsIndexingDoneAsync(collectionName: CollectionName,
-                         cancellationToken: cancellationToken));
+            } while (!await indexingRepository.IsIndexingDoneAsync(cancellationToken: cancellationToken));
         }
         catch (Exception e)
         {
@@ -115,7 +110,6 @@ public class SimilarImageFinder(
                         notificationType: NotificationType.SimilaritySearchProgress,
                         cancellationToken: cancellationToken),
                     LinkSimilarImagesGroupsToOneAnother(duplicateImagesGroups: duplicateImagesGroups,
-                        perceptualHashAlgorithm: perceptualHashAlgorithm.Value,
                         degreeOfSimilarity: degreeOfSimilarity!.Value, groupingChannelWriter: groupingChannel.Writer,
                         progressWriter: progressChannel.Writer, cancellationToken: cancellationToken)
                 }
@@ -126,10 +120,12 @@ public class SimilarImageFinder(
             duplicateImagesGroups.Clear();
             return [];
         }
-
+        
         // Return images grouped by hashes
-        return finalImages.GroupBy(keySelector: file => file.Hash, comparer: HashComparer)
+        var result = finalImages.GroupBy(keySelector: file => file.Hash, comparer: HashComparer)
             .Where(predicate: i => i.Skip(count: 1).Any()).ToList();
+        
+        return result;
     }
 
     private async Task GeneratePerceptualHashes(string[] hypotheticalDuplicates,
@@ -170,20 +166,17 @@ public class SimilarImageFinder(
                         return;
 
                     var createdImagesGroup = CreateGroup(hash, filePath, fileType, fileHandle,
-                        duplicateImagesGroups, cancellationToken);
+                        duplicateImagesGroups);
 
                     if (createdImagesGroup == null)
                         return;
 
-                    var imageInfos = await imageInfosRepository.GetImageInfos(CollectionName,
-                        createdImagesGroup.FileHash, imageHashGenerator.PerceptualHashAlgorithm, hashingToken);
+                    createdImagesGroup.ImageHash = await imageInfosRepository.GetImageHash(CollectionName,
+                        createdImagesGroup.Id, hashingToken);
 
                     int current;
-                    if (imageInfos.ImageHash.Length != 0)
+                    if (createdImagesGroup.ImageHash.Value.Length != 0)
                     {
-                        createdImagesGroup.ImageHash = imageInfos.ImageHash;
-                        createdImagesGroup.Id = imageInfos.Id;
-                        createdImagesGroup.IsCorruptedOrUnsupported = false;
                         current = Interlocked.Increment(ref progress);
                         await progressWriter.WriteAsync(current, cancellationToken: hashingToken);
                         return;
@@ -208,7 +201,7 @@ public class SimilarImageFinder(
                         if (createdImagesGroup.ImageHash.HasValue && createdImagesGroup.ImageHash.Value.Length != 0)
                         {
                             await imageInfosRepository.InsertImageInfos(CollectionName, createdImagesGroup,
-                                imageHashGenerator.PerceptualHashAlgorithm, cancellationToken);
+                                cancellationToken);
                             current = Interlocked.Increment(ref progress);
                             await progressWriter.WriteAsync(current, cancellationToken: hashingToken);
                         }
@@ -252,8 +245,7 @@ public class SimilarImageFinder(
     }
 
     private static ImagesGroup? CreateGroup(byte[] id, string path, FileType fileType,
-        SafeFileHandle fileHandle, ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups,
-        CancellationToken cancellationToken = default)
+        SafeFileHandle fileHandle, ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups)
     {
         var isFirst = duplicateImagesGroups.TryAdd(key: id, value: new ImagesGroup());
         var imagesGroup = duplicateImagesGroups[key: id];
@@ -262,7 +254,7 @@ public class SimilarImageFinder(
             return null;
 
         imagesGroup.Duplicates.Push(item: path);
-        imagesGroup.FileHash = id;
+        imagesGroup.Id = id;
         imagesGroup.Size = RandomAccess.GetLength(fileHandle);
         imagesGroup.FileType = fileType;
         imagesGroup.DateModified = System.IO.File.GetLastWriteTime(fileHandle);
@@ -305,8 +297,7 @@ public class SimilarImageFinder(
     }
 
     private async Task LinkSimilarImagesGroupsToOneAnother(
-        ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, decimal degreeOfSimilarity,
+        ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups, decimal degreeOfSimilarity,
         ChannelWriter<byte[]> groupingChannelWriter, ChannelWriter<int> progressWriter,
         CancellationToken cancellationToken)
     {
@@ -323,28 +314,26 @@ public class SimilarImageFinder(
                     // Get cached similar images
                     imagesGroup.Similarities =
                         await similarImagesRepository.GetExistingSimilaritiesForImage(CollectionName,
-                            imagesGroup.FileHash, perceptualHashAlgorithm, similarityToken) ??
-                        new ObservableDictionary<byte[], Similarity>(comparer: HashComparer);
+                            imagesGroup.Id, similarityToken);
 
                     // Check for new similar images excluding the ones cached in a previous search and add to cached ones
-                    imagesGroup.Similarities.AddRange(items: new Dictionary<byte[], Similarity>(
-                        collection: await similarImagesRepository.GetSimilarImages(collectionName: CollectionName,
-                            id: imagesGroup.FileHash,
-                            imageHash: imagesGroup.ImageHash!.Value,
-                            perceptualHashAlgorithm: perceptualHashAlgorithm,
-                            degreeOfSimilarity: degreeOfSimilarity,
-                            groupsAlreadyDone: imagesGroup.Similarities.Keys, cancellationToken: similarityToken),
-                        comparer: HashComparer));
+                    imagesGroup.Similarities.AddRange(await similarImagesRepository.GetSimilarImages(
+                        collectionName: CollectionName,
+                        id: imagesGroup.Id,
+                        imageHash: imagesGroup.ImageHash!.Value,
+                        degreeOfSimilarity: degreeOfSimilarity,
+                        groupsAlreadyDone: imagesGroup.Similarities.Keys, cancellationToken: similarityToken));
 
                     // If there were new similar images, associate them to the imagesGroup
-                    await similarImagesRepository.LinkToSimilarImagesAsync(CollectionName, imagesGroup.FileHash,
-                        perceptualHashAlgorithm, imagesGroup.Similarities.Values, similarityToken);
+                    await similarImagesRepository.LinkToSimilarImagesAsync(CollectionName, imagesGroup.Id,
+                        imagesGroup.Similarities.Values, similarityToken);
 
+                    var results = imagesGroup.Similarities
+                        .Where(pair => pair.Value.Score <= degreeOfSimilarity);
+                    
                     imagesGroup.Similarities =
-                        new ObservableDictionary<byte[], Similarity>(
-                            dictionary: imagesGroup.Similarities
-                                .Where(pair => pair.Value.Score <= degreeOfSimilarity)
-                                .ToDictionary(comparer: HashComparer), comparer: HashComparer);
+                        new ConcurrentObservableDictionary<byte[], Similarity>(false, HashComparer);
+                    imagesGroup.Similarities.AddRange(results);
 
                     // Send progress
                     var current = Interlocked.Increment(ref progress);
@@ -384,19 +373,17 @@ public class SimilarImageFinder(
 
                 // Removes the groups already done in the current imagesGroup's similar images groups. If the similar images are
                 // empty we stop here, else we add back the current imagesGroup's id in case it was among those deleted
-                foreach (var i in groupsDone)
-                {
-                    imagesGroup.Similarities.Remove(key: i);
-                }
+
+                imagesGroup.Similarities.RemoveRange(groupsDone);
 
                 if (imagesGroup.Similarities.Count == 0)
                 {
                     continue;
                 }
 
-                imagesGroup.Similarities.TryAdd(key: imagesGroup.FileHash,
+                imagesGroup.Similarities.TryAdd(key: imagesGroup.Id,
                     value: new Similarity
-                        { OriginalId = imagesGroup.FileHash, DuplicateId = imagesGroup.FileHash, Score = 0 });
+                        { OriginalId = imagesGroup.Id, DuplicateId = imagesGroup.Id, Score = 0 });
 
                 // Here an image was either never processed or has remaining similar images groups. If the remaining groups
                 // are only itself and there is only one duplicate we stop here
@@ -440,20 +427,16 @@ public class SimilarImageFinder(
             cancellationToken: cancellationToken);
     }
 
-    private void SetCollectionChangedActionToDeleteGroupIfSimilarImagesEmpty(
+    private static void SetCollectionChangedActionToDeleteGroupIfSimilarImagesEmpty(
         ConcurrentDictionary<byte[], ImagesGroup> duplicateImagesGroups, ImagesGroup imagesGroup)
     {
         imagesGroup.Similarities.PropertyChanged += (sender, args) =>
         {
-            if (args.PropertyName != nameof(ObservableDictionary<byte[], Similarity>.Count) ||
+            if (args.PropertyName != nameof(ConcurrentObservableDictionary<byte[], Similarity>.Count) ||
                 imagesGroup.Similarities.Count != 0)
                 return;
 
-            if (!duplicateImagesGroups.Remove(key: imagesGroup.FileHash, value: out _))
-                Console.WriteLine(value: $"Removal failed for {imagesGroup.FileHash}");
-
-            if (duplicateImagesGroups.Count % 1000 == 0)
-                GC.Collect();
+            duplicateImagesGroups.TryRemove(key: imagesGroup.Id, value: out _);
         };
     }
 
@@ -478,7 +461,7 @@ public class SimilarImageFinder(
                             Path = image,
                             Size = parentGroup.Size,
                             DateModified = parentGroup.DateModified,
-                            Hash = parentGroup.FileHash
+                            Hash = parentGroup.Id
                         });
                     }
                 }

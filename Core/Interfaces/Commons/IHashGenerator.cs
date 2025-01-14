@@ -1,5 +1,4 @@
-﻿using DotNext.IO.MemoryMappedFiles;
-using Microsoft.Win32.SafeHandles;
+﻿using Microsoft.Win32.SafeHandles;
 
 namespace Core.Interfaces.Commons;
 

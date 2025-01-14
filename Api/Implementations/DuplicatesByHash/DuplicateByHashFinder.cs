@@ -3,7 +3,6 @@ using System.Threading.Channels;
 using Api.Implementations.Commons;
 using Core.Entities.Commons;
 using Core.Entities.Notifications;
-using Core.Entities.SearchParameters;
 using Core.Interfaces.Commons;
 using DotNext.Runtime;
 using Microsoft.AspNetCore.SignalR;
@@ -15,7 +14,6 @@ public class DuplicateByHashFinder(IHashGenerator hashGenerator, IHubContext<Not
 {
     public async Task<IEnumerable<IGrouping<byte[], File>>> FindSimilarFilesAsync(
         string[] hypotheticalDuplicates,
-        PerceptualHashAlgorithm? perceptualHashAlgorithm = null,
         decimal? degreeOfSimilarity = null, CancellationToken cancellationToken = default)
     {
         // Partial hash generation

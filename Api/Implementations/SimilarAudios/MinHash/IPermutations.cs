@@ -15,9 +15,4 @@ internal interface IPermutations
     ///  Gets number of permutations
     /// </summary>
     int Count { get; }
-
-    /// <summary>
-    ///  Gets indexes per permutation
-    /// </summary>
-    int IndexesPerPermutation { get; }
 }

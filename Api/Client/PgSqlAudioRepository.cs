@@ -1,5 +1,6 @@
 ﻿using System.Collections.Concurrent;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -18,8 +19,6 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
     ISimilarAudiosRepository
 {
     private readonly NpgsqlDataSource _dataSource;
-
-    private bool _isDisposed;
 
     private static readonly HashComparer HashComparer = new();
 
@@ -157,18 +156,19 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
                                """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+
+        await connection.CloseAsync();
     }
 
-    public async ValueTask DisableIndexingAsync(string collectionName,
-        CancellationToken cancellationToken = default)
+    public async ValueTask DisableIndexingAsync(CancellationToken cancellationToken = default)
     {
         await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
 
         await using var command = connection.CreateCommand();
 
-
         command.CommandText = $"DROP INDEX IF EXISTS {HashColumn}_ix";
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await connection.CloseAsync();
     }
 
     public async ValueTask EnableIndexingAsync(string collectionName, CancellationToken cancellationToken = default)
@@ -182,12 +182,12 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
                                """;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
+        await connection.CloseAsync();
     }
 
-    public async ValueTask<bool> IsIndexingDoneAsync(string collectionName,
-        CancellationToken cancellationToken = default)
+    public ValueTask<bool> IsIndexingDoneAsync(CancellationToken cancellationToken = default)
     {
-        return true;
+        return ValueTask.FromResult(true);
     }
 
     public async ValueTask<int> GetFingerprintsCount(string collectionName, byte[] id,
@@ -203,7 +203,9 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
         await command.PrepareAsync(cancellationToken);
 
         command.Parameters[FileHashColumn].Value = id;
-        return Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync(cancellationToken));
+        await connection.CloseAsync();
+        return count;
     }
 
     public async ValueTask<int> InsertFingerprintsAsync(string collectionName, IList<Fingerprint> fingerprints,
@@ -253,18 +255,20 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
 
             await command.ExecuteNonQueryAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+            await connection.CloseAsync();
             return fingerprints.Count;
         }
         catch (PostgresException)
         {
             // TODO log here and rollback
             await transaction.RollbackAsync(cancellationToken);
+            await connection.CloseAsync();
             return 0;
         }
     }
 
     public async ValueTask<ConcurrentObservableDictionary<byte[], Similarity>> GetExistingMatchesForFileAsync(
-        string collectionName, byte[] fileId, CancellationToken cancellationToken = default)
+        byte[] fileId, CancellationToken cancellationToken = default)
     {
         var matchingFiles = new ConcurrentObservableDictionary<byte[], Similarity>(true, HashComparer);
 
@@ -298,11 +302,13 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
                 });
         }
 
+        await connection.CloseAsync();
         return matchingFiles;
     }
 
+    [SuppressMessage("ReSharper", "BitwiseOperatorOnEnumWithoutFlags")]
     public async ValueTask<IEnumerable<KeyValuePair<byte[], decimal>>> GetMatchingFingerprintsAsync(
-        string collectionName, IList<Fingerprint> fingerprints, int thresholdVotes, double gapAllowed,
+        IList<Fingerprint> fingerprints, int thresholdVotes, double gapAllowed,
         decimal degreeOfSimilarity, byte[] fileId, ICollection<byte[]> existingMatches,
         Dictionary<byte[], int> filesWithFingerprintsCount, CancellationToken cancellationToken = default)
     {
@@ -359,48 +365,51 @@ public sealed class PgSqlAudioRepository : ICollectionRepository, IAudioInfosRep
             }
         }
 
+        await connection.CloseAsync();
         return matchingFingerprints
             .Select(match =>
             {
                 var score = decimal.Min(decimal.Divide(match.Value.Count, filesWithFingerprintsCount[match.Key]),
                     decimal.Divide(match.Value.Count, filesWithFingerprintsCount[fileId]));
-                if (score >= degreeOfSimilarity)
-                    Console.WriteLine(
-                        $"{Convert.ToHexStringLower(fingerprints[0].FileHash)} {Convert.ToHexStringLower(match.Key)} {match.Value.Count} / {filesWithFingerprintsCount[match.Key]}");
                 return new KeyValuePair<byte[], decimal>(match.Key, score);
             })
             .Where(group => group.Value >= degreeOfSimilarity);
     }
 
-    public async ValueTask<bool> LinkToSimilarFilesAsync(string collectionName, byte[] id,
-        ICollection<Similarity> newSimilarities, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> LinkToSimilarFilesAsync(ICollection<Similarity> newSimilarities,
+        CancellationToken cancellationToken = default)
     {
-        // await using var transaction =
-        //     await _writeConnection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
-        //
-        // try
-        // {
-        //     await using var command = _writeConnection.CreateCommand();
-        //
-        //     command.CommandText =
-        //         $"INSERT INTO {MatchingFilesTable} VALUES(@{MatchingFilesOriginalIdColumn}, @{MatchingFilesDuplicateIdColumn}, @{MatchingFilesScoreColumn})";
-        //
-        //     foreach (var similarity in newSimilarities)
-        //     {
-        //         command.Parameters.AddWithValue(MatchingFilesOriginalIdColumn, similarity.OriginalId);
-        //         command.Parameters.AddWithValue(MatchingFilesDuplicateIdColumn, similarity.DuplicateId);
-        //         command.Parameters.AddWithValue(MatchingFilesScoreColumn, similarity.Score);
-        //         await command.PrepareAsync(cancellationToken);
-        //         await command.ExecuteNonQueryAsync(cancellationToken);
-        //     }
-        //
-        //     await transaction.CommitAsync(cancellationToken);
-        // }
-        // catch (OperationCanceledException)
-        // {
-        //     await transaction.RollbackAsync(cancellationToken);
-        // }
+        await using var connection = await _dataSource.OpenConnectionAsync(cancellationToken);
+        await using var transaction =
+            await connection.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken);
 
+        try
+        {
+            await using var command = connection.CreateCommand();
+
+            command.CommandText =
+                $"INSERT INTO {MatchesTable} VALUES(@{OriginalIdColumn}, @{DuplicateIdColumn}, @{ScoreColumn})";
+
+            command.Parameters.Add(OriginalIdColumn, NpgsqlDbType.Bytea);
+            command.Parameters.Add(DuplicateIdColumn, NpgsqlDbType.Bytea);
+            command.Parameters.Add(ScoreColumn, NpgsqlDbType.Double);
+            await command.PrepareAsync(cancellationToken);
+            foreach (var similarity in newSimilarities)
+            {
+                command.Parameters[OriginalIdColumn].Value = similarity.OriginalId;
+                command.Parameters[DuplicateIdColumn].Value = similarity.DuplicateId;
+                command.Parameters[ScoreColumn].Value = Convert.ToDouble(similarity.Score);
+                await command.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (PostgresException)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+        }
+        
+        await connection.CloseAsync();
         return true;
     }
 }

@@ -1,20 +1,17 @@
 ﻿using Core.Entities.Commons;
-using Core.Entities.SearchParameters;
-using NSwag.Collections;
+using Swordfish.NET.Collections;
 
 namespace Api.Client.Repositories;
 
 public interface ISimilarImagesRepository
 {
-    ValueTask<ObservableDictionary<byte[], Similarity>?> GetExistingSimilaritiesForImage(string collectionName,
-        byte[] currentGroupId, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        CancellationToken cancellationToken = default);
+    ValueTask<ConcurrentObservableDictionary<byte[], Similarity>> GetExistingSimilaritiesForImage(string collectionName,
+        byte[] currentGroupId, CancellationToken cancellationToken = default);
 
     ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(string collectionName, byte[] id,
-        ReadOnlyMemory<Half> imageHash, PerceptualHashAlgorithm perceptualHashAlgorithm, decimal degreeOfSimilarity,
-        ICollection<byte[]> groupsAlreadyDone, CancellationToken cancellationToken = default);
+        ReadOnlyMemory<Half> imageHash, decimal degreeOfSimilarity, ICollection<byte[]> groupsAlreadyDone,
+        CancellationToken cancellationToken = default);
 
-    ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, byte[] id,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, ICollection<Similarity> newSimilarities,
+    ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, byte[] id, ICollection<Similarity> newSimilarities,
         CancellationToken cancellationToken = default);
 }

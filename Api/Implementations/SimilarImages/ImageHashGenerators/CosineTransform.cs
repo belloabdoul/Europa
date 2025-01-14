@@ -54,7 +54,7 @@ public class CosineTransform
     /// Compute the first 8 DCT result of a row in place.
     /// </summary>
     /// <param name="input">The samples to be transformed.</param>
-    public void Forward8(Span<float> input)
+    private static void Forward8(Span<float> input)
     {
         Debug.Assert(input.Length == Size, $"This DCT method works with {Size} input.");
         ref var inputReference = ref MemoryMarshal.GetReference(input);
@@ -74,7 +74,7 @@ public class CosineTransform
     /// Compute the top left 8x8 DCT result of a 2d array in place.
     /// </summary>
     /// <param name="input">The samples to be transformed.</param>
-    public void Forward8X8(Span2D<float> input)
+    public static void Forward8X8(Span2D<float> input)
     {
         Debug.Assert(input.Height == Size && input.Width == Size, $"The input must be {Size}x{Size}.");
         for (var i = 0; i < input.Height; i++)

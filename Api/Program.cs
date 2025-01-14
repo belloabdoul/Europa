@@ -1,3 +1,5 @@
+using System.Diagnostics.CodeAnalysis;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Aelian.FFT;
 using Api.Client;
@@ -28,6 +30,7 @@ using Sdcb.LibRaw;
 
 namespace Api;
 
+[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
 public class Program
 {
     public static void Main(string[] args)
@@ -61,11 +64,12 @@ public class Program
         services.AddSwaggerGen();
 
         // Add signalR
-        services.AddSignalR(options => { options.EnableDetailedErrors = true; });
+        services.AddSignalR(options =>
+        {
+            options.ClientTimeoutInterval = TimeSpan.FromHours(1);
+            options.EnableDetailedErrors = true;
+        });
 
-        // Initialize FFmpeg
-        var current = AppDomain.CurrentDomain.BaseDirectory;
-        var ffmpegPath = Path.Combine(current, "ffmpeg");
         // Register directory reader
         services.AddScoped<IDirectoryReader, DirectoryReader>();
 
@@ -76,7 +80,8 @@ public class Program
         services.AddKeyedTransient<IFileTypeIdentifier, FfMpegIdentifier>(FileSearchType.Audios);
 
         // Register file type's identifiers for image search
-        services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
 
@@ -107,16 +112,16 @@ public class Program
         services.AddSingleton<IConnectionStringBuilder>(p => p.GetRequiredService<DatabaseService>());
 
         // Dependencies for Qdrant images database
-        services.AddKeyedTransient<ICollectionRepository, PgSqlImagesRepository>(FileSearchType.Images);
-        services.AddKeyedSingleton<IIndexingRepository, PgSqlImagesRepository>(FileSearchType.Images);
-        services.AddTransient<IImageInfosRepository, PgSqlImagesRepository>();
-        services.AddTransient<ISimilarImagesRepository, PgSqlImagesRepository>();
+        services.AddKeyedScoped<ICollectionRepository, PgSqlImagesRepository>(FileSearchType.Images);
+        services.AddKeyedScoped<IIndexingRepository, PgSqlImagesRepository>(FileSearchType.Images);
+        services.AddScoped<IImageInfosRepository, PgSqlImagesRepository>();
+        services.AddScoped<ISimilarImagesRepository, PgSqlImagesRepository>();
 
         // Dependencies for sqlite audio database
-        services.AddKeyedTransient<ICollectionRepository, PgSqlAudioRepository>(FileSearchType.Audios);
-        services.AddKeyedTransient<IIndexingRepository, PgSqlAudioRepository>(FileSearchType.Audios);
-        services.AddTransient<IAudioInfosRepository, PgSqlAudioRepository>();
-        services.AddTransient<ISimilarAudiosRepository, PgSqlAudioRepository>();
+        services.AddKeyedScoped<ICollectionRepository, PgSqlAudioRepository>(FileSearchType.Audios);
+        services.AddKeyedScoped<IIndexingRepository, PgSqlAudioRepository>(FileSearchType.Audios);
+        services.AddScoped<IAudioInfosRepository, PgSqlAudioRepository>();
+        services.AddScoped<ISimilarAudiosRepository, PgSqlAudioRepository>();
 
         // Register similar file search implementations for hash, audio and video
         services.AddKeyedScoped<ISimilarFilesFinder, DuplicateByHashFinder>(FileSearchType.All);
