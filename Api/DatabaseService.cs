@@ -1,6 +1,7 @@
 ﻿using System.Runtime.InteropServices;
 using Api.Client.Repositories;
 using Core.Entities.Commons;
+using Hardware.Info;
 using MysticMind.PostgresEmbed;
 using Architecture = System.Runtime.InteropServices.Architecture;
 
@@ -13,46 +14,60 @@ public class DatabaseService : IHostedService, IConnectionStringBuilder
     private static readonly string EuropaFolder = Path.GetRelativePath(Environment.CurrentDirectory,
         string.Join(Path.DirectorySeparatorChar,
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Europa"));
-    
+
     private static readonly string ExtensionsLocation = Path.Combine("share", "extension");
+
+    private const int Megabyte = 1_048_576;
 
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(EuropaFolder)!);
+        var hardwareInfo = new HardwareInfo();
+        hardwareInfo.RefreshMemoryStatus();
+        var ram = hardwareInfo.MemoryStatus.TotalPhysical / Megabyte;
+        var sixteenthRam = ram / 16;
+        Console.WriteLine($"{sixteenthRam}MB");
+        Console.WriteLine($"{sixteenthRam * 4}MB");
+        Console.WriteLine($"{Convert.ToInt32(0.0625 * ram)}MB");
+        Console.WriteLine($"{Convert.ToInt32(sixteenthRam / 48.0 * 1024)}kB");
 
         var pgServerSettings = new Dictionary<string, string>
         {
-            { "max_connections", "40" },
-            { "shared_buffers", "256MB" },
-            { "effective_cache_size", "768MB" },
-            { "maintenance_work_mem", "128MB" },
+            { "max_connections", "100" },
+            // Shared buffer is 1/16 of RAM
+            { "shared_buffers", $"{sixteenthRam}MB" },
+            // Effective cache size is 1/4 of RAM
+            { "effective_cache_size", $"{sixteenthRam * 4}MB" },
+            { "maintenance_work_mem", "64MB" },
             { "checkpoint_completion_target", "0.9" },
-            { "wal_buffers", "7864kB" },
-            { "default_statistics_target", "500" },
+            { "wal_buffers", $"16MB" },
+            { "default_statistics_target", "100" },
+            // Random page cost is 1 for SSD and 4 for HDD
             { "random_page_cost", "1.1" },
-            { "work_mem", "1638kB" },
+            // Work memory is 1/768 of RAM
+            { "work_mem", "4MB" },
             { "huge_pages", "off" },
-            { "min_wal_size", "4GB" },
-            { "max_wal_size", "16GB" },
+            { "min_wal_size", "100MB" },
+            { "max_wal_size", "2GB" },
+            { "wal_level", "minimal" },
+            { "max_wal_senders", "0" },
             { "max_worker_processes", Environment.ProcessorCount.ToString() },
-            { "max_parallel_workers_per_gather", (Environment.ProcessorCount / 2).ToString() },
+            { "max_parallel_workers_per_gather", "0" },
             { "max_parallel_workers", Environment.ProcessorCount.ToString() },
             { "max_parallel_maintenance_workers", (Environment.ProcessorCount / 2).ToString() }
         };
 
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-            pgServerSettings.Add("effective_io_concurrency", "200");
-
-        _server = new PgServer("16.6.0", Environment.UserName, EuropaFolder, Guid.Empty, pgServerParams: pgServerSettings);
+        _server = new PgServer("17.4.0", Environment.UserName, EuropaFolder, Guid.Empty,
+            pgServerParams: pgServerSettings);
         await _server.StartAsync(cancellationToken);
-        
+
         var extensionDir =
             Path.Combine(
 #pragma warning disable SYSLIB0044
                 Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase)![6..],
 #pragma warning restore SYSLIB0044
                 "Libs", "pgvector");
-        
+
         // Copy extension file to PostgreSQL
         Utils.CopyDirectory(Path.Combine(extensionDir, ExtensionsLocation),
             _server.DataDir.Replace("data", ExtensionsLocation), true);
@@ -114,5 +129,5 @@ public class DatabaseService : IHostedService, IConnectionStringBuilder
     }
 
     public string ConnectionString =>
-        $"Server=localhost;Port={_server.PgPort};User Id={_server.PgUser};Database={_server.PgDbName};Pooling=true;Maximum Pool Size=40;Tcp Keepalive=true;Timeout=1024;Command Timeout=0;Include Error Detail=true";
+        $"Server=localhost;Port={_server.PgPort};User Id={_server.PgUser};Database={_server.PgDbName};Pooling=true;Tcp Keepalive=true;Timeout=1024;Command Timeout=0;Enlist=false;Include Error Detail=true";
 }

@@ -1,7 +1,5 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using System.Text.Json;
-using Aelian.FFT;
 using Api.Client;
 using Api.Client.Repositories;
 using Api.Controllers;
@@ -19,6 +17,8 @@ using Core.Interfaces.SimilarImages;
 using FluentValidation;
 using Microsoft.AspNetCore.Http.Connections;
 using NetVips;
+using KFR.Entities;
+using KFR.Interfaces;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.NativeCodecs.Giflib;
 using PhotoSauce.NativeCodecs.Libheif;
@@ -30,7 +30,6 @@ using Sdcb.LibRaw;
 
 namespace Api;
 
-[SuppressMessage("ReSharper", "ClassNeverInstantiated.Global")]
 public class Program
 {
     public static void Main(string[] args)
@@ -79,39 +78,59 @@ public class Program
         services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Audios);
         services.AddKeyedTransient<IFileTypeIdentifier, FfMpegIdentifier>(FileSearchType.Audios);
 
+        // Register images processors
+        services.AddScoped<LibVipsImageProcessor>();
+        services.AddScoped<LibRawImageProcessor>();
+        services.AddScoped<MagicScalerImageProcessor>();
+
         // Register file type's identifiers for image search
         if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-            services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images);
-        services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images);
-        services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images);
+            services.AddKeyedScoped<IFileTypeIdentifier, MagicScalerImageProcessor>(FileSearchType.Images,
+                (provider, _) => provider.GetRequiredService<MagicScalerImageProcessor>());
+        services.AddKeyedScoped<IFileTypeIdentifier, LibRawImageProcessor>(FileSearchType.Images,
+            (provider, _) => provider.GetRequiredService<LibRawImageProcessor>());
+        services.AddKeyedScoped<IFileTypeIdentifier, LibVipsImageProcessor>(FileSearchType.Images,
+            (provider, _) => provider.GetRequiredService<LibVipsImageProcessor>());
 
-        // Register main thumbnail generators : these are to be used for libRaw only
-        services.AddKeyedTransient<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg);
-        services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap);
+        // Register the polar coordinates converter
+        services.AddScoped<IPolarCoordinatesConverter, LibVipsImageProcessor>(provider =>
+            provider.GetRequiredService<LibVipsImageProcessor>());
+
+        // For libRaw we must first register the main generators
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            services.AddKeyedScoped<IMainThumbnailGenerator, MagicScalerImageProcessor>(ProcessedImageType.Jpeg,
+                (provider, _) => provider.GetRequiredService<MagicScalerImageProcessor>());
+        else 
+            services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Jpeg,
+                (provider, _) => provider.GetRequiredService<LibVipsImageProcessor>());
+        services.AddKeyedScoped<IMainThumbnailGenerator, LibVipsImageProcessor>(ProcessedImageType.Bitmap,
+            (provider, _) => provider.GetRequiredService<LibVipsImageProcessor>());
 
         // Register thumbnail generators
-        services.AddKeyedScoped<IThumbnailGenerator, MagicScalerImageProcessor>(FileType.MagicScalerImage);
-        services.AddKeyedScoped<IThumbnailGenerator, LibRawImageProcessor>(FileType.LibRawImage);
-        services.AddKeyedScoped<IThumbnailGenerator, LibVipsImageProcessor>(FileType.LibVipsImage);
-        services.AddScoped<IThumbnailGeneratorResolver, ThumbnailGeneratorResolver>();
+        if (!RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+            services.AddKeyedScoped<IThumbnailGenerator, MagicScalerImageProcessor>(FileType.MagicScalerImage,
+                (provider, _) => provider.GetRequiredService<MagicScalerImageProcessor>());
+        services.AddKeyedScoped<IThumbnailGenerator, LibRawImageProcessor>(FileType.LibRawImage,
+            (provider, _) => provider.GetRequiredService<LibRawImageProcessor>());
+        services.AddKeyedScoped<IThumbnailGenerator, LibVipsImageProcessor>(FileType.LibVipsImage,
+            (provider, _) => provider.GetRequiredService<LibVipsImageProcessor>());
 
         // Dependencies for finding duplicates by cryptographic hash.
         services.AddScoped<IHashGenerator, HashGenerator>();
 
         // Dependencies for finding similar audio files.
-        FastFourierTransform.Initialize();
-        services.AddTransient<IAudioHashGenerator, AudioHashGenerator>();
+        services.AddScoped<IFftFactory, FftFactory>();
+        services.AddScoped<IAudioHashGenerator, AudioHashGenerator>();
 
         // Dependencies for finding similar image files.
-        services.AddScoped<CosineTransform>();
-        services.AddKeyedScoped<IImageHash, QDctHash>(PerceptualHashAlgorithm.QDctHash);
+        services.AddKeyedScoped<IImageHash, QDftHash>(PerceptualHashAlgorithm.QDftHash);
 
         // Create service for launching database
         services.AddSingleton<DatabaseService>();
         services.AddHostedService<DatabaseService>(p => p.GetRequiredService<DatabaseService>());
         services.AddSingleton<IConnectionStringBuilder>(p => p.GetRequiredService<DatabaseService>());
 
-        // Dependencies for Qdrant images database
+        // Dependencies for PostgreSQL image database
         services.AddKeyedScoped<ICollectionRepository, PgSqlImagesRepository>(FileSearchType.Images);
         services.AddKeyedScoped<IIndexingRepository, PgSqlImagesRepository>(FileSearchType.Images);
         services.AddScoped<IImageInfosRepository, PgSqlImagesRepository>();
@@ -157,6 +176,7 @@ public class Program
             codecs.UseLibjxl();
             codecs.UseLibpng();
             codecs.UseLibwebp();
+            // codecs.UseImageSharpTga();
         });
 
         app.UseCors(apiCorsPolicy);

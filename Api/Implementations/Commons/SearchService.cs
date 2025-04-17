@@ -13,20 +13,20 @@ public class SearchService(
     ISimilarFilesFinder similarImagesFinder)
     : ISearchService
 {
-    public async Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates,
+    public Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(List<string> hypotheticalDuplicates,
         FileSearchType searchType, decimal degreeOfSimilarity = 0, CancellationToken cancellationToken = default)
     {
         switch (searchType)
         {
             case FileSearchType.All:
-                return await duplicateByHashFinder.FindSimilarFilesAsync(hypotheticalDuplicates,
+                return duplicateByHashFinder.FindSimilarFilesAsync(hypotheticalDuplicates,
                     cancellationToken: cancellationToken);
             case FileSearchType.Audios:
-                return await similarAudiosFinder.FindSimilarFilesAsync(hypotheticalDuplicates, degreeOfSimilarity,
+                return similarAudiosFinder.FindSimilarFilesAsync(hypotheticalDuplicates, degreeOfSimilarity,
                     cancellationToken: cancellationToken);
             case FileSearchType.Images:
             default:
-                return await similarImagesFinder.FindSimilarFilesAsync(hypotheticalDuplicates, degreeOfSimilarity,
+                return similarImagesFinder.FindSimilarFilesAsync(hypotheticalDuplicates, degreeOfSimilarity,
                     cancellationToken);
         }
     }

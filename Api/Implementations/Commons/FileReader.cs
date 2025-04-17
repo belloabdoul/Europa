@@ -6,10 +6,10 @@ public static class FileReader
 {
     public static SafeFileHandle GetFileHandle(string path, bool sequential = false, bool isAsync = false)
     {
-        var options = FileOptions.None;
-        options |= sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess;
+        var fileOptions = FileOptions.None;
+        fileOptions |= sequential ? FileOptions.SequentialScan : FileOptions.RandomAccess;
         if (isAsync)
-            options |= FileOptions.Asynchronous;
-        return File.OpenHandle(path, options: options);
+            fileOptions |= FileOptions.Asynchronous;
+        return File.OpenHandle(path, FileMode.Open, FileAccess.Read, FileShare.Read, fileOptions);
     }
 }

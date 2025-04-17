@@ -9,7 +9,7 @@ namespace Api.Implementations.Commons;
 
 public class DirectoryReader(IHubContext<NotificationHub> notificationContext) : IDirectoryReader
 {
-    public async Task<string[]> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
+    public async Task<List<string>> GetAllFilesFromFolderAsync(SearchParameters searchParameters,
         CancellationToken cancellationToken)
     {
         var files = new List<string>();
@@ -51,7 +51,8 @@ public class DirectoryReader(IHubContext<NotificationHub> notificationContext) :
                     new Notification(NotificationType.Exception, ex.Message), cancellationToken);
             }
 
-        return files.ToArray();
+        files.TrimExcess();
+        return files;
     }
 
     public IEnumerable<string> GetFilesInFolder(string folder, long? minSize, long? maxSize,

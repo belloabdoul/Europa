@@ -7,20 +7,26 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Core", "Core\Core.csproj", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Api", "Api\Api.csproj", "{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KFR", "KFR\KFR.csproj", "{0191456E-D183-448C-8E3B-E5B2B2CB5609}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{05EDAF78-D40D-4C52-9802-87A365F4D712}.Debug|Any CPU.Build.0 = Release|Any CPU
 		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{A2F38FC7-D853-44C8-B546-9DA0842DCDF1}.Debug|Any CPU.Build.0 = Release|Any CPU
+		{0191456E-D183-448C-8E3B-E5B2B2CB5609}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0191456E-D183-448C-8E3B-E5B2B2CB5609}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0191456E-D183-448C-8E3B-E5B2B2CB5609}.Debug|Any CPU.ActiveCfg = Release|Any CPU
+		{0191456E-D183-448C-8E3B-E5B2B2CB5609}.Debug|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
