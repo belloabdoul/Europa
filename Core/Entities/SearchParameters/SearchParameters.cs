@@ -3,7 +3,7 @@
 public class SearchParameters
 {
     // The folders to process
-    public string[] Folders { get; init; } = [];
+    public HashSet<string> Folders { get; init; } = [];
 
     // The category of the files we will be processing
     public FileSearchType? FileSearchType { get; set; }

@@ -5,6 +5,6 @@ namespace Core.Interfaces.Commons;
 
 public interface ISearchService
 {
-    Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(string[] hypotheticalDuplicates, FileSearchType searchType,
+    Task<IEnumerable<IGrouping<byte[], File>>> SearchAsync(List<string> hypotheticalDuplicates, FileSearchType searchType,
         decimal degreeOfSimilarity = 0, CancellationToken cancellationToken = default);
 }

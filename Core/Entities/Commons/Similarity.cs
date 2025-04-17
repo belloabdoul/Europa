@@ -6,9 +6,9 @@ namespace Core.Entities.Commons;
 
 public readonly struct Similarity : IEquatable<Similarity>
 {
-    public byte[] OriginalId { get; init; }
+    public long OriginalId { get; init; }
 
-    public byte[] DuplicateId { get; init; }
+    public long DuplicateId { get; init; }
 
     public decimal Score { get; init; }
 
@@ -18,10 +18,11 @@ public readonly struct Similarity : IEquatable<Similarity>
     [SkipLocalsInit]
     public override int GetHashCode()
     {
-        Span<byte> hash = stackalloc byte[OriginalId.Length + DuplicateId.Length + sizeof(decimal)];
-        OriginalId.CopyTo(hash);
-        DuplicateId.CopyTo(hash[OriginalId.Length..]);
-        Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(hash[(OriginalId.Length + DuplicateId.Length)..]), Score);
+        Span<byte> hash = stackalloc byte[2 * sizeof(long) + sizeof(decimal)];
+        Unsafe.WriteUnaligned(ref MemoryMarshal.GetReference(hash), OriginalId);
+        Unsafe.WriteUnaligned(ref Unsafe.Add(ref MemoryMarshal.GetReference(hash), sizeof(long)), DuplicateId);
+        Unsafe.WriteUnaligned(ref Unsafe.Add(ref MemoryMarshal.GetReference(hash), 2 * sizeof(long)), Score);
+        // HashCode.Combine(OriginalId, DuplicateId, Score);
         return GxHash.GxHash.Hash32(hash, USeed);
     }
 
@@ -32,11 +33,7 @@ public readonly struct Similarity : IEquatable<Similarity>
 
     public bool Equals(Similarity other)
     {
-        return (ReferenceEquals(OriginalId, other.OriginalId) ||
-                OriginalId.AsSpan().SequenceEqual(other.OriginalId)) &&
-               (ReferenceEquals(DuplicateId, other.DuplicateId) ||
-                OriginalId.AsSpan().SequenceEqual(DuplicateId)) &&
-               Score == other.Score;
+        return OriginalId == other.OriginalId && DuplicateId == other.DuplicateId && Score == other.Score;
     }
 
     public static bool operator ==(Similarity left, Similarity right)
