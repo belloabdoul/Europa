@@ -49,7 +49,7 @@ export class SearchService {
       .withHubProtocol(new JsonHubProtocol())
       .withServerTimeout(this.keepAliveInterval)
       .withStatefulReconnect()
-      .configureLogging(LogLevel.Trace)
+      .configureLogging(LogLevel.Debug)
       .build();
 
     try {

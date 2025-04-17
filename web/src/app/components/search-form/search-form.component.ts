@@ -110,9 +110,11 @@ export class SearchFormComponent implements OnDestroy {
   }
 
   async selectDirectory(): Promise<void> {
-    let directory: string = await window.electronAPI?.selectDirectory();
-    if (directory != '' && !this.searchParameters.folders.includes(directory)) {
-      this.searchParameters.folders.push(directory);
+    let directories: string[] = await window.electronAPI?.selectDirectory();
+    if (directories.length != 0) {
+      var folders = new Set<string>(this.searchParameters.folders)
+      directories.forEach(directory => folders.add(directory))
+      this.searchParameters.folders = Array.from(folders);
       this.clearErrorMessages('folders');
       this.cd.markForCheck();
     }
