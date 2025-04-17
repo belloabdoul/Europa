@@ -1,29 +1,40 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Concurrent;
 using System.Drawing;
+using System.Numerics;
 using System.Numerics.Tensors;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Entities.Files;
 using Core.Entities.Images;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
+using DotNext;
 using PhotoSauce.MagicScaler;
 using PhotoSauce.MagicScaler.Transforms;
 using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
-public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
+public sealed class MagicScalerImageProcessor(IPolarCoordinatesConverter polarCoordinatesConverter)
+    : IFileTypeIdentifier, IThumbnailGenerator, IMainThumbnailGenerator
 {
     private static readonly IPixelTransform GreyPixelTransform = new FormatConversionTransform(PixelFormats.Grey8bpp);
     private static readonly IPixelTransform BgrPixelTransform = new FormatConversionTransform(PixelFormats.Bgr24bpp);
+    private static readonly IPixelTransform GaussianFilter = new GaussianBlurTransform(2);
 
-    private static readonly ProcessImageSettings ProcessImageSettings = new()
-    {
-        ColorProfileMode = ColorProfileMode.ConvertToSrgb, ResizeMode = CropScaleMode.Stretch,
-        OrientationMode = OrientationMode.Normalize, HybridMode = HybridScaleMode.FavorQuality, Sharpen = false
-    };
 
-    private static Rectangle _area = new(0, 0, 0, 0);
+    private static readonly IPixelTransform BgrToRgb =
+        new ColorMatrixTransform(new Matrix4x4
+        {
+            // R, G, B
+            M13 = 1.0f,
+            M22 = 1.0f,
+            M31 = 1.0f,
+            M44 = 1.0f
+        });
+
+    private readonly ConcurrentDictionary<Vector2, ProcessImageSettings> _processImageSettings = new();
+    private readonly ConcurrentDictionary<Vector2, Rectangle> _thumbnailSizes = new();
 
     public FileType GetFileType(string path)
     {
@@ -48,106 +59,99 @@ public class MagicScalerImageProcessor : IFileTypeIdentifier, IThumbnailGenerato
         return fileType;
     }
 
-    [SuppressMessage("ReSharper", "SwitchStatementHandlesSomeKnownEnumValuesWithDefault")]
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<float> pixels, ColorSpace colorSpace)
+    public Result<bool> GenerateThumbnail<T>(string imagePath, int width, int height, ColorSpace colorSpace,
+        bool inPolarCoordinates, Span<T> thumbnail) where T : struct, IBinaryFloatingPointIeee754<T>, IConvertible
     {
-        try
-        {
-            switch (colorSpace)
+        var expected = width * height * Unsafe.As<ColorSpace, int>(ref colorSpace);
+
+        if (expected == 0)
+            return new Result<bool>(new ArgumentOutOfRangeException(nameof(colorSpace), "Unexpected color space"));
+        if (thumbnail.Length < expected)
+            return new Result<bool>(new ArgumentOutOfRangeException(nameof(thumbnail),
+                $"Required thumbnail size {expected}, got {thumbnail.Length}"));
+
+        using var pipeline = MagicImageProcessor.BuildPipeline(imagePath, _processImageSettings.GetOrAdd(
+            Vector2.Create(width, height), _ => new ProcessImageSettings
             {
-                case ColorSpace.Grayscale when pixels.Length < width * height:
-                    throw new ArgumentException(
-                        $"Not enough space for thumbnail. Required buffer size is {width * height}",
-                        nameof(pixels));
-                case ColorSpace.Rgb when pixels.Length < width * height * 3:
-                    throw new ArgumentException(
-                        $"Not enough space for thumbnail. Required buffer size is {width * height * 3}",
-                        nameof(pixels));
-            }
+                Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
+                ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
+                HybridMode = HybridScaleMode.FavorSpeed
+            }));
 
-            if (_area.Width != width || _area.Height != height)
-            {
-                _area.Width = width;
-                _area.Height = height;
-
-                ProcessImageSettings.Width = _area.Width;
-                ProcessImageSettings.Height = _area.Height;
-
-                ProcessImageSettings.HybridMode = _area.Width * _area.Height > 65536
-                    ? HybridScaleMode.FavorSpeed
-                    : HybridScaleMode.FavorQuality;
-            }
-
-            using var pipeline = MagicImageProcessor.BuildPipeline(imagePath, ProcessImageSettings);
-
-            return GenerateThumbnail(pipeline, pixels, colorSpace);
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        return GenerateThumbnail(pipeline, width, height, colorSpace, inPolarCoordinates, thumbnail);
     }
 
-    public unsafe bool GenerateThumbnail(ProcessedImage image, int width, int height, Span<float> pixels,
-        ColorSpace colorSpace)
+    public unsafe Result<bool> GenerateThumbnail<T>(ProcessedImage image, int width, int height, ColorSpace colorSpace,
+        bool inPolarCoordinates, Span<T> thumbnail)
+        where T : struct, IBinaryFloatingPointIeee754<T>, IConvertible
     {
         using var stream = new UnmanagedMemoryStream((byte*)image.DataPointer.ToPointer(), image.DataSize);
-        
-        if (_area.Width != width || _area.Height != height)
-        {
-            _area.Width = width;
-            _area.Height = height;
-        
-            ProcessImageSettings.Width = _area.Width;
-            ProcessImageSettings.Height = _area.Height;
-        }
-        
-        using var pipeline = MagicImageProcessor.BuildPipeline(stream, ProcessImageSettings);
-        
-        return GenerateThumbnail(pipeline, pixels, colorSpace);
+
+        using var pipeline = MagicImageProcessor.BuildPipeline(stream, _processImageSettings.GetOrAdd(
+            Vector2.Create(width, height), _ => new ProcessImageSettings
+            {
+                Width = width, Height = height, ColorProfileMode = ColorProfileMode.ConvertToSrgb,
+                ResizeMode = CropScaleMode.Stretch, OrientationMode = OrientationMode.Normalize,
+                HybridMode = HybridScaleMode.FavorSpeed
+            }));
+
+        return GenerateThumbnail(pipeline, width, height, colorSpace, inPolarCoordinates, thumbnail);
     }
 
-    private static bool GenerateThumbnail(ProcessingPipeline imageProcessingPipeline, Span<float> pixels,
-        ColorSpace colorSpace)
+    private Result<bool> GenerateThumbnail<T>(ProcessingPipeline imageProcessingPipeline, int width, int height,
+        ColorSpace colorSpace, bool inPolarCoordinates, Span<T> thumbnail)
+        where T : struct, IBinaryFloatingPointIeee754<T>, IConvertible
     {
         try
         {
+            var stride = Unsafe.As<ColorSpace, int>(ref colorSpace) * width;
             if (colorSpace is ColorSpace.Grayscale)
             {
-                imageProcessingPipeline.AddTransform(GreyPixelTransform);
-                using var tempGrayPixels = SpanOwner<byte>.Allocate(_area.Width * _area.Height);
-                imageProcessingPipeline.PixelSource.CopyPixels(_area, _area.Width, tempGrayPixels.Span);
-
-                TensorPrimitives.ConvertChecked<byte, float>(tempGrayPixels.Span, pixels);
-
-                return true;
+                imageProcessingPipeline = imageProcessingPipeline.AddTransform(GreyPixelTransform);
             }
-
-            imageProcessingPipeline.AddTransform(BgrPixelTransform);
-            var stride = _area.Width * 3;
-
-            using var tempPixels = MemoryOwner<byte>.Allocate(stride * _area.Height);
-            imageProcessingPipeline.PixelSource.CopyPixels(_area, stride, tempPixels.Span);
-
-            // Swap from BGR to RGB since libvips only support RGB
-            for (var i = 0; i < tempPixels.Length; i += 3)
+            else
             {
-                (tempPixels.Span[i], tempPixels.Span[i + 2]) = (tempPixels.Span[i + 2], tempPixels.Span[i]);
+                imageProcessingPipeline = imageProcessingPipeline.AddTransform(BgrPixelTransform);
+                imageProcessingPipeline = imageProcessingPipeline.AddTransform(BgrToRgb);
             }
 
-            var imageSize = _area.Width * _area.Height;
-            for (var i = 0; i < tempPixels.Length; i+= 3)
-            {
-                pixels[i / 3] = tempPixels.Span[i];
-                pixels[imageSize + i / 3] = tempPixels.Span[i + 1];
-                pixels[2 * imageSize + i / 3] = tempPixels.Span[i + 2];
-            }
+            imageProcessingPipeline = imageProcessingPipeline.AddTransform(GaussianFilter);
 
+            var imageSize = stride * height;
+            using var tempImage = MemoryOwner<byte>.Allocate(imageSize);
+            imageProcessingPipeline.PixelSource.CopyPixels(
+                _thumbnailSizes.GetOrAdd(Vector2.Create(width, height), _ => new Rectangle(0, 0, width, height)),
+                stride, tempImage.Span);
+
+            return !inPolarCoordinates
+                ? SplitImageAsSpecifiedFloatChannels(tempImage.Span[..imageSize], thumbnail[..imageSize], colorSpace)
+                : polarCoordinatesConverter.ConvertToPolarCoordinates(tempImage.Span[..imageSize],
+                    thumbnail[..imageSize], width, height, colorSpace);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+            return new Result<bool>(e);
+        }
+    }
+
+    private static bool SplitImageAsSpecifiedFloatChannels<T>(ReadOnlySpan<byte> input, Span<T> output,
+        ColorSpace colorSpace)  where T : struct, IBinaryFloatingPointIeee754<T>, IConvertible
+    {
+        if (colorSpace is ColorSpace.Grayscale)
+        {
+            TensorPrimitives.ConvertChecked(input, output);
             return true;
         }
-        catch (Exception)
+
+        // Since MagicScaler use BGR, swap the red and blue channels to get RGB
+        var length = input.Length / 3;
+        for (var i = 0; i < length; i += 3)
         {
-            return false;
+            (output[i], output[length + i], output[2 * length + i]) = (T.CreateChecked(input[i]),
+                T.CreateChecked(input[i + 1]), T.CreateChecked(input[i + 2]));
         }
+
+        return true;
     }
 }

@@ -1,13 +1,15 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Numerics;
+using System.Runtime.CompilerServices;
 using Core.Entities.Files;
 using Core.Entities.Images;
 using Core.Interfaces.Commons;
 using Core.Interfaces.SimilarImages;
+using DotNext;
 using Sdcb.LibRaw;
 
 namespace Api.Implementations.SimilarImages.ImageProcessors;
 
-public class LibRawImageProcessor(IServiceProvider serviceProvider) : IFileTypeIdentifier, IThumbnailGenerator
+public sealed class LibRawImageProcessor(IServiceProvider serviceProvider) : IFileTypeIdentifier, IThumbnailGenerator
 {
     public FileType GetFileType(string path)
     {
@@ -22,35 +24,21 @@ public class LibRawImageProcessor(IServiceProvider serviceProvider) : IFileTypeI
         }
     }
 
-    [SuppressMessage("ReSharper", "SwitchStatementHandlesSomeKnownEnumValuesWithDefault")]
-    public bool GenerateThumbnail(string imagePath, int width, int height, Span<float> pixels, ColorSpace colorSpace)
+    public Result<bool> GenerateThumbnail<T>(string imagePath, int width, int height, ColorSpace colorSpace,
+        bool inPolarCoordinates, Span<T> thumbnail) where T : struct, IBinaryFloatingPointIeee754<T>, IConvertible
     {
-        switch (colorSpace)
-        {
-            case ColorSpace.Grayscale when pixels.Length < width * height:
-                throw new ArgumentException($"Not enough space for thumbnail. Required buffer size is {width * height}",
-                    nameof(pixels));
-            case ColorSpace.Rgb when pixels.Length < width * height * 3:
-                throw new ArgumentException(
-                    $"Not enough space for thumbnail. Required buffer size is {width * height * 3}", nameof(pixels));
-        }
+        var expected = width * height * Unsafe.As<ColorSpace, int>(ref colorSpace);
+
+        if (expected == 0)
+            return new Result<bool>(new ArgumentOutOfRangeException(nameof(colorSpace), "Unexpected color space"));
+        if (thumbnail.Length < expected)
+            return new Result<bool>(new ArgumentOutOfRangeException(nameof(thumbnail),
+                $"Required thumbnail size {expected}, got {thumbnail.Length}"));
 
         using var context = RawContext.OpenFile(imagePath);
-        try
-        {
-            using var image = context.ExportThumbnail();
+        using var image = context.ExportThumbnail();
 
-            var thumbnailGenerator = serviceProvider.GetRequiredKeyedService<IMainThumbnailGenerator>(image.ImageType);
-            ArgumentNullException.ThrowIfNull(thumbnailGenerator);
-            return thumbnailGenerator.GenerateThumbnail(image, width, height, pixels, colorSpace);
-        }
-        catch (InvalidOperationException)
-        {
-            throw;
-        }
-        catch (Exception)
-        {
-            return false;
-        }
+        return serviceProvider.GetRequiredKeyedService<IMainThumbnailGenerator>(image.ImageType).GenerateThumbnail(
+            image, width, height, colorSpace, inPolarCoordinates, thumbnail);
     }
 }
