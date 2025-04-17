@@ -2,5 +2,10 @@
 
 public interface ICollectionRepository
 {
-    ValueTask CreateCollectionAsync(string collectionName, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Create the tables needed for this repository's implementation
+    /// </summary>
+    /// <param name="cancellationToken">cancellationToken — An optional token to cancel the asynchronous operation. The default value is None.</param>
+    /// <returns></returns>
+    Task CreateTablesAsync(CancellationToken cancellationToken = default);
 }

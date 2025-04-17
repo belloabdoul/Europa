@@ -1,17 +1,18 @@
 ﻿using Core.Entities.Commons;
-using Swordfish.NET.Collections;
+using Core.Entities.Images;
+using ToolBX.Collections.ObservableDictionary;
 
 namespace Api.Client.Repositories;
 
 public interface ISimilarImagesRepository
 {
-    ValueTask<ConcurrentObservableDictionary<byte[], Similarity>> GetExistingSimilaritiesForImage(string collectionName,
-        byte[] currentGroupId, CancellationToken cancellationToken = default);
-
-    ValueTask<IEnumerable<KeyValuePair<byte[], Similarity>>> GetSimilarImages(string collectionName, byte[] id,
-        ReadOnlyMemory<Half> imageHash, decimal degreeOfSimilarity, ICollection<byte[]> groupsAlreadyDone,
+    ValueTask<ObservableDictionary<long, Similarity>> GetExistingSimilaritiesForImage(long currentGroupId,
         CancellationToken cancellationToken = default);
 
-    ValueTask<bool> LinkToSimilarImagesAsync(string collectionName, byte[] id, ICollection<Similarity> newSimilarities,
+    IAsyncEnumerable<KeyValuePair<long, Similarity>> GetSimilarImages(long id,
+        BitArray imageHash, decimal degreeOfSimilarity, IList<long> groupsAlreadyDone,
+        CancellationToken cancellationToken = default);
+
+    ValueTask<bool> LinkToSimilarImagesAsync(long id, ICollection<Similarity> newSimilarities,
         CancellationToken cancellationToken = default);
 }
