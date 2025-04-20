@@ -1,6 +1,6 @@
 ﻿using KFR.Interfaces;
 
-namespace KFR.Entities;
+namespace KFR.Entities.Fft;
 
 public sealed class DoubleFft(int rows, int columns) : IFft<double>
 {

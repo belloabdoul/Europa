@@ -1,7 +1,7 @@
 ﻿using System.Numerics;
 using KFR.Interfaces;
 
-namespace KFR.Entities;
+namespace KFR.Entities.Fft;
 
 public sealed class ComplexFft(int rows, int columns) : IFft<Complex>
 {

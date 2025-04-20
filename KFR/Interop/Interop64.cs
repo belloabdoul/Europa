@@ -7,10 +7,70 @@ namespace KFR.Interop;
 internal static partial class Interop64
 {
     private const string KfrLib = "kfr_capi";
-    
+
     [LibraryImport(KfrLib, EntryPoint = "kfr_allocated_size")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
     internal static partial nint kfr_allocated_size(nuint plan);
+
+    #region Float DCT
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_create_plan_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial nuint kfr_dct_create_plan_f32(nint size);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_delete_plan_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_delete_plan_f32(nuint plan);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_dump_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_dump_f32(nuint plan);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_execute_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void
+        kfr_dct_execute_f32(nuint plan, Span<float> output, Span<float> input, Span<byte> temp);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_execute_inverse_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_execute_inverse_f32(nuint plan, Span<float> output, Span<float> input,
+        Span<byte> temp);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_get_temp_size_f32")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial nint kfr_dct_get_temp_size_f32(nuint plan);
+
+    #endregion
+
+    #region Double DCT
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_create_plan_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial nuint kfr_dct_create_plan_f64(nint size);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_delete_plan_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_delete_plan_f64(nuint plan);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_dump_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_dump_f64(nuint plan);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_execute_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void
+        kfr_dct_execute_f64(nuint plan, Span<double> output, Span<double> input, Span<byte> temp);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_execute_inverse_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial void kfr_dct_execute_inverse_f64(nuint plan, Span<double> output, Span<double> input,
+        Span<byte> temp);
+
+    [LibraryImport(KfrLib, EntryPoint = "kfr_dct_get_temp_size_f64")]
+    [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]
+    internal static partial nint kfr_dct_get_temp_size_f64(nuint plan);
+
+    #endregion
 
     #region Float DFT common operations
 
@@ -38,7 +98,7 @@ internal static partial class Interop64
 
     #endregion
 
-    #region Float DFT plans
+    #region Float DFT 1D and 2D plans
 
     [LibraryImport(KfrLib, EntryPoint = "kfr_dft_real_create_plan_f32")]
     [UnmanagedCallConv(CallConvs = [typeof(CallConvCdecl)])]

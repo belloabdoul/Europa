@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using KFR.Interop;
 
-namespace KFR.Entities;
+namespace KFR.Entities.Fft;
 
 public sealed class KfrFft<T>(int rows, int columns)
     : IDisposable where T : struct
