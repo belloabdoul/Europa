@@ -1,0 +1,3 @@
+[submodule "OpenJPEG.net"]
+	path = OpenJPEG.net
+	url = https://github.com/belloabdoul/OpenJPEG.net
