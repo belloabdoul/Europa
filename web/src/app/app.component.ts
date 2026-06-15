@@ -29,29 +29,28 @@ declare global {
 }
 
 @Component({
-  selector: 'app-root',
-  templateUrl: 'app.component.html',
-  styleUrls: ['app.component.scss'],
-  standalone: true,
-  imports: [
-    IonRow,
-    IonGrid,
-    IonIcon,
-    IonButton,
-    IonTitle,
-    IonToolbar,
-    IonHeader,
-    IonRouterOutlet,
-    IonApp,
-    IonSplitPane,
-    IonMenu,
-    IonContent,
-    SearchFormComponent,
-    ResultsComponent,
-    ProgressComponent,
-    IonMenuToggle,
-    ErrorComponent,
-  ],
+    selector: 'app-root',
+    templateUrl: 'app.component.html',
+    styleUrls: ['app.component.scss'],
+    imports: [
+        IonRow,
+        IonGrid,
+        IonIcon,
+        IonButton,
+        IonTitle,
+        IonToolbar,
+        IonHeader,
+        IonRouterOutlet,
+        IonApp,
+        IonSplitPane,
+        IonMenu,
+        IonContent,
+        SearchFormComponent,
+        ResultsComponent,
+        ProgressComponent,
+        IonMenuToggle,
+        ErrorComponent,
+    ]
 })
 export class AppComponent {
   public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];

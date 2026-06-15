@@ -27,24 +27,23 @@ import { alert, close } from 'ionicons/icons';
 import { addIcons } from 'ionicons';
 
 @Component({
-  selector: 'app-error',
-  templateUrl: './error.component.html',
-  styleUrls: ['./error.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [
-    IonLabel,
-    IonList,
-    IonInput,
-    IonItem,
-    IonContent,
-    IonPopover,
-    IonButton,
-    IonIcon,
-    MatTooltip,
-    ScrollingModule,
-    CommonModule,
-  ],
+    selector: 'app-error',
+    templateUrl: './error.component.html',
+    styleUrls: ['./error.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [
+        IonLabel,
+        IonList,
+        IonInput,
+        IonItem,
+        IonContent,
+        IonPopover,
+        IonButton,
+        IonIcon,
+        MatTooltip,
+        ScrollingModule,
+        CommonModule,
+    ]
 })
 export class ErrorComponent implements OnInit, OnDestroy {
   errorSubsription: Subscription | undefined;

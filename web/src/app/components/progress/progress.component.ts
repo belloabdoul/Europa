@@ -19,12 +19,11 @@ import {
 import { AsyncPipe } from '@angular/common';
 
 @Component({
-  selector: 'app-progress',
-  templateUrl: './progress.component.html',
-  styleUrls: ['./progress.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [IonCol, IonGrid, IonRow, IonFooter, IonToolbar, AsyncPipe],
+    selector: 'app-progress',
+    templateUrl: './progress.component.html',
+    styleUrls: ['./progress.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [IonCol, IonGrid, IonRow, IonFooter, IonToolbar, AsyncPipe]
 })
 export class ProgressComponent implements OnInit, OnDestroy {
   // Each step message and its progress in number of hashes processed
