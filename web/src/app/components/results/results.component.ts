@@ -15,8 +15,8 @@ import {
   IonCheckbox,
 } from '@ionic/angular/standalone';
 import { Subscription } from 'rxjs';
-import { File } from 'src/app/shared/models/file';
-import { SearchService } from 'src/app/shared/services/search/search.service';
+import { File } from '../../shared/models/file';
+import { SearchService } from '../../shared/services/search/search.service';
 import { addIcons } from 'ionicons';
 import { folderOpen, apps } from 'ionicons/icons';
 import { CdkMenu, CdkMenuItem, CdkContextMenuTrigger } from '@angular/cdk/menu';
