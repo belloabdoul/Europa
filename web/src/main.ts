@@ -14,7 +14,7 @@ import {
 import { routes } from './app/app.routes';
 import { AppComponent } from './app/app.component';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withXhr } from '@angular/common/http';
 
 bootstrapApplication(AppComponent, {
   providers: [
@@ -22,6 +22,6 @@ bootstrapApplication(AppComponent, {
     provideIonicAngular(),
     provideRouter(routes, withPreloading(PreloadAllModules)),
     provideAnimationsAsync(),
-    provideHttpClient(),
+    provideHttpClient(withXhr()),
   ],
 });
