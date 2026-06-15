@@ -2,9 +2,9 @@
 
 public interface IIndexingRepository
 {
-    ValueTask DisableIndexingAsync(CancellationToken cancellationToken);
+    ValueTask DisableIndexingAsync(CancellationToken cancellationToken = default);
 
-    ValueTask EnableIndexingAsync(CancellationToken cancellationToken);
+    ValueTask EnableIndexingAsync(CancellationToken cancellationToken = default);
     
-    ValueTask<bool> IsIndexingDoneAsync(CancellationToken cancellationToken);
+    ValueTask<bool> IsIndexingDoneAsync(CancellationToken cancellationToken = default);
 }

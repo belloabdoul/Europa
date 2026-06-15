@@ -1,48 +1,57 @@
-﻿using System.Runtime.CompilerServices;
-using Core.Interfaces;
-using Microsoft.Win32.SafeHandles;
+﻿using System.Buffers;
+using Api.Implementations.Commons;
 using Blake3;
 using CommunityToolkit.HighPerformance.Buffers;
 using Core.Interfaces.Commons;
+using Microsoft.Win32.SafeHandles;
 
 namespace Api.Implementations.DuplicatesByHash;
 
-public class HashGenerator : IHashGenerator
+public sealed class HashGenerator : IHashGenerator
 {
-    private const int MinSizeForMultiThreading = 131072;
+    private const int MinBufferSizeForMultiThreading = 131_072;
 
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    public async ValueTask<byte[]?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash,
+    private readonly ArrayPool<byte> _pool =
+        ArrayPool<byte>.Create(MinBufferSizeForMultiThreading, Environment.ProcessorCount);
+    
+    public ValueTask<byte[]> GenerateHashAsync(string hypotheticalDuplicate,
+        Func<long, long> getFileLengthToHashFunction, CancellationToken cancellationToken = default)
+    {
+        var fileHandle = FileReader.GetFileHandle(hypotheticalDuplicate, true, true);
+        var lengthToHash = getFileLengthToHashFunction(RandomAccess.GetLength(fileHandle));
+
+        return lengthToHash == 0
+            ? ValueTask.FromResult(Array.Empty<byte>())
+            : GenerateHashAsyncCore(fileHandle, lengthToHash, _pool, cancellationToken);
+    }
+
+    private static async ValueTask<byte[]> GenerateHashAsyncCore(SafeFileHandle fileHandle, long lengthToHash, ArrayPool<byte> arrayPool,
         CancellationToken cancellationToken)
     {
-        if (bytesToHash == 0)
-            return null;
-
-        var buffer = MemoryOwner<byte>.Allocate(bytesToHash >= MinSizeForMultiThreading
-            ? MinSizeForMultiThreading
-            : (int)bytesToHash);
-
-        using var hasher = Hasher.New();
-
-        var bytesHashed = 0L;
-
-        while (bytesHashed < bytesToHash)
+        var rentedBuffer = MemoryOwner<byte>.Allocate(MinBufferSizeForMultiThreading, arrayPool);
+        try
         {
-            var remainingToHash = bytesToHash - bytesHashed;
-            if (remainingToHash < buffer.Length)
-                buffer = buffer[..(int)remainingToHash];
-            
-            var bytesRead = await RandomAccess.ReadAsync(fileHandle, buffer.Memory, bytesHashed,cancellationToken);
-            
-            if (bytesRead == MinSizeForMultiThreading)
-                hasher.UpdateWithJoin(buffer.Span);
-            else
-                hasher.Update(buffer.Span);
-            
-            bytesHashed += bytesRead;
-        }
+            using var hasher = Hasher.New();
+            using var handle = fileHandle;
 
-        buffer.Dispose();
-        return hasher.Finalize().AsSpan().ToArray();
+            var bytesRead = 0L;
+            do
+            {
+                rentedBuffer = rentedBuffer[..Convert.ToInt32(long.Min(lengthToHash - bytesRead,
+                    MinBufferSizeForMultiThreading))];
+                bytesRead +=
+                    await RandomAccess.ReadAsync(handle, rentedBuffer.Memory, bytesRead, cancellationToken);
+                hasher.Update(rentedBuffer.Span);
+            } while (bytesRead < lengthToHash);
+
+
+            var hash = GC.AllocateUninitializedArray<byte>(32);
+            hasher.Finalize(hash);
+            return hash;
+        }
+        finally
+        {
+            rentedBuffer.Dispose();
+        }
     }
 }

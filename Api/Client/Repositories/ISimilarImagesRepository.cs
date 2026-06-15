@@ -1,19 +1,18 @@
-﻿using System.Collections;
+﻿using Core.Entities.Commons;
 using Core.Entities.Images;
-using Core.Entities.SearchParameters;
-using NSwag.Collections;
+using ToolBX.Collections.ObservableDictionary;
 
 namespace Api.Client.Repositories;
 
 public interface ISimilarImagesRepository
 {
-    ValueTask<ObservableDictionary<byte[], byte>?> GetSimilarImagesAlreadyDoneInRange(byte[] currentGroupId,
-        PerceptualHashAlgorithm perceptualHashAlgorithm);
+    ValueTask<ObservableDictionary<long, Similarity>> GetExistingSimilaritiesForImage(long currentGroupId,
+        CancellationToken cancellationToken = default);
 
-    ValueTask<Similarity[]> GetSimilarImages(byte[] id, BitArray imageHash,
-        PerceptualHashAlgorithm perceptualHashAlgorithm, int hashSize, int degreeOfSimilarity,
-        ICollection<byte[]> groupsAlreadyDone);
+    IAsyncEnumerable<KeyValuePair<long, Similarity>> GetSimilarImages(long id,
+        BitArray imageHash, decimal degreeOfSimilarity, IList<long> groupsAlreadyDone,
+        CancellationToken cancellationToken = default);
 
-    ValueTask<bool> LinkToSimilarImagesAsync(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm,
-        Similarity[] newSimilarities);
+    ValueTask<bool> LinkToSimilarImagesAsync(long id, ICollection<Similarity> newSimilarities,
+        CancellationToken cancellationToken = default);
 }

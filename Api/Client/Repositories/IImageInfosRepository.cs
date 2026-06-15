@@ -1,14 +1,10 @@
-﻿using System.Collections;
-using Core.Entities.Images;
-using Core.Entities.SearchParameters;
+﻿using Core.Entities.Images;
 
 namespace Api.Client.Repositories;
 
 public interface IImageInfosRepository
 {
-    ValueTask<BitArray?> GetImageInfos(byte[] id, PerceptualHashAlgorithm perceptualHashAlgorithm);
+    ValueTask<ImageInfos> GetImageInfos(byte[] id, CancellationToken cancellationToken = default);
 
-    ValueTask<bool> InsertImageInfos(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm);
-
-    ValueTask<bool> AddImageHash(ImagesGroup group, PerceptualHashAlgorithm perceptualHashAlgorithm);
+    ValueTask<long> InsertImageInfos(ImagesGroup group, CancellationToken cancellationToken = default);
 }

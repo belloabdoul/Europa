@@ -1,8 +1,7 @@
-﻿using Microsoft.Win32.SafeHandles;
-
-namespace Core.Interfaces.Commons;
+﻿namespace Core.Interfaces.Commons;
 
 public interface IHashGenerator
 {
-    ValueTask<byte[]?> GenerateHash(SafeFileHandle fileHandle, long bytesToHash, CancellationToken cancellationToken);
+    ValueTask<byte[]> GenerateHashAsync(string hypotheticalDuplicate, Func<long, long> getFileLengthToHashFunction,
+        CancellationToken cancellationToken = default);
 }

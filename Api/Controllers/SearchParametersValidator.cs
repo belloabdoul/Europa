@@ -1,7 +1,4 @@
-﻿using Core.Entities;
-using Core.Entities.Files;
-using Core.Entities.Images;
-using Core.Entities.SearchParameters;
+﻿using Core.Entities.SearchParameters;
 using FluentValidation;
 
 namespace Api.Controllers;
@@ -17,19 +14,14 @@ public class SearchParametersValidator : AbstractValidator<SearchParameters>
             .WithMessage("The search type is required")
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.FileSearchType)));
 
-        RuleFor(searchParameters => searchParameters.PerceptualHashAlgorithm).NotEmpty()
-            .WithMessage("The perceptual hash algorithm is required").When(searchParameters =>
-                searchParameters.FileSearchType == FileSearchType.Images)
-            .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.PerceptualHashAlgorithm)));
-        
+        // RuleFor(searchParameters => searchParameters.PerceptualHashAlgorithm).NotEmpty()
+        //     .WithMessage("The perceptual hash algorithm is required").When(searchParameters =>
+        //         searchParameters.FileSearchType == FileSearchType.Images)
+        //     .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.PerceptualHashAlgorithm)));
+        //
         RuleFor(searchParameters => searchParameters.DegreeOfSimilarity)
             .NotEmpty().WithMessage("The degree of similarity is required").When(searchParameters =>
-                searchParameters.FileSearchType == FileSearchType.Images)
-            .LessThanOrEqualTo(64).WithMessage("The degree of similarity must be less than 64").When(
-                searchParameters => searchParameters.PerceptualHashAlgorithm is PerceptualHashAlgorithm.DifferenceHash
-                    or PerceptualHashAlgorithm.PerceptualHash)
-            .LessThanOrEqualTo(256).WithMessage("The degree of similarity must be less than 256").When(
-                searchParameters => searchParameters.PerceptualHashAlgorithm is PerceptualHashAlgorithm.BlockMeanHash)
+                searchParameters.FileSearchType is FileSearchType.Images or FileSearchType.Audios)
             .OverridePropertyName(LowerCaseFirstLetter(nameof(SearchParameters.DegreeOfSimilarity)));
 
         RuleFor(searchParameters => searchParameters.MinSize)

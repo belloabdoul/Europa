@@ -1,32 +1,26 @@
 ﻿// ReSharper disable UnusedAutoPropertyAccessor.Global
 
+using System.Diagnostics.CodeAnalysis;
+
 namespace Core.Entities.Files;
 
-public class FileDto
+[SuppressMessage("ReSharper", "UnusedMember.Global")]
+public class FileDto(string name, string type, string path, long size, DateTime dateModified)
 {
-    public FileDto(string name, string type, string path, long size, DateTime dateModified)
-    {
-        Name = name;
-        Type = type;
-        Path = path;
-        Size = size;
-        DateModified = dateModified;
-    }
-
     // Name of the file
-    public string Name { get; set; }
+    public string Name { get; set; } = name;
 
     // Type of the file
-    public string Type { get; set; }
+    public string Type { get; set; } = type;
 
     // The full path to the file
-    public string Path { get; }
+    public string Path { get; } = path;
 
     // Size of the file
-    public long Size { get; set; }
+    public long Size { get; set; } = size;
 
     // The last time the file has been modified
-    public DateTime DateModified { get; set; }
+    public DateTime DateModified { get; set; } = dateModified;
 }
 
 public static class FileDtoMapping

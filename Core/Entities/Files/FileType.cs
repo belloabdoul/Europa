@@ -6,7 +6,10 @@ public enum FileType
     MagicScalerImage,
     LibRawImage,
     LibVipsImage,
+    PFimImage,
+    CsJ2KImage,
     Audio,
+    AudioVideo,
     Video,
     File,
     CorruptUnknownOrUnsupported

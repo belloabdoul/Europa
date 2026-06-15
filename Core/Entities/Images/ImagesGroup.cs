@@ -1,27 +1,25 @@
-using System.Collections;
 using System.Collections.Concurrent;
+using Core.Entities.Commons;
 using Core.Entities.Files;
-using NSwag.Collections;
+using ToolBX.Collections.ObservableDictionary;
 
 namespace Core.Entities.Images;
 
 public class ImagesGroup
 {
-    public byte[] Id { get; set; }
+    public long Id { get; set; }
+
+    public byte[] FileHash { get; set; } = [];
 
     public FileType FileType { get; set; }
-
-    public bool IsCorruptedOrUnsupported { get; set; }
 
     public long Size { get; set; }
 
     public DateTime DateModified { get; set; }
-    
-    public BitArray? ImageHash { get; set; }
+
+    public BitArray? Hash { get; set; } = new(0, []);
 
     public ConcurrentStack<string> Duplicates { get; } = [];
-    
-    public ObservableDictionary<byte[], byte>? SimilarImages { get; set; } = [];
 
-    public Similarity[] Similarities { get; set; } = [];
+    public ObservableDictionary<long, Similarity> Matches { get; set; } = [];
 }

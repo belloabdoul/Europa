@@ -71,14 +71,11 @@ try {
   app.on('ready', () =>
     setTimeout(function () {
       // Launch the os folder chooser
-      ipcMain.handle('dialog:selectDirectory', () => {
-        const filePaths = dialog.showOpenDialogSync({
-          properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent'],
+      ipcMain.handle('dialog:selectDirectory', async () => {
+        const result = await dialog.showOpenDialog({
+          properties: ['openDirectory', 'showHiddenFiles', 'dontAddToRecent', 'multiSelections'],
         });
-        if (typeof filePaths != 'undefined') {
-          return filePaths[0];
-        }
-        return '';
+        return result.filePaths;
       });
 
       // Open the file in the default application

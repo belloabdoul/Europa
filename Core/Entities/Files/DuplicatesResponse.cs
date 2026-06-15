@@ -2,7 +2,7 @@
 
 public class DuplicatesResponse
 {
-    public List<List<FileDto>>? DuplicatesGroups { get; set; }
+    public List<List<FileDto>> DuplicatesGroups { get; set; } = [];
 }
 
 public static class DuplicatesResponseMapping
