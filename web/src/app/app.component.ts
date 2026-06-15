@@ -20,7 +20,7 @@ import { ProgressComponent } from './components/progress/progress.component';
 import { addIcons } from 'ionicons';
 import { close, menu } from 'ionicons/icons';
 import { ErrorComponent } from './components/error/error.component';
-import { IElectronAPI } from 'interface';
+import { IElectronAPI } from '../../interface';
 
 declare global {
   interface Window {

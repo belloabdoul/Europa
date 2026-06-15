@@ -6,9 +6,10 @@ import {
   OnInit,
 } from '@angular/core';
 import { BehaviorSubject, Observable, Subscription } from 'rxjs';
-import { FileSearchType } from 'src/app/shared/models/file-search-type';
-import { NotificationType } from 'src/app/shared/models/notification-type';
-import { SearchService } from 'src/app/shared/services/search/search.service';
+import { FileSearchType } from '../../shared/models/file-search-type';
+import { Notification } from '../../shared/models/notification';
+import { NotificationType } from '../../shared/models/notification-type';
+import { SearchService } from '../../shared/services/search/search.service';
 import {
   IonToolbar,
   IonFooter,
@@ -17,6 +18,7 @@ import {
   IonCol,
 } from '@ionic/angular/standalone';
 import { AsyncPipe } from '@angular/common';
+import { SearchParameters } from '../../shared/models/search-parameters';
 
 @Component({
     selector: 'app-progress',
@@ -62,7 +64,7 @@ export class ProgressComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.searchParametersSubscription =
-      this.searchService.searchParameters$.subscribe((searchParameters) => {
+      this.searchService.searchParameters$.subscribe((searchParameters: SearchParameters | null) => {
         if (searchParameters == null) {
           this.step1Text.next('Search cancelled');
         } else if (searchParameters.fileSearchType == FileSearchType.All) {
@@ -85,7 +87,7 @@ export class ProgressComponent implements OnInit, OnDestroy {
       });
 
     this.notificationSubscription = this.searchService.notification$.subscribe(
-      (notification) => {
+      (notification: Notification) => {
         if (notification.type == NotificationType.HashGenerationProgress)
           this.step1Progress.next(notification.result);
         else if (notification.type == NotificationType.SimilaritySearchProgress)

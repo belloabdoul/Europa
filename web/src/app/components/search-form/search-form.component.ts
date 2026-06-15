@@ -24,8 +24,8 @@ import {
 } from '@ionic/angular/standalone';
 import { FormsModule } from '@angular/forms';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FileSearchType } from 'src/app/shared/models/file-search-type';
-import { SearchParameters } from 'src/app/shared/models/search-parameters';
+import { FileSearchType } from '../../shared/models/file-search-type';
+import { SearchParameters } from '../../shared/models/search-parameters';
 import { addIcons } from 'ionicons';
 import {
   add,
@@ -36,12 +36,12 @@ import {
   ban,
   search,
 } from 'ionicons/icons';
-import { SearchService } from 'src/app/shared/services/search/search.service';
+import { SearchService } from '../../shared/services/search/search.service';
 import { CommonModule, KeyValuePipe } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { File } from 'src/app/shared/models/file';
-import { SearchParametersErrors } from 'src/app/shared/models/search-parameters-errors';
-import { PerceptualHashAlgorithm } from 'src/app/shared/models/perceptual-hash-algorithm';
+import { File } from '../../shared/models/file';
+import { SearchParametersErrors } from '../../shared/models/search-parameters-errors';
+import { PerceptualHashAlgorithm } from '../../shared/models/perceptual-hash-algorithm';
 
 @Component({
     selector: 'app-search-form',
