@@ -25,25 +25,24 @@ import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
 @Component({
-  selector: 'app-results',
-  templateUrl: './results.component.html',
-  styleUrls: ['./results.component.scss'],
-  standalone: true,
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [
-    IonCheckbox,
-    IonGrid,
-    IonIcon,
-    IonLabel,
-    IonRow,
-    IonCol,
-    CdkMenu,
-    CdkMenuItem,
-    CdkContextMenuTrigger,
-    ScrollingModule,
-    FormsModule,
-    DatePipe,
-  ],
+    selector: 'app-results',
+    templateUrl: './results.component.html',
+    styleUrls: ['./results.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [
+        IonCheckbox,
+        IonGrid,
+        IonIcon,
+        IonLabel,
+        IonRow,
+        IonCol,
+        CdkMenu,
+        CdkMenuItem,
+        CdkContextMenuTrigger,
+        ScrollingModule,
+        FormsModule,
+        DatePipe,
+    ]
 })
 export class ResultsComponent implements OnInit, OnDestroy {
   // The list of similar files found
