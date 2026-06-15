@@ -9,8 +9,9 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
-import { NotificationType } from 'src/app/shared/models/notification-type';
-import { SearchService } from 'src/app/shared/services/search/search.service';
+import { Notification } from '../../shared/models/notification';
+import { NotificationType } from '../../shared/models/notification-type';
+import { SearchService } from '../../shared/services/search/search.service';
 import {
   IonButton,
   IonIcon,
@@ -27,24 +28,23 @@ import { alert, close } from 'ionicons/icons';
 import { addIcons } from 'ionicons';
 
 @Component({
-  selector: 'app-error',
-  templateUrl: './error.component.html',
-  styleUrls: ['./error.component.scss'],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  standalone: true,
-  imports: [
-    IonLabel,
-    IonList,
-    IonInput,
-    IonItem,
-    IonContent,
-    IonPopover,
-    IonButton,
-    IonIcon,
-    MatTooltip,
-    ScrollingModule,
-    CommonModule,
-  ],
+    selector: 'app-error',
+    templateUrl: './error.component.html',
+    styleUrls: ['./error.component.scss'],
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [
+        IonLabel,
+        IonList,
+        IonInput,
+        IonItem,
+        IonContent,
+        IonPopover,
+        IonButton,
+        IonIcon,
+        MatTooltip,
+        ScrollingModule,
+        CommonModule,
+    ]
 })
 export class ErrorComponent implements OnInit, OnDestroy {
   errorSubsription: Subscription | undefined;
@@ -75,7 +75,7 @@ export class ErrorComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.errorSubsription = this.searchService.notification$.subscribe(
-      (notification) => {
+      (notification: Notification) => {
         if (notification.type == NotificationType.Exception) {
           this.errors = [...this.errors, notification.result];
           this.cd.markForCheck();

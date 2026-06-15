@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectionStrategy } from '@angular/core';
 import {
   IonApp,
   IonSplitPane,
@@ -20,7 +20,7 @@ import { ProgressComponent } from './components/progress/progress.component';
 import { addIcons } from 'ionicons';
 import { close, menu } from 'ionicons/icons';
 import { ErrorComponent } from './components/error/error.component';
-import { IElectronAPI } from 'interface';
+import { IElectronAPI } from '../../interface';
 
 declare global {
   interface Window {
@@ -29,29 +29,29 @@ declare global {
 }
 
 @Component({
-  selector: 'app-root',
-  templateUrl: 'app.component.html',
-  styleUrls: ['app.component.scss'],
-  standalone: true,
-  imports: [
-    IonRow,
-    IonGrid,
-    IonIcon,
-    IonButton,
-    IonTitle,
-    IonToolbar,
-    IonHeader,
-    IonRouterOutlet,
-    IonApp,
-    IonSplitPane,
-    IonMenu,
-    IonContent,
-    SearchFormComponent,
-    ResultsComponent,
-    ProgressComponent,
-    IonMenuToggle,
-    ErrorComponent,
-  ],
+    selector: 'app-root',
+    templateUrl: 'app.component.html',
+    styleUrls: ['app.component.scss'],
+    changeDetection: ChangeDetectionStrategy.Eager,
+    imports: [
+        IonRow,
+        IonGrid,
+        IonIcon,
+        IonButton,
+        IonTitle,
+        IonToolbar,
+        IonHeader,
+        IonRouterOutlet,
+        IonApp,
+        IonSplitPane,
+        IonMenu,
+        IonContent,
+        SearchFormComponent,
+        ResultsComponent,
+        ProgressComponent,
+        IonMenuToggle,
+        ErrorComponent,
+    ]
 })
 export class AppComponent {
   public labels = ['Family', 'Friends', 'Notes', 'Work', 'Travel', 'Reminders'];
